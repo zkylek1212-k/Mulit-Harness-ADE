@@ -1,103 +1,410 @@
-import { useEffect, useState } from 'react'
+import { useState, useEffect, useCallback, type JSX } from 'react'
 import { openDiff, useWorkbench } from '@/store'
+import './git.css'
+
+type GitStatus = Awaited<ReturnType<typeof window.api.git.status>>
+type GitCommit = Awaited<ReturnType<typeof window.api.git.log>>[number]
+type GitFileChange = GitStatus['staged'][number]
+
+function splitPath(fullPath: string): { fileName: string; dirPath: string } {
+  const normalized = fullPath.replace(/\\/g, '/')
+  const lastSlash = normalized.lastIndexOf('/')
+  if (lastSlash === -1) {
+    return { fileName: normalized, dirPath: '' }
+  }
+  return {
+    fileName: normalized.slice(lastSlash + 1),
+    dirPath: normalized.slice(0, lastSlash)
+  }
+}
+
+function formatDate(dateStr: string): string {
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return dateStr
+    return d.toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  } catch {
+    return dateStr
+  }
+}
 
 export default function GitPanel(): JSX.Element {
   const { gitTick } = useWorkbench()
-  const [status, setStatus] = useState<any>(null)
-  const [logs, setLogs] = useState<any[]>([])
-  const [branches, setBranches] = useState<{current: string, all: string[]}>({ current: '', all: [] })
-  const [message, setMessage] = useState('')
 
-  const refresh = async () => {
+  const [status, setStatus] = useState<GitStatus | null>(null)
+  const [commits, setCommits] = useState<GitCommit[]>([])
+  const [branches, setBranches] = useState<{ current: string; all: string[] }>({
+    current: '',
+    all: []
+  })
+  const [error, setError] = useState<string | null>(null)
+  const [commitMsg, setCommitMsg] = useState('')
+  const [committing, setCommitting] = useState(false)
+
+  // Collapsible section toggles
+  const [stagedOpen, setStagedOpen] = useState(true)
+  const [unstagedOpen, setUnstagedOpen] = useState(true)
+  const [untrackedOpen, setUntrackedOpen] = useState(true)
+  const [logOpen, setLogOpen] = useState(true)
+
+  const fetchData = useCallback(async () => {
     try {
-      const s = await window.api.git.status()
+      const [s, l, b] = await Promise.all([
+        window.api.git.status(),
+        window.api.git.log(30),
+        window.api.git.branches()
+      ])
       setStatus(s)
-      if (s.isRepo) {
-        const l = await window.api.git.log(30)
-        setLogs(l)
-        const b = await window.api.git.branches()
-        setBranches(b)
-      }
-    } catch (e) {
-      console.error('Failed to refresh git', e)
+      setCommits(l)
+      setBranches(b)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData, gitTick])
+
+  const handleStage = async (e: React.MouseEvent, path: string): Promise<void> => {
+    e.stopPropagation()
+    try {
+      setError(null)
+      await window.api.git.stage(path)
+      await fetchData()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err))
     }
   }
 
-  useEffect(() => {
-    refresh()
-  }, [gitTick])
-
-  if (!status) return <div style={{ padding: 10, color: 'var(--fg)' }}>Loading...</div>
-  if (!status.isRepo) return <div style={{ padding: 10, color: 'var(--fg)' }}>目前資料夾不是 git repo</div>
-
-  const handleStage = async (path: string) => { await window.api.git.stage(path); refresh() }
-  const handleUnstage = async (path: string) => { await window.api.git.unstage(path); refresh() }
-  const handleRestore = async (path: string) => { await window.api.git.restore(path); refresh() }
-  const handleCommit = async () => {
-    if (!message) return
-    await window.api.git.commit(message)
-    setMessage('')
-    refresh()
+  const handleUnstage = async (e: React.MouseEvent, path: string): Promise<void> => {
+    e.stopPropagation()
+    try {
+      setError(null)
+      await window.api.git.unstage(path)
+      await fetchData()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
   }
-  const handleCheckout = async (b: string) => { await window.api.git.checkout(b); refresh() }
+
+  const handleRestore = async (e: React.MouseEvent, path: string): Promise<void> => {
+    e.stopPropagation()
+    try {
+      setError(null)
+      await window.api.git.restore(path)
+      await fetchData()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  const handleCommit = async (): Promise<void> => {
+    if (!commitMsg.trim() || committing) return
+    try {
+      setCommitting(true)
+      setError(null)
+      await window.api.git.commit(commitMsg.trim())
+      setCommitMsg('')
+      await fetchData()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setCommitting(false)
+    }
+  }
+
+  const handleBranchChange = async (branch: string): Promise<void> => {
+    if (!branch || branch === branches.current) return
+    try {
+      setError(null)
+      await window.api.git.checkout(branch)
+      await fetchData()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  if (status && !status.isRepo) {
+    return (
+      <div className="git-container">
+        <div className="git-not-repo">目前資料夾不是 git repo</div>
+      </div>
+    )
+  }
+
+  const stagedCount = status?.staged.length ?? 0
+  const unstagedCount = status?.unstaged.length ?? 0
+  const untrackedCount = status?.untracked.length ?? 0
+  const isClean = stagedCount === 0 && unstagedCount === 0 && untrackedCount === 0
 
   return (
-    <div style={{ padding: 10, color: 'var(--fg)', backgroundColor: 'var(--bg2)', height: '100%', overflowY: 'auto' }}>
-      <div style={{ marginBottom: 10 }}>
-        Branch: 
-        <select value={branches.current} onChange={e => handleCheckout(e.target.value)} style={{ marginLeft: 5, background: 'var(--bg2)', color: 'var(--fg)' }}>
-          {branches.all.map(b => <option key={b} value={b}>{b}</option>)}
+    <div className="git-container">
+      {/* 頂部：分支列與下拉選單 */}
+      <div className="git-topbar">
+        <span className="git-branch-label" title={`目前分支: ${branches.current}`}>
+          ⎇
+        </span>
+        <select
+          className="git-branch-select"
+          value={branches.current}
+          onChange={(e) => handleBranchChange(e.target.value)}
+          title="切換分支"
+        >
+          {branches.all.length > 0 ? (
+            branches.all.map((b) => (
+              <option key={b} value={b}>
+                {b}
+              </option>
+            ))
+          ) : (
+            <option value={branches.current}>{branches.current || 'no branch'}</option>
+          )}
         </select>
+        <button className="git-icon-btn" onClick={fetchData} title="重新整理 Git 狀態">
+          ↻
+        </button>
       </div>
 
-      <div style={{ fontWeight: 'bold', marginTop: 10 }}>Staged Changes</div>
-      {status.staged.length === 0 && <div style={{ opacity: 0.5 }}>No staged changes</div>}
-      {status.staged.map((f: any) => (
-        <div key={f.path} style={{ display: 'flex', justifyContent: 'space-between', margin: '4px 0' }}>
-          <span style={{ cursor: 'pointer', color: 'var(--green)' }} onClick={() => openDiff(f.path)}>{f.path}</span>
-          <button onClick={() => handleUnstage(f.path)} style={{ background: 'var(--bg2)', color: 'var(--fg)' }}>−</button>
+      {/* 錯誤通知條 */}
+      {error && (
+        <div className="git-banner-error">
+          <span>{error}</span>
+          <button className="git-icon-btn" onClick={() => setError(null)}>
+            ✕
+          </button>
         </div>
-      ))}
+      )}
 
-      <div style={{ fontWeight: 'bold', marginTop: 10 }}>Changes</div>
-      {status.unstaged.length === 0 && <div style={{ opacity: 0.5 }}>No unstaged changes</div>}
-      {status.unstaged.map((f: any) => (
-        <div key={f.path} style={{ display: 'flex', justifyContent: 'space-between', margin: '4px 0' }}>
-          <span style={{ cursor: 'pointer', color: 'var(--accent)' }} onClick={() => openDiff(f.path)}>{f.path}</span>
-          <div>
-            <button onClick={() => handleRestore(f.path)} style={{ background: 'var(--bg2)', color: 'var(--fg)', marginRight: 5 }}>↺ 還原</button>
-            <button onClick={() => handleStage(f.path)} style={{ background: 'var(--bg2)', color: 'var(--fg)' }}>+</button>
+      {/* 捲動清單區域 */}
+      <div className="git-scroll-area">
+        {/* Staged Changes */}
+        <div className="git-section">
+          <div
+            className="git-section-header"
+            onClick={() => setStagedOpen(!stagedOpen)}
+          >
+            <span>
+              {stagedOpen ? '▾' : '▸'} Staged Changes
+            </span>
+            <span className="git-badge">{stagedCount}</span>
           </div>
-        </div>
-      ))}
 
-      <div style={{ fontWeight: 'bold', marginTop: 10 }}>Untracked</div>
-      {status.untracked.length === 0 && <div style={{ opacity: 0.5 }}>No untracked files</div>}
-      {status.untracked.map((f: any) => (
-        <div key={f} style={{ display: 'flex', justifyContent: 'space-between', margin: '4px 0' }}>
-          <span style={{ cursor: 'pointer', color: 'var(--accent)' }} onClick={() => openDiff(f)}>{f}</span>
-          <button onClick={() => handleStage(f)} style={{ background: 'var(--bg2)', color: 'var(--fg)' }}>+</button>
+          {stagedOpen && (
+            <div className="git-file-list">
+              {stagedCount === 0 ? (
+                <div className="git-empty-msg">無暫存變更</div>
+              ) : (
+                status?.staged.map((f: GitFileChange) => {
+                  const { fileName, dirPath } = splitPath(f.path)
+                  return (
+                    <div
+                      key={f.path}
+                      className="git-file-row"
+                      onClick={() => openDiff(f.path)}
+                      title={f.path}
+                    >
+                      <div className="git-file-info">
+                        <span className="git-file-badge git-badge-green">
+                          {f.index.trim() || 'A'}
+                        </span>
+                        <span className="git-file-name">{fileName}</span>
+                        {dirPath && <span className="git-file-path">{dirPath}</span>}
+                      </div>
+                      <div className="git-row-actions">
+                        <button
+                          className="git-action-btn git-unstage-btn"
+                          onClick={(e) => handleUnstage(e, f.path)}
+                          title="Unstage (取消暫存)"
+                        >
+                          −
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          )}
         </div>
-      ))}
 
-      <div style={{ marginTop: 20 }}>
-        <input 
-          type="text" 
-          value={message} 
-          onChange={e => setMessage(e.target.value)} 
-          placeholder="Commit message"
-          style={{ width: '100%', marginBottom: 5, background: 'var(--bg2)', color: 'var(--fg)', border: '1px solid var(--fg)' }}
-        />
-        <button onClick={handleCommit} style={{ width: '100%', background: 'var(--bg2)', color: 'var(--fg)' }}>Commit</button>
+        {/* Changes (unstaged) */}
+        <div className="git-section">
+          <div
+            className="git-section-header"
+            onClick={() => setUnstagedOpen(!unstagedOpen)}
+          >
+            <span>
+              {unstagedOpen ? '▾' : '▸'} Changes
+            </span>
+            <span className="git-badge">{unstagedCount}</span>
+          </div>
+
+          {unstagedOpen && (
+            <div className="git-file-list">
+              {unstagedCount === 0 ? (
+                <div className="git-empty-msg">無未暫存變更</div>
+              ) : (
+                status?.unstaged.map((f: GitFileChange) => {
+                  const { fileName, dirPath } = splitPath(f.path)
+                  return (
+                    <div
+                      key={f.path}
+                      className="git-file-row"
+                      onClick={() => openDiff(f.path)}
+                      title={f.path}
+                    >
+                      <div className="git-file-info">
+                        <span className="git-file-badge git-badge-red">
+                          {f.working_dir.trim() || 'M'}
+                        </span>
+                        <span className="git-file-name">{fileName}</span>
+                        {dirPath && <span className="git-file-path">{dirPath}</span>}
+                      </div>
+                      <div className="git-row-actions">
+                        <button
+                          className="git-action-btn git-restore-btn"
+                          onClick={(e) => handleRestore(e, f.path)}
+                          title="Restore (還原變更)"
+                        >
+                          ↺
+                        </button>
+                        <button
+                          className="git-action-btn git-stage-btn"
+                          onClick={(e) => handleStage(e, f.path)}
+                          title="Stage (暫存變更)"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Untracked */}
+        <div className="git-section">
+          <div
+            className="git-section-header"
+            onClick={() => setUntrackedOpen(!untrackedOpen)}
+          >
+            <span>
+              {untrackedOpen ? '▾' : '▸'} Untracked
+            </span>
+            <span className="git-badge">{untrackedCount}</span>
+          </div>
+
+          {untrackedOpen && (
+            <div className="git-file-list">
+              {untrackedCount === 0 ? (
+                <div className="git-empty-msg">無未追蹤檔案</div>
+              ) : (
+                status?.untracked.map((filePath: string) => {
+                  const { fileName, dirPath } = splitPath(filePath)
+                  return (
+                    <div
+                      key={filePath}
+                      className="git-file-row"
+                      onClick={() => openDiff(filePath)}
+                      title={filePath}
+                    >
+                      <div className="git-file-info">
+                        <span className="git-file-badge git-badge-green">U</span>
+                        <span className="git-file-name">{fileName}</span>
+                        {dirPath && <span className="git-file-path">{dirPath}</span>}
+                      </div>
+                      <div className="git-row-actions">
+                        <button
+                          className="git-action-btn git-stage-btn"
+                          onClick={(e) => handleStage(e, filePath)}
+                          title="Stage (暫存變更)"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          )}
+        </div>
+
+        {isClean && (
+          <div className="git-empty-msg" style={{ textAlign: 'center', padding: '16px 0' }}>
+            工作區乾淨，無任何變更
+          </div>
+        )}
+
+        {/* Recent Commits / Log */}
+        <div className="git-section git-log-section">
+          <div
+            className="git-section-header"
+            onClick={() => setLogOpen(!logOpen)}
+          >
+            <span>
+              {logOpen ? '▾' : '▸'} Recent Commits
+            </span>
+            <span className="git-badge">{commits.length}</span>
+          </div>
+
+          {logOpen && (
+            <div className="git-file-list">
+              {commits.length === 0 ? (
+                <div className="git-empty-msg">無歷史提交</div>
+              ) : (
+                commits.map((c: GitCommit) => (
+                  <div key={c.hash} className="git-log-item" title={c.message}>
+                    <div className="git-log-header">
+                      <span className="git-log-hash">{c.hash}</span>
+                      <span className="git-log-date">{formatDate(c.date)}</span>
+                    </div>
+                    <div className="git-log-msg">{c.message}</div>
+                    <div className="git-log-author">{c.author}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
-      <div style={{ fontWeight: 'bold', marginTop: 20 }}>Log</div>
-      {logs.map(l => (
-        <div key={l.hash} style={{ fontSize: '0.9em', borderBottom: '1px solid #444', padding: '4px 0' }}>
-          <div style={{ color: 'var(--accent)' }}>{l.hash} - {l.message}</div>
-          <div style={{ opacity: 0.7 }}>{l.author} @ {l.date}</div>
-        </div>
-      ))}
+      {/* 底部：Commit 訊息與按鈕 */}
+      <div className="git-commit-box">
+        <textarea
+          className="git-commit-textarea"
+          value={commitMsg}
+          onChange={(e) => setCommitMsg(e.target.value)}
+          placeholder="Commit message (Ctrl+Enter to commit)..."
+          rows={3}
+          onKeyDown={(e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+              e.preventDefault()
+              handleCommit()
+            }
+          }}
+        />
+        <button
+          className="git-commit-btn"
+          disabled={committing || !commitMsg.trim() || stagedCount === 0}
+          onClick={handleCommit}
+          title={
+            stagedCount === 0
+              ? '請先暫存變更 (Stage) 再進行提交'
+              : '提交暫存變更 (Ctrl+Enter)'
+          }
+        >
+          {committing ? 'Committing...' : 'Commit'}
+        </button>
+      </div>
     </div>
   )
 }
