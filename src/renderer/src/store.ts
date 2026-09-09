@@ -1,0 +1,40 @@
+import { useSyncExternalStore } from 'react'
+
+// ── 極簡跨 panel 狀態（第二個整合縫合處）──────────────────────────────
+// panel 只透過這些函式/hook 互動，彼此不直接 import。不要在 panel 內改這個檔。
+//   openFile(path)  → 中央進入編輯模式並載入該檔（FileTree 點檔用）
+//   openDiff(path)  → 中央進入 Git diff 模式（Git panel 點變更檔用）
+//   bumpGit()       → 通知 Git panel 重新抓 status（存檔 / commit 後呼叫）
+export interface WorkbenchState {
+  activeFilePath: string | null
+  viewMode: 'edit' | 'diff'
+  gitTick: number // 遞增即代表 git 狀態該刷新
+}
+
+let state: WorkbenchState = { activeFilePath: null, viewMode: 'edit', gitTick: 0 }
+const listeners = new Set<() => void>()
+
+function set(patch: Partial<WorkbenchState>): void {
+  state = { ...state, ...patch }
+  listeners.forEach((l) => l())
+}
+
+export function openFile(path: string): void {
+  set({ activeFilePath: path, viewMode: 'edit' })
+}
+export function openDiff(path: string): void {
+  set({ activeFilePath: path, viewMode: 'diff' })
+}
+export function bumpGit(): void {
+  set({ gitTick: state.gitTick + 1 })
+}
+
+export function useWorkbench(): WorkbenchState {
+  return useSyncExternalStore(
+    (cb) => {
+      listeners.add(cb)
+      return () => listeners.delete(cb)
+    },
+    () => state
+  )
+}

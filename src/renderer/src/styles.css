@@ -1,0 +1,94 @@
+:root {
+  --bg: #1e1e1e;
+  --bg2: #252526;
+  --bg3: #2d2d30;
+  --fg: #d4d4d4;
+  --fg-dim: #858585;
+  --accent: #0e639c;
+  --border: #3c3c3c;
+  --green: #4ec9b0;
+  --red: #f48771;
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font: 13px/1.5 'Segoe UI', system-ui, sans-serif;
+  overflow: hidden;
+}
+
+.app {
+  display: grid;
+  grid-template-columns: 260px 1fr 460px;
+  height: 100vh;
+}
+.col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+.col-right {
+  border-right: none;
+}
+
+.tabbar {
+  display: flex;
+  gap: 2px;
+  padding: 4px 6px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+  align-items: center;
+}
+.tabbar.static {
+  padding: 8px 10px;
+  color: var(--fg-dim);
+  font-weight: 600;
+}
+.tabbar button {
+  background: transparent;
+  color: var(--fg-dim);
+  border: none;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.tabbar button:hover {
+  background: var(--bg3);
+  color: var(--fg);
+}
+.tabbar button.on {
+  background: var(--bg3);
+  color: var(--fg);
+}
+
+.panel-body {
+  flex: 1 1 auto;
+  position: relative;
+  overflow: hidden;
+}
+.fill {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+}
+
+.panel-stub {
+  padding: 16px;
+  color: var(--fg-dim);
+}
+.panel-stub code {
+  color: var(--green);
+}

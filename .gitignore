@@ -1,0 +1,7 @@
+node_modules/
+out/
+dist/
+.deps/
+*.log
+.DS_Store
+.hub_prompt.md
