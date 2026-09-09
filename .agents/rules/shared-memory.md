@@ -48,13 +48,27 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 # Latest Handoff
 
-- Updated: 2026-09-09 19:30 Asia/Taipei
+- Updated: 2026-09-09 20:40 Asia/Taipei
 - Agent: Claude Code
-- Task: Phase 4 面板深度整合 + 安裝 ShareProjectMem
+- Task: Customized 擴充管理面板 + 終端雙向橋接 + shell 支援
 - Branch: master
 - Commit: Uncommitted
 
-## Done
+## Done（本輪）
+- **Customized 面板**（`src/renderer/src/panels/customized/CustomizedPanel.tsx`）：
+  一次看到 Claude / Antigravity / Codex 三家各裝了什麼、哪些可用。Codex 掛 Pending（本機未裝）。
+- **跨 agent 擴充管理**：`.workbench/extensions.yaml` 為唯一真相，
+  `src/main/ext/adapters.ts` 生成各家原生設定；寫入前一律用 Monaco Diff 預覽並需確認。
+- **Connections**：`src/main/ipc/conn.ts` 以 Electron safeStorage 加密存
+  `.workbench/credentials.enc`（已 gitignore）；憑證不寫進任何 agent 設定檔，
+  只在 `src/main/ipc/pty.ts` spawn CLI 時注入 env。
+- **終端支援一般 shell**：PowerShell / CMD（非 Windows 為 bash / pwsh）。
+- **終端雙向橋接**：終端選取內容可「送到…」另一個 session；
+  Preview / Memory 的 shell code block 有「送到終端」。皆用 bracketed paste 貼上、不自動執行。
+- **實測校正**：Antigravity 執行檔是 `agy`（非 antigravity），已在 pty resolveCommand 修正；
+  Claude 的專案級 MCP 存在 `~/.claude.json` 的 `projects[路徑].mcpServers`，掃描器已補上。
+
+## Done（前一輪）
 - 安裝 ShareProjectMem：`.project-memory/`、`AGENTS.md`、`.agents/rules/shared-memory.md`、
   `.githooks/pre-commit`、`.githooks/post-merge`，並設 `core.hooksPath .githooks`
 - 終端待審批紅點：`src/renderer/src/panels/terminal/approvalDetect.ts` 偵測提示字串，
