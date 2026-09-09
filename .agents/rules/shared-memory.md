@@ -62,16 +62,12 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
   並依 Vite 慣例掛上各語言 worker；CSP 補 `worker-src 'self' blob:`。
   bundle 因此從 2.7MB 增為 9.1MB（monaco 本地化的必然代價）。已截圖確認語法高亮、
   行號、minimap 全部正常。
-- **硬體分析 MCP server**：`tools/hardware-mcp/server.py`，MCP stdio + JSON-RPC 2.0，
-  **純標準庫、零 pip 安裝**。四個工具：
-  - `usb_list_devices`：Windows 走 Get-PnpDevice，Linux/macOS 走 lsusb 或 pyusb；
-    都沒有時回報缺什麼，不假造裝置。實測列出本機 37 個裝置。
-  - `usb_parse_descriptor`：解析 device / config / interface / endpoint / string 描述元。
-  - `pcap_summary`：自寫 pcap 與 pcapng 解析（含 USB link type），不需要 scapy。
-  - `analyze_log`：BIOS／serial log 的錯誤警告、POST code、最大時間間隔、重複行。
-  - `py -3 tools/hardware-mcp/server.py --selftest` 為隨附自我檢查（純解析器 + 協定面）。
-- 串接：`.mcp/hardware.json`、`agents/claude_dev.yaml`（`--mcp-config`）、
-  `.workbench/extensions.yaml` 的 manifest 都指向真實 server。
+- **硬體分析 MCP：已建置後移除（使用者決定）。**
+  原規劃 Phase 3 寫「接入現有 Python 腳本」，但 repo 內沒有任何腳本，我自行寫了一組
+  通用工具頂替。事後檢討：四個工具裡只有 pcap 解析（二進位、LLM 讀不了）與
+  descriptor 拆解（LLM 算術易錯）真的掙到位置；list_devices 與 log 分析 agent 本來就會做，
+  是為做而做。且我把它設成 launcher 預設載入，等於把用不到的東西強加給使用者。
+  **決議：整包移除，骨架（Customized 面板 + manifest + 同步）保留，日後有真實腳本再掛。**
 - **編輯器多檔分頁**：store 新增 `openTabs` / `closeTab`；EditorPanel 每檔一份 model，
   **切換分頁不會弄丟未存檔的編輯**，關閉有未存檔的分頁會先確認。
 - **打包發佈**：`electron-builder.yml`（NSIS）＋ `npm run pack` / `npm run dist`。
@@ -79,9 +75,8 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
   硬體 MCP 以 extraResources 隨附。實測產物可啟動、stderr 空白。
 
 ## Not done / 待驗證
-- **硬體 MCP 掛進 Claude Code 尚未端到端驗證**：server 本身已用真實協定往返驗過，
-  但 `claude` CLI 的 OAuth session 過期，無法確認 CLI 真的載入它。
-  重新登入後跑：`claude -p "list mcp__hardware tools" --mcp-config .mcp/hardware.json`
+- Phase 3 硬體 MCP：**刻意未做**。要掛時在 Customized 面板新增 MCP 項目即可，
+  或直接編 `.workbench/extensions.yaml`（檔內有註解範例）。
 - Antigravity 的 `mcp_config.json` 外層結構仍是推定（該檔初始 0 bytes）。
 - Git Commit Graph 刻意未做。
 - 應用程式圖示未設，目前是 Electron 預設圖示。
@@ -94,8 +89,6 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 ## Tests
 - `npm run typecheck` → pass
 - `npm run build` → pass
-- `npm run mcp:selftest` → selftest OK
-- MCP 協定往返（initialize / tools/list / tools/call）→ pass，真實列出 37 個 USB 裝置
 - `npm run pack` → 產物 `release/win-unpacked` 可啟動，stderr 空白
 - 自動化 UI 測試：開兩個 PowerShell、左右分割、底部停靠 → pass
 
