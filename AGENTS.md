@@ -58,6 +58,21 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 - Commit: Uncommitted
 
 ## Done（本輪）
+- **版面可自由調整**：三欄之間加可拖曳分隔線（`src/renderer/src/components/Splitter.tsx`），
+  支援拖曳／雙擊還原／方向鍵微調，尺寸存 localStorage（`src/renderer/src/layout.ts`）。
+- **終端可停靠右側或底部**：titlebar 的 Right／Bottom 切換。切換只換
+  `grid-template-areas`、JSX 結構不動 —— 否則 React 會 unmount TerminalPanel，
+  把所有終端 session 殺掉。**改這段時務必維持單一 JSX 結構。**
+- **終端分割顯示**：單一／左右／上下／四宮格，顯示哪幾個依 MRU 自動決定，
+  作用中面板有藍框。
+- **修掉真 bug：關閉終端／關 app 會留下孤兒 shell 行程。**
+  node-pty 在 Windows 的 `kill()` 會先 fork `conpty_console_list_agent`，
+  該 helper 在 Electron 下必定以 AttachConsole failed 崩潰，於是要等滿 5 秒
+  timeout 才真的殺；`before-quit` 根本等不到。改為在 `src/main/ipc/pty.ts` 的
+  `hardKill()` 先 `taskkill /T /F` 殺掉整棵 process tree 再呼叫 kill()。
+  實測：開兩個 PowerShell 後關閉 app，powershell 行程數 before=after，無殘留。
+  註：那行 AttachConsole stderr 仍會出現（helper 仍被 fork），但已不影響行為。
+
 - **Customized 面板**（`src/renderer/src/panels/customized/CustomizedPanel.tsx`）：
   一次看到 Claude / Antigravity / Codex 三家各裝了什麼、哪些可用。Codex 掛 Pending（本機未裝）。
 - **跨 agent 擴充管理**：`.workbench/extensions.yaml` 為唯一真相，
