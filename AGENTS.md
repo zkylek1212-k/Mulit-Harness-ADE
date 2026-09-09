@@ -58,6 +58,13 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 - Commit: Uncommitted
 
 ## Done（本輪）
+- **修掉一個會直接出貨的核心 bug：Monaco 編輯器根本沒在運作。**
+  `@monaco-editor/react` 預設從 CDN 載入 monaco，而本 app 的 CSP 是 default-src 'self'，
+  請求被擋 → 編輯器永遠停在 "Loading..."。先前畫面都停在自訂空狀態元件，所以沒露餡。
+  改為 `src/renderer/src/monaco-setup.ts`：`loader.config({ monaco })` 用本地打包版，
+  並依 Vite 慣例掛上各語言 worker；CSP 補 `worker-src 'self' blob:`。
+  bundle 因此從 2.7MB 增為 9.1MB（monaco 本地化的必然代價）。已截圖確認語法高亮、
+  行號、minimap 全部正常。
 - **硬體分析 MCP server**：`tools/hardware-mcp/server.py`，MCP stdio + JSON-RPC 2.0，
   **純標準庫、零 pip 安裝**。四個工具：
   - `usb_list_devices`：Windows 走 Get-PnpDevice，Linux/macOS 走 lsusb 或 pyusb；
