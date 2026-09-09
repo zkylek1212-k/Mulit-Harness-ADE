@@ -5,13 +5,37 @@ import { useSyncExternalStore } from 'react'
 //   openFile(path)  → 中央進入編輯模式並載入該檔（FileTree 點檔用）
 //   openDiff(path)  → 中央進入 Git diff 模式（Git panel 點變更檔用）
 //   bumpGit()       → 通知 Git panel 重新抓 status（存檔 / commit 後呼叫）
+//   toggleTheme()   → 切換亮暗；panel 需 JS 感知主題時讀 useWorkbench().theme
+export type Theme = 'light' | 'dark'
 export interface WorkbenchState {
   activeFilePath: string | null
   viewMode: 'edit' | 'diff'
   gitTick: number // 遞增即代表 git 狀態該刷新
+  theme: Theme
 }
 
-let state: WorkbenchState = { activeFilePath: null, viewMode: 'edit', gitTick: 0 }
+function initialTheme(): Theme {
+  try {
+    const saved = localStorage.getItem('wb-theme')
+    if (saved === 'light' || saved === 'dark') return saved
+  } catch {
+    /* localStorage 不可用時忽略 */
+  }
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
+
+function applyTheme(theme: Theme): void {
+  document.documentElement.setAttribute('data-theme', theme)
+}
+
+let state: WorkbenchState = {
+  activeFilePath: null,
+  viewMode: 'edit',
+  gitTick: 0,
+  theme: initialTheme()
+}
+applyTheme(state.theme)
+
 const listeners = new Set<() => void>()
 
 function set(patch: Partial<WorkbenchState>): void {
@@ -27,6 +51,16 @@ export function openDiff(path: string): void {
 }
 export function bumpGit(): void {
   set({ gitTick: state.gitTick + 1 })
+}
+export function toggleTheme(): void {
+  const next: Theme = state.theme === 'dark' ? 'light' : 'dark'
+  applyTheme(next)
+  try {
+    localStorage.setItem('wb-theme', next)
+  } catch {
+    /* 忽略 */
+  }
+  set({ theme: next })
 }
 
 export function useWorkbench(): WorkbenchState {

@@ -1,13 +1,61 @@
+/* ── Apple-style 設計系統：亮暗雙主題 token ──────────────────────────
+   panel 一律用這些 CSS 變數上色，不寫死顏色；主題由 store 在 <html data-theme> 切換。 */
 :root {
-  --bg: #1e1e1e;
-  --bg2: #252526;
-  --bg3: #2d2d30;
-  --fg: #d4d4d4;
-  --fg-dim: #858585;
-  --accent: #0e639c;
-  --border: #3c3c3c;
-  --green: #4ec9b0;
-  --red: #f48771;
+  /* Light（預設） */
+  --bg: #f5f5f7;
+  --bg2: #ffffff;
+  --bg3: #ececef;
+  --bg-elevated: rgba(255, 255, 255, 0.72);
+  --fg: #1d1d1f;
+  --fg-dim: #6e6e73;
+  --accent: #0071e3;
+  --accent-fg: #ffffff;
+  --border: rgba(0, 0, 0, 0.1);
+  --border-strong: rgba(0, 0, 0, 0.16);
+  --green: #1a7f37;
+  --red: #d70015;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 8px 24px rgba(0, 0, 0, 0.06);
+  --radius: 8px;
+  --radius-sm: 6px;
+  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI',
+    system-ui, 'Helvetica Neue', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+  --mono: 'SF Mono', 'JetBrains Mono', 'Cascadia Code', ui-monospace, Menlo, Consolas, monospace;
+}
+
+/* 系統偏好暗色時、JS 尚未設定 data-theme 前的 FOUC 保護 */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #1c1c1e;
+    --bg2: #2c2c2e;
+    --bg3: #3a3a3c;
+    --bg-elevated: rgba(44, 44, 46, 0.72);
+    --fg: #f5f5f7;
+    --fg-dim: #98989d;
+    --accent: #0a84ff;
+    --accent-fg: #ffffff;
+    --border: rgba(255, 255, 255, 0.1);
+    --border-strong: rgba(255, 255, 255, 0.18);
+    --green: #30d158;
+    --red: #ff453a;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* 明確選暗色（store 切換的權威來源） */
+:root[data-theme='dark'] {
+  --bg: #1c1c1e;
+  --bg2: #2c2c2e;
+  --bg3: #3a3a3c;
+  --bg-elevated: rgba(44, 44, 46, 0.72);
+  --fg: #f5f5f7;
+  --fg-dim: #98989d;
+  --accent: #0a84ff;
+  --accent-fg: #ffffff;
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --green: #30d158;
+  --red: #ff453a;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.3);
 }
 
 * {
@@ -22,14 +70,49 @@ body,
 body {
   background: var(--bg);
   color: var(--fg);
-  font: 13px/1.5 'Segoe UI', system-ui, sans-serif;
+  font: 13px/1.55 var(--font);
+  -webkit-font-smoothing: antialiased;
   overflow: hidden;
 }
 
+/* ── 版面：頂部 titlebar + 三欄 ─────────────────────────────── */
 .app {
   display: grid;
-  grid-template-columns: 260px 1fr 460px;
+  grid-template-rows: 44px 1fr;
+  grid-template-columns: 1fr;
   height: 100vh;
+}
+.titlebar {
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px;
+  background: var(--bg-elevated);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid var(--border);
+  -webkit-app-region: drag;
+}
+.titlebar .brand {
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+.titlebar .brand .dot {
+  color: var(--accent);
+}
+.titlebar .spacer {
+  flex: 1;
+}
+.titlebar button {
+  -webkit-app-region: no-drag;
+}
+
+.workarea {
+  grid-row: 2;
+  display: grid;
+  grid-template-columns: 264px 1fr 460px;
+  min-height: 0;
 }
 .col {
   display: flex;
@@ -37,39 +120,87 @@ body {
   min-width: 0;
   border-right: 1px solid var(--border);
   overflow: hidden;
+  background: var(--bg);
 }
 .col-right {
   border-right: none;
 }
 
+/* ── segmented-control 風格 tabbar ───────────────────────────── */
 .tabbar {
   display: flex;
   gap: 2px;
-  padding: 4px 6px;
-  background: var(--bg2);
-  border-bottom: 1px solid var(--border);
+  padding: 8px 10px;
   flex: 0 0 auto;
   align-items: center;
 }
-.tabbar.static {
-  padding: 8px 10px;
-  color: var(--fg-dim);
-  font-weight: 600;
+.segmented {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  background: var(--bg3);
+  border-radius: var(--radius);
 }
-.tabbar button {
+.segmented button {
   background: transparent;
   color: var(--fg-dim);
   border: none;
-  padding: 4px 10px;
-  border-radius: 4px;
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 12px;
+  font: 12px/1 var(--font);
+  transition: all 0.15s ease;
 }
-.tabbar button:hover {
-  background: var(--bg3);
+.segmented button:hover {
   color: var(--fg);
 }
-.tabbar button.on {
+.segmented button.on {
+  background: var(--bg2);
+  color: var(--fg);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+.tabbar.static {
+  color: var(--fg-dim);
+  font-weight: 600;
+  padding: 12px 14px;
+}
+
+/* 通用按鈕 */
+button {
+  font-family: var(--font);
+}
+.btn {
+  background: var(--bg2);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 5px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.15s ease;
+}
+.btn:hover {
+  background: var(--bg3);
+}
+.btn-primary {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: transparent;
+}
+.btn-primary:hover {
+  filter: brightness(1.05);
+}
+.btn-icon {
+  background: transparent;
+  border: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  font-size: 15px;
+  line-height: 1;
+}
+.btn-icon:hover {
   background: var(--bg3);
   color: var(--fg);
 }
@@ -86,9 +217,26 @@ body {
 }
 
 .panel-stub {
-  padding: 16px;
+  padding: 20px;
   color: var(--fg-dim);
 }
 .panel-stub code {
-  color: var(--green);
+  color: var(--accent);
+  font-family: var(--mono);
+}
+
+/* 捲軸（Apple 風細捲軸） */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--fg-dim);
+  background-clip: padding-box;
 }
