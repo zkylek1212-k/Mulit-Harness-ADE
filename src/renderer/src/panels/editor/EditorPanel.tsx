@@ -1,10 +1,345 @@
-// [Task A] STUB —— Monaco 編輯器 + Diff。訂閱 @/store useWorkbench()：
-//   viewMode==='edit' → 一般編輯 activeFilePath（api.files.read/write，Ctrl+S 存檔後 bumpGit()）
-//   viewMode==='diff' → MonacoDiffEditor，內容用 api.git.diff(activeFilePath) 的 {head, work}
-export default function EditorPanel(): JSX.Element {
+/// <reference path="../../../../preload/index.d.ts" />
+import { useState, useEffect, useRef, useCallback } from 'react'
+import Editor, { DiffEditor, OnMount } from '@monaco-editor/react'
+import { bumpGit, useWorkbench } from '@/store'
+import './EditorPanel.css'
+
+function detectLanguage(filePath: string): string {
+  const ext = filePath.split('.').pop()?.toLowerCase() ?? ''
+  const map: Record<string, string> = {
+    ts: 'typescript',
+    tsx: 'typescript',
+    js: 'javascript',
+    jsx: 'javascript',
+    mjs: 'javascript',
+    cjs: 'javascript',
+    json: 'json',
+    md: 'markdown',
+    markdown: 'markdown',
+    css: 'css',
+    scss: 'scss',
+    less: 'less',
+    html: 'html',
+    htm: 'html',
+    py: 'python',
+    c: 'c',
+    h: 'c',
+    cpp: 'cpp',
+    cc: 'cpp',
+    cxx: 'cpp',
+    hpp: 'cpp',
+    hh: 'cpp',
+    rs: 'rust',
+    go: 'go',
+    java: 'java',
+    sh: 'shell',
+    bash: 'shell',
+    zsh: 'shell',
+    yaml: 'yaml',
+    yml: 'yaml',
+    xml: 'xml',
+    svg: 'xml',
+    sql: 'sql',
+    ini: 'ini',
+    toml: 'ini'
+  }
+  return map[ext] || 'plaintext'
+}
+
+function EmptyEditorState(): JSX.Element {
   return (
-    <div className="panel-stub">
-      Monaco 編輯器 / Diff —— 待實作 (<code>[Task A]</code>)
+    <div className="editor-empty-container">
+      <svg
+        className="editor-empty-icon"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="16" y1="13" x2="8" y2="13" />
+        <line x1="16" y1="17" x2="8" y2="17" />
+        <polyline points="10 9 9 9 8 9" />
+      </svg>
+      <div className="editor-empty-title">未開啟任何檔案</div>
+      <div className="editor-empty-desc">
+        在左側「檔案」面板點擊檔案開始編輯，或在「Git」面板點選變更檔檢視 Diff 比對。
+      </div>
+    </div>
+  )
+}
+
+export default function EditorPanel(): JSX.Element {
+  const workbench = useWorkbench() as {
+    activeFilePath: string | null
+    viewMode: 'edit' | 'diff'
+    gitTick: number
+    theme?: 'light' | 'dark'
+  }
+
+  const { activeFilePath, viewMode, gitTick } = workbench
+  const monacoTheme = workbench.theme === 'light' ? 'light' : 'vs-dark'
+
+  // Edit mode state
+  const [content, setContent] = useState<string>('')
+  const [initialContent, setInitialContent] = useState<string>('')
+  const [isDirty, setIsDirty] = useState<boolean>(false)
+  const [isSaving, setIsSaving] = useState<boolean>(false)
+  const [saveMessage, setSaveMessage] = useState<string | null>(null)
+
+  // Diff mode state
+  const [diffData, setDiffData] = useState<{ head: string; work: string }>({
+    head: '',
+    work: ''
+  })
+
+  // Common status
+  const [loading, setLoading] = useState<boolean>(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // References for keyboard commands
+  const editorRef = useRef<any>(null)
+  const contentRef = useRef<string>('')
+  contentRef.current = content
+
+  // Save implementation
+  const handleSave = useCallback(async (): Promise<void> => {
+    if (!activeFilePath || isSaving) return
+
+    const currentText = editorRef.current
+      ? editorRef.current.getValue()
+      : contentRef.current
+
+    try {
+      setIsSaving(true)
+      setError(null)
+      await window.api.files.write(activeFilePath, currentText)
+      bumpGit()
+      setInitialContent(currentText)
+      setIsDirty(false)
+      setSaveMessage('已儲存')
+      setTimeout(() => {
+        setSaveMessage(null)
+      }, 2000)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(`儲存失敗：${msg}`)
+    } finally {
+      setIsSaving(false)
+    }
+  }, [activeFilePath, isSaving])
+
+  const saveRef = useRef(handleSave)
+  saveRef.current = handleSave
+
+  // Bind Ctrl+S / Cmd+S in global window
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault()
+        saveRef.current()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
+  // Monaco Editor Mount
+  const handleEditorDidMount: OnMount = (editor, monaco) => {
+    editorRef.current = editor
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+      saveRef.current()
+    })
+  }
+
+  // Load file or diff on activeFilePath or viewMode change
+  useEffect(() => {
+    if (!activeFilePath) {
+      setContent('')
+      setInitialContent('')
+      setIsDirty(false)
+      setError(null)
+      setLoading(false)
+      return
+    }
+
+    let isMounted = true
+
+    const loadData = async (): Promise<void> => {
+      setLoading(true)
+      setError(null)
+      try {
+        if (viewMode === 'edit') {
+          const text = await window.api.files.read(activeFilePath)
+          if (isMounted) {
+            setContent(text)
+            setInitialContent(text)
+            setIsDirty(false)
+          }
+        } else if (viewMode === 'diff') {
+          const diff = await window.api.git.diff(activeFilePath)
+          if (isMounted) {
+            setDiffData(diff || { head: '', work: '' })
+          }
+        }
+      } catch (err: unknown) {
+        if (isMounted) {
+          const msg = err instanceof Error ? err.message : String(err)
+          setError(msg)
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadData()
+
+    return () => {
+      isMounted = false
+    }
+  }, [activeFilePath, viewMode, gitTick])
+
+  const handleContentChange = (value?: string): void => {
+    const nextVal = value ?? ''
+    setContent(nextVal)
+    setIsDirty(nextVal !== initialContent)
+  }
+
+  if (!activeFilePath) {
+    return <EmptyEditorState />
+  }
+
+  const language = detectLanguage(activeFilePath)
+  const fileName = activeFilePath.split(/[\\/]/).pop() || activeFilePath
+
+  return (
+    <div className="editor-container">
+      <div className="editor-header">
+        <div className="editor-header-left">
+          <span
+            className={`editor-badge ${
+              viewMode === 'edit' ? 'badge-edit' : 'badge-diff'
+            }`}
+          >
+            {viewMode === 'edit' ? '編輯' : 'Diff 比對'}
+          </span>
+          <div className="editor-filename-wrapper" title={activeFilePath}>
+            <span className="editor-filename">{fileName}</span>
+            {viewMode === 'edit' && isDirty && (
+              <span className="editor-dirty-dot" title="未儲存變更" />
+            )}
+          </div>
+        </div>
+
+        <div className="editor-header-right">
+          {saveMessage && <span className="editor-save-badge">{saveMessage}</span>}
+          <span className="editor-lang-tag">{language}</span>
+          {viewMode === 'edit' && (
+            <button
+              className="editor-btn-save"
+              onClick={handleSave}
+              disabled={isSaving || !isDirty}
+              title="儲存檔案 (Ctrl+S / Cmd+S)"
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                <polyline points="17 21 17 13 7 13 7 21" />
+                <polyline points="7 3 7 8 15 8" />
+              </svg>
+              <span>{isSaving ? '儲存中...' : '儲存'}</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {error && (
+        <div className="editor-error-bar">
+          <span>{error}</span>
+          <button
+            className="editor-btn-save"
+            style={{ padding: '2px 8px', fontSize: '11px' }}
+            onClick={() => {
+              if (viewMode === 'edit') {
+                window.api.files.read(activeFilePath).then((t) => {
+                  setContent(t)
+                  setInitialContent(t)
+                  setIsDirty(false)
+                  setError(null)
+                }).catch(() => {})
+              } else {
+                window.api.git.diff(activeFilePath).then((d) => {
+                  setDiffData(d)
+                  setError(null)
+                }).catch(() => {})
+              }
+            }}
+          >
+            重試
+          </button>
+        </div>
+      )}
+
+      <div className="editor-body">
+        {loading && (
+          <div className="editor-loading-overlay">
+            <span>載入中...</span>
+          </div>
+        )}
+
+        {viewMode === 'edit' ? (
+          <Editor
+            path={activeFilePath}
+            value={content}
+            language={language}
+            theme={monacoTheme}
+            onMount={handleEditorDidMount}
+            onChange={handleContentChange}
+            options={{
+              fontSize: 13,
+              fontFamily: "'SF Mono', Monaco, Menlo, Consolas, 'Courier New', monospace",
+              tabSize: 2,
+              scrollBeyondLastLine: false,
+              automaticLayout: true,
+              minimap: { enabled: true, maxColumn: 80 },
+              smoothScrolling: true,
+              cursorBlinking: 'smooth',
+              wordWrap: 'on',
+              renderLineHighlight: 'all',
+              roundedSelection: true
+            }}
+          />
+        ) : (
+          <DiffEditor
+            original={diffData.head}
+            modified={diffData.work}
+            language={language}
+            theme={monacoTheme}
+            options={{
+              readOnly: true,
+              fontSize: 13,
+              fontFamily: "'SF Mono', Monaco, Menlo, Consolas, 'Courier New', monospace",
+              scrollBeyondLastLine: false,
+              automaticLayout: true,
+              renderSideBySide: true,
+              smoothScrolling: true
+            }}
+          />
+        )}
+      </div>
     </div>
   )
 }
