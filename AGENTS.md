@@ -70,6 +70,9 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
   Preview / Memory 的 shell code block 有「送到終端」。皆用 bracketed paste 貼上、不自動執行。
 - **實測校正**：Antigravity 執行檔是 `agy`（非 antigravity），已在 pty resolveCommand 修正；
   Claude 的專案級 MCP 存在 `~/.claude.json` 的 `projects[路徑].mcpServers`，掃描器已補上。
+- **介面全英文**：renderer 與 main 端所有使用者可見字串改為英文。
+  程式註解、以及 `src/renderer/src/panels/terminal/approvalDetect.ts` 用來比對
+  CLI 輸出的中文提示字串保留（那是偵測樣式，不是介面）。
 
 ## Done（前一輪）
 - 安裝 ShareProjectMem：`.project-memory/`、`AGENTS.md`、`.agents/rules/shared-memory.md`、
