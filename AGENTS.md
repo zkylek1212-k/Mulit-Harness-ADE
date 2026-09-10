@@ -51,40 +51,32 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 # Latest Handoff
 
-- Updated: 2026-09-10 14:25 Asia/Taipei
+- Updated: 2026-09-10 14:38 Asia/Taipei
 - Agent: Antigravity
-- Task: Apple UI/UX 精緻化、獨立終端視窗、空間精簡、目錄嚴格連動與雙層縮放
+- Task: Agent terminals 下拉懸浮選單、安裝 apple-design-skill 審查、全站字型統一、拔除終端重複目錄
 - Branch: master
 - Commit: Uncommitted
 
 ## Done（本輪）
-1. **移除 Browser 分頁 Emoji 符號（`App.tsx`, `TestBrowserPanel.tsx`）**：
-   - 將中央分頁標籤 `⚡ Test Browser` 改為純淨的 `Browser`。
-   - 移除網址列與裝置切換按鈕中的 Emoji 符號（改為 `Desktop`, `Tablet`, `Mobile`）。
-2. **Agent Workspace 與左側目錄嚴格連動（`store.ts`, `FileTreePanel.tsx`, `TerminalPanel.tsx`）**：
-   - 全域狀態新增 `workspaceRoot` 與 `setWorkspaceRoot()`。
-   - 左側開啟或切換目錄時自動同步至全域與後端；終端面板自動響應，徹底移除終端控制列上的 `Change` 按鈕。
-3. **統一 Apple SF-Symbols 向量圖標系統（`Icons.tsx`, 全站面板）**：
-   - 建立專屬向量圖標庫 `src/renderer/src/components/Icons.tsx`。
-   - 全面替換文字 emoji 與特殊符號（收折/展開、右停靠/底停靠、彈出/收回視窗、設定、日/月主題、增/關/清/交接/縮放）。
-4. **Apple UI/UX 深度打磨（`styles.css`, `terminal.css`）**：
-   - 採用 macOS 原生層級的深炭灰階（`#161618` 畫布底層、`#1e1e20` 面板、`#28282c` 浮動層）。
-   - 導入超細 `1px solid rgba(255, 255, 255, 0.08)` 邊框與毛玻璃材質。
-5. **中間視窗縮放機制（視窗級與內容級）（`App.tsx`, `EditorPanel.tsx`, `EditorPanel.css`）**：
-   - **視窗級（Focus Mode 專注模式 `⤢`）**：中央列提供最大化/專注按鈕，一鍵將左欄縮至 0、隱藏終端，中間獨佔 100% 畫面（維持單一 JSX 結構，終端進程不中斷）。
-   - **內容級（Zoom Controls）**：Editor 標題列新增 `－ 100% ＋` 快速字級控制器，並開啟 Monaco `mouseWheelZoom: true`。
-6. **澄清並拔除「Agent runtime」與「Local AI process workspace」裝飾標籤（`TerminalPanel.tsx`）**：
-   - 徹底移除容易令人困惑的靜態無功能裝飾文字，簡化為俐落的 `Terminals` 與 `New Agent Session`。
-7. **Agent Terminals 拉出成獨立原生視窗（`main/index.ts`, `preload/index.ts`, `TerminalPanel.tsx`, `App.tsx`）**：
-   - Electron 主行程支援 `createTerminalWindow()`，載入 `?mode=terminal-detached` 全螢幕終端視圖。
-   - 終端控制列提供彈出圖標（`IconPopout`）；獨立視窗中可一鍵 Attach 回主視窗，支援雙螢幕全螢幕監控。
-8. **徹底根治工具列擁擠（Apple Progressive Disclosure）**：
-   - 將原本佔位 180px 的 4 個啟動按鈕收斂為單一 Apple 風格的 `[ ＋ ▾ ]` 分割下拉選單。
-   - 清除按鈕與交接按鈕改為微向量圖標，釋放大量橫向負空間。
+1. **Agent terminals 下拉選單改為頂層懸浮 Popover（`TerminalPanel.tsx`, `terminal.css`）**：
+   - 透過 React `createPortal(..., document.body)` 將啟動選單脫離 `.term-strip-tabs` 捲動限制容器。
+   - 依據 `getBoundingClientRect()` 動態計算視窗座標，避免右側邊緣溢出。
+   - 導入 macOS 原生磨砂毛玻璃 (`blur(28px) saturate(190%)`)、細邊框、陰影及彈出微動畫 (`appleMenuScale`)。
+   - 支援點擊選單外或視窗縮放捲動時自動 Dismiss。
+2. **安裝 `apple-design-skill` 並完成 UI/UX 審查（`.agents/skills/apple-design`）**：
+   - 將 `https://github.com/dickwu/apple-design-skill` 完整部署至工作區 skills。
+   - 依照 5 大 Apple HIG 維度（可存取性、平台規範、視覺工藝、互動反饋、文案精煉）進行全站審查，成果記錄於實作計劃與設計反饋中。
+3. **全 APP 字型全面統一（`styles.css`, 各面板 CSS 與 TSX）**：
+   - 在 `styles.css` 明確宣告 `button, input, select, textarea` 繼承 `var(--font)`，根除 Windows/Chromium 表單元素字型分歧。
+   - 統一代碼塊 `code, kbd, samp, pre` 為 `var(--mono)`。
+   - 清除並統一 `preview.css`, `memory.css`, `git.css`, `gitGraph.css`, `EditorPanel.css`, `settingsModal.css`, `TerminalPanel.tsx`, `EditorPanel.tsx` 內硬編碼之字型。
+4. **Agent terminals 拔除重複 folder 顯示（`TerminalPanel.tsx`, `terminal.css`）**：
+   - 徹底移除終端標籤列的 `.term-strip-workspace` 目錄膠囊（左側 Explorer 標題已具備清晰路徑，避免視覺重複）。
+   - 淨化 Launchpad 歡迎文案為純淨的 `Launch an interactive Claude Code, Antigravity, or Codex agent session.`。
 
 ## Tests
 - `npm run typecheck` → pass (代碼與型別 100% 通過)
-- `npm run build` → pass (Vite 生產環境打包通過，耗時 1m)
+- `npm run build` → pass (生產環境打包成功，耗時 1m 7s)
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態
