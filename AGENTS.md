@@ -85,6 +85,19 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
      `Editor / Preview / Memory / Browser`。
    - 同步調換底層 DOM 面板節點順序。
 
+5. **修復發行版 `release/win-unpacked/Agent Workbench.exe` 啟動隱形/打不開問題**：
+   - 成因定位：
+     1. Electron 建立 `BrowserWindow({ show: false })` 時，Windows 平台上 Chromium 可能因首幀繪製延遲導致 `ready-to-show` 事件遺失或延後，`mainWindow.show()` 未觸發造成視窗永遠隱形。
+     2. `<TestBrowserPanel>` 於啟動時無條件掛載 `<webview src="http://localhost:5173">`，向未啟動之伺服器連線觸發 `ERR_CONNECTION_REFUSED` 造成 Chromium 子行程阻滯。
+     3. 缺乏單一實例鎖定（Single Instance Lock），多次點擊會在背景堆疊多個無介面行程。
+   - 修復方案：
+     - [src/main/index.ts](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/main/index.ts)：
+       - 視窗顯示加入多重保證：`once('ready-to-show')`、`once('dom-ready')`、`once('did-finish-load')` 與 500ms 逾時兜底，並呼叫 `focus()`。
+       - 引入 `app.requestSingleInstanceLock()`：杜絕重複啟動背景行程；雙擊新行程時自動還原並聚焦現有視窗。
+     - [src/renderer/src/App.tsx](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/App.tsx)：
+       - `TestBrowserPanel` 改為惰性掛載（首次點選 Browser 分頁才初次載入），避免啟動時未開 dev server 導致連線錯誤。
+     - 執行 `npm run pack` 重新編譯打包至 `release/win-unpacked/`，實測視窗正常顯示（Visible: True，HWND 正常，第二實例自動聚焦）。
+
 ## Tests
 - `npm run typecheck` → pass (TypeScript 零錯誤通過)
 
