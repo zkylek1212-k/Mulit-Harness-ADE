@@ -18,6 +18,10 @@
 - [x] Git Commit Graph 視覺化（GitGraphView 拓撲與提交歷史檢視）
 - [x] Dashboard 面板：Agent 會話歷史、Token 統計與 Apple HIG 原生警告彈窗
 - [x] Settings 與 Browser 面板：全域設定持久化與內建瀏覽器
+- [x] Git Commit 點選即時開啟 Diff 比對（Monaco DiffEditor，支援歷史 Commit 比對與檔案切換）
+- [x] Preview 預覽面板全域分頁同步（修正關閉殘留）與 Git 歷史版本 Markdown 預覽
+- [x] Antigravity CLI 會話防禦降級（解決 conversation not found）
+- [x] 中央工作區分段順序優化（Editor / Preview / Memory / Browser）
 
 ## Long-term Tasks
 - P1: 真的需要硬體分析時再包 MCP。判準：**只包 LLM 做不到或容易做錯的事**
