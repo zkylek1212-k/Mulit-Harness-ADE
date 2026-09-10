@@ -1,40 +1,41 @@
 # Latest Handoff
 
-- Updated: 2026-09-10 13:45 Asia/Taipei
+- Updated: 2026-09-10 14:05 Asia/Taipei
 - Agent: Antigravity
-- Task: 修正 CLI 啟動、品牌 Mark、Claude 插件掃描、Dashboard 歸檔/刪除、縮放超出與 Terminal UX/捲軸
+- Task: 8 項重構（左側欄折疊至 0、Cross-Session 通訊、嵌入 Test Browser、工作目錄同步提示、Customized 開關、無框頂部融合、Launchboard 風格 Terminal UX）
 - Branch: master
 - Commit: Uncommitted
 
 ## Done（本輪）
-1. **Claude / Codex CLI 啟動修復（`paths.ts`, `pty.ts`, `settings.ts`）**：
-   - 解決 Windows 下 `where.exe` 優先返回無副檔名 shell script (`claude`) 導致 `%1 is not a valid Win32 application` 的問題。
-   - `findCli` 優先尋找 `.exe`, `.cmd`, `.bat`, `.ps1`。
-   - `resolveCommand` 自動針對 `.cmd` 補上 `cmd.exe /c` 包裝，針對 `.ps1` 補上 `powershell.exe -ExecutionPolicy Bypass`。
-2. **專屬品牌 Mark 替換（`AgentMark.tsx`）**：
-   - 替換所有隨意愛心符號，為 Claude (Anthropic spark #D97706)、Antigravity (DeepMind diamond #7C3AED)、Codex (OpenAI rosette #10A37F)、Shell (Terminal icon) 繪製官方向量 SVG Mark。
-   - 應用於 Dashboard 卡片、Terminal 頂部膠囊 Dock、Safari Pill Tabs、Launchpad 卡片。
-3. **Claude 技能 / 插件 / MCP 正確對齊（`inventory.ts`）**：
-   - 修復 `installed_plugins.json` 原本因型別判斷 (`typeof x === 'string'`) 導致整個插件列表被忽略的 bug。
-   - 支援掃描使用者的獨立技能 (`~/.claude/skills/*/SKILL.md`)、外掛插件中內建的技能 (`<installPath>/skills/*/SKILL.md`)、以及插件 MCP 配置 (`<installPath>/.mcp.json`)。
-4. **Dashboard 移除金額顯示 & Session 歸檔 / 刪除（`DashboardPanel.tsx` + `dashboard.ts`）**：
-   - 移除所有金錢與價格顯示，專注於 Token 數量與百分比去向。
-   - 支援 Session 歸檔（Archive）與刪除（Delete），狀態持久化儲存於 `.workbench/dashboard-state.json`。
-   - 提供 `[ Active Sessions | Archived ]` 分類切換標籤與確認提示。
-5. **欄位縮放文字超出修正（`styles.css` + `App.tsx` + 各 Panel）**：
-   - 解決縮小時 Segmented 控制項與卡片內容文字擠出邊界的問題，加入 `min-width: 0`、`flex-shrink: 1`、`text-overflow: ellipsis`。
-6. **Agent Terminal 底部停靠捲軸問題修復（`terminal.css` + `App.tsx`）**：
-   - 解決停靠底部時 Launchpad 卡片或終端內容因高度限制被截斷且無法往下滾動的問題。
-   - Launchpad 加入 `overflow-y: auto` 與 `margin: auto 0`，小高度下自然頂端對齊並允許平滑滾動。
-   - 修復 `.term-surface` 與 `.xterm-viewport` 的捲軸渲染與高度繼承。
-7. **Agent Terminal UX 操作體驗大幅提升（`TerminalPanel.tsx` + `terminal.css`）**：
-   - 頂部工具列新增一鍵「Clear」清除終端緩衝區。
-   - Safari Pill Tabs 旁邊新增「＋」快速新增分頁按鈕。
-   - 點選終端任何空白處自動聚焦（`session.term.focus()`）。
-   - Launchpad 改為緊湊響應式設計，支援毛玻璃動態 hover 與即時啟動。
+1. **左側欄位最小化與一鍵收折（`layout.ts`, `App.tsx`, `styles.css`）**：
+   - `LIMITS.leftMin` 降至 `0`，支援拖曳小於 75px 自動吸附至 0（`leftCollapsed: true`）。
+   - 左側欄頂部提供 `⇤` 一鍵收折按鈕；收折後中央導航列左側自動浮現 `» Sidebar` 快捷展開按鈕，流暢無卡頓。
+2. **三 Agent CLI 跨 Session 溝通與交接（`pty.ts`, `TerminalPanel.tsx`, `preload/index.ts`）**：
+   - 後端新增 `pty:pipe` IPC 頻道。
+   - 終端頂部工具列提供 `↗ Hand off to…` 下拉選單，可將目前活躍 Agent 的最新執行輸出與狀態自動格式化為 Handoff Prompt，直接注入目標 Agent 終端並無縫切換焦點。
+3. **嵌入式 Test Browser 測試瀏覽器（`TestBrowserPanel.tsx`, `browser.css`, `main/index.ts`, `App.tsx`）**：
+   - Electron 主行程啟用 `webviewTag: true`。
+   - 中央區新增 `[ Editor | Preview | ⚡ Test Browser | Memory | Customized ]` 分頁。
+   - 提供智慧網址列、常用 Localhost Port 快速標籤（`:5173`, `:3000`, `:8080`, `:8000`）、歷史上一頁/下一頁/重新載入、外部瀏覽器開啟。
+   - 支援 Desktop (100%)、Tablet (768px)、Mobile (390px) 與旋轉（Rotate）響應式裝置預覽。
+4. **CLI 工作目錄連動與視覺化（`TerminalPanel.tsx`）**：
+   - 終端控制列與 Launchpad 即時顯示目前同步的 `📁 Workspace: <folder>` 路徑。
+   - 提供 `Change` 按鈕呼叫原生選取器，變更後新建的 Agent 終端皆在此工作區啟動。
+5. **Customized 技能 / MCP / 外掛開關（`CustomizedPanel.tsx`, `customized.css`, `ext.ts`, `preload/index.ts`）**：
+   - 後端新增 `ext:toggleItem` IPC，將停用清單持久化於 `.workbench/customized-state.json`；若為 Claude plugin 則自動連動同步至 `~/.claude/settings.json` 的 `enabledPlugins`。
+   - 前端每一項提供 Apple-style `[ ON | OFF ]` 膠囊滑動開關，停用項目半透明置灰。
+6. **最上方無框融合設計（`App.tsx`, `styles.css`）**：
+   - 完全移除原本獨立的 44px `.titlebar` 視窗橫條。
+   - 將 `Agent Workbench ●` 品牌名與收折按鈕融合至左欄頂部；將 Dock 停靠切換、`⚙ Settings` 與 `☀︎/☾` 主題切換直接融合至中央分頁列右側。
+   - 畫面垂直有效空間省下 44px。
+7. & 8. **參考 Launchboard 重構 Agent Terminals UX（`TerminalPanel.tsx`, `terminal.css`）**：
+   - 徹底廢除雙層工具列，將原本散亂的浮動膠囊 Dock 與 Safari Pill Tabs 合併為單一優雅的 Apple / Launchboard 控制列。
+   - 整合即時分頁、一鍵快速啟動膠囊（`＋ Claude`, `Antigravity`, `Codex`, `Shell`）、工作區路徑、Hand-off 下拉、Clear 清除與分屏切換。
+   - Launchpad 空狀態採用 Launchboard 經典黑灰層次與等寬字體 process card，點選任意區域即可即時啟動程序。
 
 ## Tests
 - `npm run typecheck` → pass (代碼與型別 100% 通過)
+- `npm run build` → pass (Vite 生產環境打包 45.44s 完成)
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態
