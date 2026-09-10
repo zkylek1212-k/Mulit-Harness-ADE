@@ -51,26 +51,20 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 # Latest Handoff
 
-- Updated: 2026-09-10 22:58 Asia/Taipei
+- Updated: 2026-09-10 23:03 Asia/Taipei
 - Agent: Antigravity
-- Task: 修復 Agent CLI 路徑自動偵測與工作區頂排欄位線條像素級齊平
+- Task: 修復 Settings Path Test 在 Windows 含空格使用者路徑下被截斷的問題
 - Branch: master
 - Commit: Uncommitted
 
 ## Done（本輪）
-1. **修復 Agent CLI 路徑自動偵測與容錯機制**：
-   - `src/main/ext/paths.ts`：加強 `findCli`，在 `where` 之外補充 Windows 常見候選目錄後備搜尋（如 `%APPDATA%\npm\claude.cmd`、`%LOCALAPPDATA%\agy\bin\agy.exe` 等），確保在 Electron 環境 PATH 未涵蓋時亦能 100% 探測到各 Agent。
-   - `src/main/ipc/settings.ts`：在 `loadSettings()` 與 `getCustomCliPath()` 加入實體存在性驗證與路徑清洗機制，自動過濾掉換機器或複製專案產生的失效絕對路徑（例如異機殘留路徑），自動回歸動態偵測。
-   - `src/renderer/src/components/SettingsModal.tsx` & `settingsModal.css`：於 CLI 設定面板新增「Auto-detect All」（一鍵自動填入偵測路徑）與「Reset to Auto」（重設回動態自動偵測）動作按鈕。
-   - `.workbench/settings.json`：清除異機殘留的失效路徑，回歸乾淨自動探測。
-2. **統一工作區頂排水平線條對齊（像素級齊平）**：
-   - `src/renderer/src/styles.css`：引入標準全域工具列高度變數 `--toolbar-h: 38px` 與次級工具列高度 `--subtoolbar-h: 34px`，並鎖定 `.tabbar` 為 38px。
-   - 統一各欄第一排高度為 38px：`memory.css`（`.memory-toolbar`）、`terminal.css`（`.term-unified-strip`）、`EditorPanel.css`（`.editor-tabs` / `.editor-header:first-child`）、`preview.css`（`.preview-tabs-bar`）、`browser.css`（`.browser-toolbar`），徹底消除先前 35px vs 38px vs 42px 導致的階梯狀錯位。
-   - 統一各欄第二排高度為 34px：`FileTreePanel.css`（`.filetree-header`）、`git.css`（`.git-topbar`）、`terminal.css`（`.term-tabs-row`）、`EditorPanel.css`（`.editor-header`）。
+1. **修復 Settings 中的 CLI Path Test（解決路徑含空格被 cmd 截斷的問題）**：
+   - **問題根源**：使用者的 Windows 家目錄包含空格（`C:\Users\Kyle Zhang\...`）。先前 `settings:testCliPath` 使用 `execFile(cmd, args, { shell: true })`，在 Windows 下 Node.js `shell: true` 不會對包含空格的 `cmd` 加上雙引號，導致 `cmd.exe` 將其拆解為 `C:\Users\Kyle`，造成 `'C:\Users\Kyle' is not recognized` 測試失敗；然而 Terminal 使用原生 `node-pty`（`CreateProcessW`）直接調用 Win32 API 自動處理引號，因此終端能正常開啟。
+   - `src/main/ipc/settings.ts`：將 `testCliPath` 重構為以 `execAsync` 執行標準雙引號包裹指令（如 `"${target}" --version`），徹底解決 Windows 含空格路徑截斷問題。
+   - `src/renderer/src/components/SettingsModal.tsx`：更新 `handleTestPath`，當使用者未輸入自訂路徑（留空動態模式）時，優先取用 `detectedPaths` 進行實體檔案版本測試，避免直接傳入未解析的裸名稱。
 
 ## Tests
 - `npm run typecheck` → pass (TypeScript 零錯誤通過)
-- `npm run build` → pass (生產環境構建成功，22.43s)
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態
