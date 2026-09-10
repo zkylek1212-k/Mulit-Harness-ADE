@@ -2,7 +2,7 @@
 
 - Milestone: M1 — Workbench 可用骨幹（完成）
 - Status: Stable
-- Last updated: 2026-09-09
+- Last updated: 2026-09-10
 
 ## Macro Progress
 - [x] Phase 0 專案骨架：Electron + Vite + React + Monaco 三欄殼
@@ -15,7 +15,9 @@
 - [x] 版面可拖曳、終端可停靠右／下、終端分割顯示
 - [x] 編輯器多檔分頁（切分頁不丟未存檔編輯）
 - [x] 打包發佈（electron-builder，NSIS；已實測 `npm run pack` 產物可啟動）
-- [ ] Git Commit Graph 視覺化（刻意延後，agent 工作流優先要 diff review）
+- [x] Git Commit Graph 視覺化（GitGraphView 拓撲與提交歷史檢視）
+- [x] Dashboard 面板：Agent 會話歷史、Token 統計與 Apple HIG 原生警告彈窗
+- [x] Settings 與 Browser 面板：全域設定持久化與內建瀏覽器
 
 ## Long-term Tasks
 - P1: 真的需要硬體分析時再包 MCP。判準：**只包 LLM 做不到或容易做錯的事**
