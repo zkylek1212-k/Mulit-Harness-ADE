@@ -7,14 +7,16 @@
 - Commit: Uncommitted
 
 ## Done（本輪）
-1. **修復 Terminal Launchpad 歡迎卡片（Empty State）的排版一致性**：
-   - **問題根源**：原卡片外部包裹層 `.term-launchpad-content` 寬度被鎖在 `640px`，導致 5 張卡片平均可用寬度僅約 98px，觸發多個詞彙突兀折行（如 `auto-` \n `wrap`、`Command` \n `Prompt`、`powershell ·` \n `direct pty`）；且因各卡片行數與高度不一致，導致底部按鈕（`Launch Session →` / `Launch Shell →`）與中繼標籤參差不齊。
+1. **修復 Terminal Launchpad 歡迎卡片（Empty State）的排版一致性與置中擴展**：
+   - **問題根源**：原先使用 CSS Grid 固定欄數（`repeat(5, 1fr)` 或 `repeat(3, 1fr)`），當啟用的 CLI 只有 4 個（或在折行時），最後一列的孤立卡片會被強行靠左對齊，右側留出大片突兀空白，整體視覺無法以中央為軸心向外展開；且先前內容層過窄觸發單詞斷行。
    - [terminal.css](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/terminal/terminal.css)：
-     - 將容器最大寬度調升至 `860px`，並加入 CSS Container Query（`container-type: inline-size`），在終端面板於不同 dock 寬度下智慧切換為 5 欄、3 欄或 2 欄。
+     - 將卡片容器從 CSS Grid 重構為 **Flexbox 置中流式擴展架構**（`display: flex; flex-wrap: wrap; justify-content: center;`）。
+     - 每張卡片鎖定為均勻的 Apple 標準尺寸（`width: 148px; flex: 0 0 148px; min-height: 172px;`）。
+     - 不論啟用 1、2、3、4 或 5 張卡片，抑或視窗縮放折行，所有行均永遠以正中心為軸心對稱向兩側展開（無任何向左單邊傾斜的失衡情況）。
      - 鎖定卡片內部各層格位高度（Icon 32px、Name 20px、Sub 18px、Meta 18px），設定 `white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`，保證每一列水平絕對齊平。
      - 底部按鈕以 `margin-top: auto;` 嚴格錨定至卡片底部，並加入 hover 箭頭微動效。
    - [TerminalPanel.tsx](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/terminal/TerminalPanel.tsx)：
-     - 整理文案結構（如 `Windows PowerShell` 與 `Windows CMD` 對稱），確保 5 張卡片之資訊架構一體化。
+     - 整理文案結構（如 `Windows PowerShell` 與 `Windows CMD` 對稱），確保卡片資訊架構一體化。
 2. **修復 Settings 中的 CLI Path Test（解決路徑含空格被 cmd 截斷的問題）**：
    - [src/main/ipc/settings.ts](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/main/ipc/settings.ts)：以 `execAsync` 執行雙引號包裹指令，解決 Windows 含空格路徑截斷問題。
    - [src/renderer/src/components/SettingsModal.tsx](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/components/SettingsModal.tsx)：當自訂路徑為空時優先取用 `detectedPaths` 進行版本測試。
