@@ -1,24 +1,27 @@
 # Latest Handoff
 
-- Updated: 2026-09-10 19:17 Asia/Taipei
+- Updated: 2026-09-10 19:22 Asia/Taipei
 - Agent: Antigravity
-- Task: 終端標籤列回歸單排優雅整合（充分利用水平空間、移除多餘第二排）
+- Task: 終端頁籤採用獨立專屬第二排（徹底消除多終端開啟時的水平擁擠感）
 - Branch: master
 - Commit: Uncommitted
 
 ## Done（本輪）
-1. **終端面板頂欄回歸單排統一佈局（Single Unified Strip）**：
-   - `TerminalPanel.tsx`：移除 `.term-tabs-row` 獨立第二排，將 `Terminals` 標籤、`+ ▾` 新增下拉選單、`@` Prompt Dispatcher、以及所有 Session Tabs 與右側控制項整合於單一頂部列。
+1. **終端頂層工具列與專屬分頁頁籤雙層架構（Two-Row Split Architecture）**：
+   - `TerminalPanel.tsx`：
+     - **第一排（全域工具列 `.term-unified-strip`，高度 35px）**：
+       - 左側收納全域功能按鈕：`Terminals` 標題、`+ ▾` 新增終端下拉選單、`@ Prompt` Agent CLI 提示派發器。
+       - 右側收納操作控制群：獨立視窗彈出、清空緩衝（Ctrl+L）、刪除 active session（垃圾桶）、跨 Agent Handoff、多重視窗分割（Split Dropdown）與待審批提示氣泡。
+     - **第二排（專屬分頁頁籤列 `.term-tabs-row`，高度 32px，僅在 `sessions.length > 0` 時顯示）**：
+       - 橫跨終端面板 100% 完整寬度，各終端分頁（如 `@claude`, `@antigravity`, `PowerShell`, `Command Prompt`）擁有寬敞無阻的專屬橫向空間。
+       - 分頁標籤名稱最大寬度提升至 `200px`，不再受到頂部動作按鈕的水平擠壓。
+       - 支援平滑橫向滾動與 2px 極細原生捲軸。
    - `terminal.css`：
-     - `.term-unified-strip`：採用單排彈性佈局（高度 38px），兼顧緊湊美觀與充足垂直操作區域。
-     - `.term-strip-left`：左側群組緊湊收納 `Terminals`、`+ ▾` 與 `@ Prompt`，防止折行與擠壓。
-     - `.term-strip-divider`：在控制組與分頁頁籤間加入細緻的垂直 Apple 分隔線。
-     - `.term-strip-tabs`：佔據中間彈性伸展區域（`flex: 1 1 auto; min-width: 0; overflow-x: auto;`），支援平滑橫向滾動與極細原生捲軸，分頁名稱限制為 `max-width: 150px`。
-     - `.term-strip-actions`：加入 `margin-left: auto;`，確保動作按鈕（彈出視窗、清空緩衝、刪除、Handoff、分割多重視窗）恆定優雅靠右對齊。
+     - 優化 `.term-unified-strip` 與 `.term-tabs-row` 的微觀間距、Apple 膠囊外觀與雙層線條對齊。
 
 ## Tests
 - `npm run typecheck` → pass (TypeScript 零錯誤通過)
-- `npm run build` → pass (生產環境構建成功，44.55s)
+- `npm run build` → pass (生產環境構建成功，37.63s)
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態
