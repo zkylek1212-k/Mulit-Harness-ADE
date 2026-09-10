@@ -1,27 +1,25 @@
 # Latest Handoff
 
-- Updated: 2026-09-10 19:22 Asia/Taipei
+- Updated: 2026-09-10 19:31 Asia/Taipei
 - Agent: Antigravity
-- Task: 終端頁籤採用獨立專屬第二排（徹底消除多終端開啟時的水平擁擠感）
+- Task: 重構 Dashboard 刪除對話框為 Apple HIG 原生警告彈窗（AppleAlertDialog）
 - Branch: master
 - Commit: Uncommitted
 
 ## Done（本輪）
-1. **終端頂層工具列與專屬分頁頁籤雙層架構（Two-Row Split Architecture）**：
-   - `TerminalPanel.tsx`：
-     - **第一排（全域工具列 `.term-unified-strip`，高度 35px）**：
-       - 左側收納全域功能按鈕：`Terminals` 標題、`+ ▾` 新增終端下拉選單、`@ Prompt` Agent CLI 提示派發器。
-       - 右側收納操作控制群：獨立視窗彈出、清空緩衝（Ctrl+L）、刪除 active session（垃圾桶）、跨 Agent Handoff、多重視窗分割（Split Dropdown）與待審批提示氣泡。
-     - **第二排（專屬分頁頁籤列 `.term-tabs-row`，高度 32px，僅在 `sessions.length > 0` 時顯示）**：
-       - 橫跨終端面板 100% 完整寬度，各終端分頁（如 `@claude`, `@antigravity`, `PowerShell`, `Command Prompt`）擁有寬敞無阻的專屬橫向空間。
-       - 分頁標籤名稱最大寬度提升至 `200px`，不再受到頂部動作按鈕的水平擠壓。
-       - 支援平滑橫向滾動與 2px 極細原生捲軸。
-   - `terminal.css`：
-     - 優化 `.term-unified-strip` 與 `.term-tabs-row` 的微觀間距、Apple 膠囊外觀與雙層線條對齊。
+1. **建立 Apple HIG 標準警告視窗元件（AppleAlertDialog）**：
+   - `src/renderer/src/components/AppleAlertDialog.tsx` & `appleAlertDialog.css`：
+     - 徹底摒棄瀏覽器原生未美化的 `window.confirm`，改以正統 Apple / macOS HIG Alert Dialog 標準實作。
+     - **材質與外觀**：Apple 液態毛玻璃（Frosted Glass Backdrop `backdrop-filter: blur(16px)`）、深灰/淺白雙色調適應、圓角 16px 與雙層柔和陰影。
+     - **結構排版**：頂部配備 Apple 圓角矩形圖示徽章（`.apple-alert-icon-wrap`，Destructive 採紅色系 `color-mix` 柔和外觀與 `IconTrash`）、粗體標題（15px / 600）、說明文字與內嵌分組卡片（Inset Grouped Preview）。
+     - **操作按鈕**：依據 Apple HIG 規範，左側為次要動作 `Cancel`（Esc 快捷鍵），右側為主要/破壞性動作 `Delete Record`（Enter 快捷鍵），支援焦點與 hover 漸變動畫。
+2. **Dashboard 面板無縫整合**：
+   - `DashboardPanel.tsx`：將 `handleDelete` 從 `window.confirm` 升級為受控狀態 `sessionToDelete`，點擊刪除按鈕立即觸發 AppleAlertDialog，並於彈窗內清楚展示被刪除 Session 之 Agent 標籤、名稱、ID 與 Token 總量。
+   - `dashboard.css`：新增 `.dash-alert-session-preview` 內嵌預覽卡片樣式。
 
 ## Tests
 - `npm run typecheck` → pass (TypeScript 零錯誤通過)
-- `npm run build` → pass (生產環境構建成功，37.63s)
+- `npm run build` → pass (生產環境構建成功，48.77s)
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態
