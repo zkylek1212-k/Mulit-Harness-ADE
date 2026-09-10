@@ -48,26 +48,25 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 # Latest Handoff
 
-- Updated: 2026-09-10 18:53 Asia/Taipei
+- Updated: 2026-09-10 19:17 Asia/Taipei
 - Agent: Antigravity
-- Task: 獨立 Agent / Terminal 頁籤至第二排（避免與右側控制鈕擠壓排版）
+- Task: 終端標籤列回歸單排優雅整合（充分利用水平空間、移除多餘第二排）
 - Branch: master
 - Commit: Uncommitted
 
 ## Done（本輪）
-1. **Agent / Terminal 頁籤獨立第二排（解決與控制項擠壓導致標題被截斷問題）**：
-   - `TerminalPanel.tsx`：將原本終端頂部單一行拆分為兩排式結構：
-     - **第一排（全域工具與動作列 `.term-unified-strip`）**：
-       - 左側：`Terminals` 標題、新增終端下拉選單（`+`）、`@` Prompt Agent CLI 快速派發按鈕。
-       - 右側：獨立視窗彈出、清空緩衝（Ctrl+L）、刪除 active session（垃圾桶）、跨 Agent Handoff、多視窗 Split 分割下拉選單與審批提示。
-     - **第二排（專用分頁頁籤列 `.term-tabs-row`，僅在 `sessions.length > 0` 時顯示）**：
-       - 橫跨終端面板 100% 全寬度，各終端分頁（如 `@claude`, `@antigravity`, `PowerShell` 等）擁有充裕橫向空間，不再與動作按鈕擠壓。
-       - 支援平滑橫向捲動（`overflow-x: auto`）、細緻原生捲軸、完整顯示分頁名稱（`max-width: 220px`，不再截成 `@antig...`）。
-   - `terminal.css`：新增 `.term-strip-left` 與 `.term-tabs-row` 樣式，設定 `min-height: 34px`、微調 Apple 膠囊分頁樣式與 `flex-shrink: 0` 防擠壓。
+1. **終端面板頂欄回歸單排統一佈局（Single Unified Strip）**：
+   - `TerminalPanel.tsx`：移除 `.term-tabs-row` 獨立第二排，將 `Terminals` 標籤、`+ ▾` 新增下拉選單、`@` Prompt Dispatcher、以及所有 Session Tabs 與右側控制項整合於單一頂部列。
+   - `terminal.css`：
+     - `.term-unified-strip`：採用單排彈性佈局（高度 38px），兼顧緊湊美觀與充足垂直操作區域。
+     - `.term-strip-left`：左側群組緊湊收納 `Terminals`、`+ ▾` 與 `@ Prompt`，防止折行與擠壓。
+     - `.term-strip-divider`：在控制組與分頁頁籤間加入細緻的垂直 Apple 分隔線。
+     - `.term-strip-tabs`：佔據中間彈性伸展區域（`flex: 1 1 auto; min-width: 0; overflow-x: auto;`），支援平滑橫向滾動與極細原生捲軸，分頁名稱限制為 `max-width: 150px`。
+     - `.term-strip-actions`：加入 `margin-left: auto;`，確保動作按鈕（彈出視窗、清空緩衝、刪除、Handoff、分割多重視窗）恆定優雅靠右對齊。
 
 ## Tests
 - `npm run typecheck` → pass (TypeScript 零錯誤通過)
-- `npm run build` → pass (生產環境構建成功，45.03s)
+- `npm run build` → pass (生產環境構建成功，44.55s)
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態
