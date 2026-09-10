@@ -48,37 +48,27 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 # Latest Handoff
 
-- Updated: 2026-09-10 17:56 Asia/Taipei
+- Updated: 2026-09-10 18:05 Asia/Taipei
 - Agent: Antigravity
-- Task: 亮色主題 Git Graph / Preview 配色修正、多分頁水平捲軸、Popover 實底防重疊、Antigravity IDE 風格 Agent Terminals (@/add/delete/split、中下停靠、拔除原生Shell)
+- Task: 中間視窗下方終端全面整合支援 PowerShell 與 CMD、雙重啟動選單（+ / @）、5 欄式 Launchpad 卡片
 - Branch: master
 - Commit: Uncommitted
 
 ## Done（本輪）
-1. **Git Graph 亮色主題色彩修復（問題 1）**：
-   - `gitGraph.css` & `GitGraphView.tsx`：將原本寫死的深黑底色（`#18181a`、`#1e1e22`）改為系統主題變數 `var(--bg)`、`var(--bg2)`、`var(--border)`、`var(--fg)`，SVG Commit 節點描邊亦動態隨主題適配，解決淺色模式下死黑與文字辨識度不良問題。
-2. **中間視窗分頁列水平捲軸支援（問題 2）**：
-   - `EditorPanel.css` & `preview.css`：為 `.editor-tabs` 與 `.preview-tabs-bar` 補上 `overflow-x: auto; overflow-y: hidden; scrollbar-width: thin;`，並將各分頁項目的 `flex-shrink` 設為 `0`，避免開啟大量分頁時標籤被壓縮變形甚至字體截斷，支援滑鼠滾輪橫向捲動。
-3. **Handoff 與視窗切割浮動選單改為 100% 實底（問題 3）**：
-   - `terminal.css`：為 `.term-popover-portal`、`.term-split-popover`、`.term-handoff-popover` 以及 `.term-launch-popover-portal` 統一套用 100% 不透明實底 `background: var(--bg2)`，搭配 `var(--border-strong)` 與精緻陰影，徹底杜絕 Windows xterm 畫布上方模糊滲透導致文字與底層重疊的問題。
-4. **Markdown Preview 亮色模式配色修復（問題 4）**：
-   - `preview.css`：分離 `:root[data-theme='dark']` 與 `:root:not([data-theme='dark'])`，亮色模式重構高對比代碼高亮色彩（關鍵字 `#a31515`、字串 `#0451a5`、數字 `#098658`、變數 `#001080`），Tab 列背景使用 `var(--bg2)` 與 `var(--border)` 清晰分界。
-5. **Agent Terminals 全面重構（Antigravity IDE 風格）（問題 5）**：
-   - `TerminalPanel.tsx`：
-     - 拔除全部原生系統 Shell（PowerShell、CMD、Bash、pwsh），終端僅專注於 Agent CLI：`claude`、`antigravity`、`codex`。
-     - 整合 Antigravity IDE 四大核心控制項：
-       - `@`：新增 `@ Agent` 挑選器浮動選單，點選即可快速開立 `@claude`、`@antigravity`、`@codex`，且終端分頁名稱均以 `@` 開頭（如 `@claude`）。
-       - `add` (`+`)：提供快捷的新增分頁按鈕。
-       - `delete` (`🗑` & `×`)：各 Tab 支援獨立關閉，右側動作列新增專屬 `IconTrash` 刪除/殺死作用中 Agent Process 按鈕。
-       - `split` (`◫`)：支援 Single、Split V、Split H、Grid 佈局，選單採用實底 Popover。
-     - 移除 Launchpad 上的 Native Shell 卡片，3 張 Agent 卡片採三欄式居中排版。
-   - `layout.ts`：
-     - `DEFAULT_LAYOUT.dock` 預設為 `'bottom'`（編輯器正下方開啟）。
-     - 於 `loadLayout` 中增加相容遷移機制，確保更新後即刻在中下方停靠生效。
+1. **中下終端支援原生 PowerShell 與 Command Prompt (CMD)**：
+   - `TerminalPanel.tsx`：定義 `BUILTIN_SHELLS`（Windows 下提供 `powershell` 與 `cmd`，Unix 下提供 `bash` 與 `pwsh`），將其加入 `DIRECT_IDS`，分頁名稱自動解析為 `PowerShell`、`Command Prompt`。
+   - `terminal.css`：新增 `.card-powershell` 與 `.card-cmd` 專屬懸停光暈與邊框色彩，`.term-launchpad-cards` 網格佈局升級為 5 欄式自適應排列。
+2. **直覺的雙重啟動選單交互（+ / @）**：
+   - `+` (Add Menu)：點擊展開整合式浮動選單，清晰區隔 **System Terminals**（PowerShell、Command Prompt）與 **AI Agents**（@claude、@antigravity、@codex）以及自訂 Launchers，100% 實底防重疊。
+   - `@` (Agent Picker)：專注於 AI Agent CLI 的快速切換與開啟，分頁與選單維持 Antigravity IDE 風格。
+3. **Empty State Launchpad 全新呈現**：
+   - 0 Session 時直觀呈現 5 大卡片：`@claude`、`@antigravity`、`@codex`、`PowerShell`、`Command Prompt`，一鍵點擊即可開立原生 Shell 或 AI Agent。
+4. **跨 Session Handoff 支援**：
+   - 支援將 PowerShell / CMD 執行的終端輸出（例如報錯日誌）直接一鍵 Handoff 交棒給任何 AI Agent 進行修復或後續分析。
 
 ## Tests
 - `npm run typecheck` → pass (TypeScript 零錯誤通過)
-- `npm run build` → pass (生產環境全 bundle 構建成功，46.23s)
+- `npm run build` → pass (生產環境構建成功，31.99s)
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態
