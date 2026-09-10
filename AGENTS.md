@@ -51,17 +51,24 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 # Latest Handoff
 
-- Updated: 2026-09-10 23:03 Asia/Taipei
+- Updated: 2026-09-10 23:10 Asia/Taipei
 - Agent: Antigravity
-- Task: 修復 Settings Path Test 在 Windows 含空格使用者路徑下被截斷的問題
+- Task: 修復 Terminal Launchpad 歡迎卡片排版與基準線一致性
 - Branch: master
 - Commit: Uncommitted
 
 ## Done（本輪）
-1. **修復 Settings 中的 CLI Path Test（解決路徑含空格被 cmd 截斷的問題）**：
-   - **問題根源**：使用者的 Windows 家目錄包含空格（`C:\Users\Kyle Zhang\...`）。先前 `settings:testCliPath` 使用 `execFile(cmd, args, { shell: true })`，在 Windows 下 Node.js `shell: true` 不會對包含空格的 `cmd` 加上雙引號，導致 `cmd.exe` 將其拆解為 `C:\Users\Kyle`，造成 `'C:\Users\Kyle' is not recognized` 測試失敗；然而 Terminal 使用原生 `node-pty`（`CreateProcessW`）直接調用 Win32 API 自動處理引號，因此終端能正常開啟。
-   - `src/main/ipc/settings.ts`：將 `testCliPath` 重構為以 `execAsync` 執行標準雙引號包裹指令（如 `"${target}" --version`），徹底解決 Windows 含空格路徑截斷問題。
-   - `src/renderer/src/components/SettingsModal.tsx`：更新 `handleTestPath`，當使用者未輸入自訂路徑（留空動態模式）時，優先取用 `detectedPaths` 進行實體檔案版本測試，避免直接傳入未解析的裸名稱。
+1. **修復 Terminal Launchpad 歡迎卡片（Empty State）的排版一致性**：
+   - **問題根源**：原卡片外部包裹層 `.term-launchpad-content` 寬度被鎖在 `640px`，導致 5 張卡片平均可用寬度僅約 98px，觸發多個詞彙突兀折行（如 `auto-` \n `wrap`、`Command` \n `Prompt`、`powershell ·` \n `direct pty`）；且因各卡片行數與高度不一致，導致底部按鈕（`Launch Session →` / `Launch Shell →`）與中繼標籤參差不齊。
+   - [terminal.css](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/terminal/terminal.css)：
+     - 將容器最大寬度調升至 `860px`，並加入 CSS Container Query（`container-type: inline-size`），在終端面板於不同 dock 寬度下智慧切換為 5 欄、3 欄或 2 欄。
+     - 鎖定卡片內部各層格位高度（Icon 32px、Name 20px、Sub 18px、Meta 18px），設定 `white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`，保證每一列水平絕對齊平。
+     - 底部按鈕以 `margin-top: auto;` 嚴格錨定至卡片底部，並加入 hover 箭頭微動效。
+   - [TerminalPanel.tsx](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/terminal/TerminalPanel.tsx)：
+     - 整理文案結構（如 `Windows PowerShell` 與 `Windows CMD` 對稱），確保 5 張卡片之資訊架構一體化。
+2. **修復 Settings 中的 CLI Path Test（解決路徑含空格被 cmd 截斷的問題）**：
+   - [src/main/ipc/settings.ts](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/main/ipc/settings.ts)：以 `execAsync` 執行雙引號包裹指令，解決 Windows 含空格路徑截斷問題。
+   - [src/renderer/src/components/SettingsModal.tsx](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/components/SettingsModal.tsx)：當自訂路徑為空時優先取用 `detectedPaths` 進行版本測試。
 
 ## Tests
 - `npm run typecheck` → pass (TypeScript 零錯誤通過)
