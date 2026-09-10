@@ -51,26 +51,26 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 # Latest Handoff
 
-- Updated: 2026-09-10 22:45 Asia/Taipei
+- Updated: 2026-09-10 22:58 Asia/Taipei
 - Agent: Antigravity
-- Task: 更新專案狀態與記憶（STATE.md 巨集進度同步）
+- Task: 修復 Agent CLI 路徑自動偵測與工作區頂排欄位線條像素級齊平
 - Branch: master
 - Commit: Uncommitted
 
 ## Done（本輪）
-1. **建立 Apple HIG 標準警告視窗元件（AppleAlertDialog）**：
-   - `src/renderer/src/components/AppleAlertDialog.tsx` & `appleAlertDialog.css`：
-     - 徹底摒棄瀏覽器原生未美化的 `window.confirm`，改以正統 Apple / macOS HIG Alert Dialog 標準實作。
-     - **材質與外觀**：Apple 液態毛玻璃（Frosted Glass Backdrop `backdrop-filter: blur(16px)`）、深灰/淺白雙色調適應、圓角 16px 與雙層柔和陰影。
-     - **結構排版**：頂部配備 Apple 圓角矩形圖示徽章（`.apple-alert-icon-wrap`，Destructive 採紅色系 `color-mix` 柔和外觀與 `IconTrash`）、粗體標題（15px / 600）、說明文字與內嵌分組卡片（Inset Grouped Preview）。
-     - **操作按鈕**：依據 Apple HIG 規範，左側為次要動作 `Cancel`（Esc 快捷鍵），右側為主要/破壞性動作 `Delete Record`（Enter 快捷鍵），支援焦點與 hover 漸變動畫。
-2. **Dashboard 面板無縫整合**：
-   - `DashboardPanel.tsx`：將 `handleDelete` 從 `window.confirm` 升級為受控狀態 `sessionToDelete`，點擊刪除按鈕立即觸發 AppleAlertDialog，並於彈窗內清楚展示被刪除 Session 之 Agent 標籤、名稱、ID 與 Token 總量。
-   - `dashboard.css`：新增 `.dash-alert-session-preview` 內嵌預覽卡片樣式。
+1. **修復 Agent CLI 路徑自動偵測與容錯機制**：
+   - `src/main/ext/paths.ts`：加強 `findCli`，在 `where` 之外補充 Windows 常見候選目錄後備搜尋（如 `%APPDATA%\npm\claude.cmd`、`%LOCALAPPDATA%\agy\bin\agy.exe` 等），確保在 Electron 環境 PATH 未涵蓋時亦能 100% 探測到各 Agent。
+   - `src/main/ipc/settings.ts`：在 `loadSettings()` 與 `getCustomCliPath()` 加入實體存在性驗證與路徑清洗機制，自動過濾掉換機器或複製專案產生的失效絕對路徑（例如異機殘留路徑），自動回歸動態偵測。
+   - `src/renderer/src/components/SettingsModal.tsx` & `settingsModal.css`：於 CLI 設定面板新增「Auto-detect All」（一鍵自動填入偵測路徑）與「Reset to Auto」（重設回動態自動偵測）動作按鈕。
+   - `.workbench/settings.json`：清除異機殘留的失效路徑，回歸乾淨自動探測。
+2. **統一工作區頂排水平線條對齊（像素級齊平）**：
+   - `src/renderer/src/styles.css`：引入標準全域工具列高度變數 `--toolbar-h: 38px` 與次級工具列高度 `--subtoolbar-h: 34px`，並鎖定 `.tabbar` 為 38px。
+   - 統一各欄第一排高度為 38px：`memory.css`（`.memory-toolbar`）、`terminal.css`（`.term-unified-strip`）、`EditorPanel.css`（`.editor-tabs` / `.editor-header:first-child`）、`preview.css`（`.preview-tabs-bar`）、`browser.css`（`.browser-toolbar`），徹底消除先前 35px vs 38px vs 42px 導致的階梯狀錯位。
+   - 統一各欄第二排高度為 34px：`FileTreePanel.css`（`.filetree-header`）、`git.css`（`.git-topbar`）、`terminal.css`（`.term-tabs-row`）、`EditorPanel.css`（`.editor-header`）。
 
 ## Tests
 - `npm run typecheck` → pass (TypeScript 零錯誤通過)
-- `npm run build` → pass (生產環境構建成功，48.77s)
+- `npm run build` → pass (生產環境構建成功，22.43s)
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態
