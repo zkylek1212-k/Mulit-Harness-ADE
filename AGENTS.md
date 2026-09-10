@@ -51,42 +51,40 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 # Latest Handoff
 
-- Updated: 2026-09-10 14:05 Asia/Taipei
+- Updated: 2026-09-10 14:25 Asia/Taipei
 - Agent: Antigravity
-- Task: 8 項重構（左側欄折疊至 0、Cross-Session 通訊、嵌入 Test Browser、工作目錄同步提示、Customized 開關、無框頂部融合、Launchboard 風格 Terminal UX）
+- Task: Apple UI/UX 精緻化、獨立終端視窗、空間精簡、目錄嚴格連動與雙層縮放
 - Branch: master
 - Commit: Uncommitted
 
 ## Done（本輪）
-1. **左側欄位最小化與一鍵收折（`layout.ts`, `App.tsx`, `styles.css`）**：
-   - `LIMITS.leftMin` 降至 `0`，支援拖曳小於 75px 自動吸附至 0（`leftCollapsed: true`）。
-   - 左側欄頂部提供 `⇤` 一鍵收折按鈕；收折後中央導航列左側自動浮現 `» Sidebar` 快捷展開按鈕，流暢無卡頓。
-2. **三 Agent CLI 跨 Session 溝通與交接（`pty.ts`, `TerminalPanel.tsx`, `preload/index.ts`）**：
-   - 後端新增 `pty:pipe` IPC 頻道。
-   - 終端頂部工具列提供 `↗ Hand off to…` 下拉選單，可將目前活躍 Agent 的最新執行輸出與狀態自動格式化為 Handoff Prompt，直接注入目標 Agent 終端並無縫切換焦點。
-3. **嵌入式 Test Browser 測試瀏覽器（`TestBrowserPanel.tsx`, `browser.css`, `main/index.ts`, `App.tsx`）**：
-   - Electron 主行程啟用 `webviewTag: true`。
-   - 中央區新增 `[ Editor | Preview | ⚡ Test Browser | Memory | Customized ]` 分頁。
-   - 提供智慧網址列、常用 Localhost Port 快速標籤（`:5173`, `:3000`, `:8080`, `:8000`）、歷史上一頁/下一頁/重新載入、外部瀏覽器開啟。
-   - 支援 Desktop (100%)、Tablet (768px)、Mobile (390px) 與旋轉（Rotate）響應式裝置預覽。
-4. **CLI 工作目錄連動與視覺化（`TerminalPanel.tsx`）**：
-   - 終端控制列與 Launchpad 即時顯示目前同步的 `📁 Workspace: <folder>` 路徑。
-   - 提供 `Change` 按鈕呼叫原生選取器，變更後新建的 Agent 終端皆在此工作區啟動。
-5. **Customized 技能 / MCP / 外掛開關（`CustomizedPanel.tsx`, `customized.css`, `ext.ts`, `preload/index.ts`）**：
-   - 後端新增 `ext:toggleItem` IPC，將停用清單持久化於 `.workbench/customized-state.json`；若為 Claude plugin 則自動連動同步至 `~/.claude/settings.json` 的 `enabledPlugins`。
-   - 前端每一項提供 Apple-style `[ ON | OFF ]` 膠囊滑動開關，停用項目半透明置灰。
-6. **最上方無框融合設計（`App.tsx`, `styles.css`）**：
-   - 完全移除原本獨立的 44px `.titlebar` 視窗橫條。
-   - 將 `Agent Workbench ●` 品牌名與收折按鈕融合至左欄頂部；將 Dock 停靠切換、`⚙ Settings` 與 `☀︎/☾` 主題切換直接融合至中央分頁列右側。
-   - 畫面垂直有效空間省下 44px。
-7. & 8. **參考 Launchboard 重構 Agent Terminals UX（`TerminalPanel.tsx`, `terminal.css`）**：
-   - 徹底廢除雙層工具列，將原本散亂的浮動膠囊 Dock 與 Safari Pill Tabs 合併為單一優雅的 Apple / Launchboard 控制列。
-   - 整合即時分頁、一鍵快速啟動膠囊（`＋ Claude`, `Antigravity`, `Codex`, `Shell`）、工作區路徑、Hand-off 下拉、Clear 清除與分屏切換。
-   - Launchpad 空狀態採用 Launchboard 經典黑灰層次與等寬字體 process card，點選任意區域即可即時啟動程序。
+1. **移除 Browser 分頁 Emoji 符號（`App.tsx`, `TestBrowserPanel.tsx`）**：
+   - 將中央分頁標籤 `⚡ Test Browser` 改為純淨的 `Browser`。
+   - 移除網址列與裝置切換按鈕中的 Emoji 符號（改為 `Desktop`, `Tablet`, `Mobile`）。
+2. **Agent Workspace 與左側目錄嚴格連動（`store.ts`, `FileTreePanel.tsx`, `TerminalPanel.tsx`）**：
+   - 全域狀態新增 `workspaceRoot` 與 `setWorkspaceRoot()`。
+   - 左側開啟或切換目錄時自動同步至全域與後端；終端面板自動響應，徹底移除終端控制列上的 `Change` 按鈕。
+3. **統一 Apple SF-Symbols 向量圖標系統（`Icons.tsx`, 全站面板）**：
+   - 建立專屬向量圖標庫 `src/renderer/src/components/Icons.tsx`。
+   - 全面替換文字 emoji 與特殊符號（收折/展開、右停靠/底停靠、彈出/收回視窗、設定、日/月主題、增/關/清/交接/縮放）。
+4. **Apple UI/UX 深度打磨（`styles.css`, `terminal.css`）**：
+   - 採用 macOS 原生層級的深炭灰階（`#161618` 畫布底層、`#1e1e20` 面板、`#28282c` 浮動層）。
+   - 導入超細 `1px solid rgba(255, 255, 255, 0.08)` 邊框與毛玻璃材質。
+5. **中間視窗縮放機制（視窗級與內容級）（`App.tsx`, `EditorPanel.tsx`, `EditorPanel.css`）**：
+   - **視窗級（Focus Mode 專注模式 `⤢`）**：中央列提供最大化/專注按鈕，一鍵將左欄縮至 0、隱藏終端，中間獨佔 100% 畫面（維持單一 JSX 結構，終端進程不中斷）。
+   - **內容級（Zoom Controls）**：Editor 標題列新增 `－ 100% ＋` 快速字級控制器，並開啟 Monaco `mouseWheelZoom: true`。
+6. **澄清並拔除「Agent runtime」與「Local AI process workspace」裝飾標籤（`TerminalPanel.tsx`）**：
+   - 徹底移除容易令人困惑的靜態無功能裝飾文字，簡化為俐落的 `Terminals` 與 `New Agent Session`。
+7. **Agent Terminals 拉出成獨立原生視窗（`main/index.ts`, `preload/index.ts`, `TerminalPanel.tsx`, `App.tsx`）**：
+   - Electron 主行程支援 `createTerminalWindow()`，載入 `?mode=terminal-detached` 全螢幕終端視圖。
+   - 終端控制列提供彈出圖標（`IconPopout`）；獨立視窗中可一鍵 Attach 回主視窗，支援雙螢幕全螢幕監控。
+8. **徹底根治工具列擁擠（Apple Progressive Disclosure）**：
+   - 將原本佔位 180px 的 4 個啟動按鈕收斂為單一 Apple 風格的 `[ ＋ ▾ ]` 分割下拉選單。
+   - 清除按鈕與交接按鈕改為微向量圖標，釋放大量橫向負空間。
 
 ## Tests
 - `npm run typecheck` → pass (代碼與型別 100% 通過)
-- `npm run build` → pass (Vite 生產環境打包 45.44s 完成)
+- `npm run build` → pass (Vite 生產環境打包通過，耗時 1m)
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態
