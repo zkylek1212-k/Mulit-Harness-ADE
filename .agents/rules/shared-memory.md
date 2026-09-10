@@ -48,37 +48,28 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 # Latest Handoff
 
-- Updated: 2026-09-10 18:30 Asia/Taipei
+- Updated: 2026-09-10 18:40 Asia/Taipei
 - Agent: Antigravity
-- Task: 全面 Apple UI/UX 重構（macOS Sequoia 設定視窗、@ Agent Prompt Dispatcher 提示派發器與全介面審查）
+- Task: 設定亮暗雙色主題全面適應、移除紅黃綠三鈕改用簡潔右上角關閉鈕、全域排版文字與線條精確對齊
 - Branch: master
 - Commit: Uncommitted
 
 ## Done（本輪）
-1. **設定視窗全面重構為 Apple / macOS Sequoia System Settings 標準**：
-   - `SettingsModal.tsx` & `settingsModal.css`：
-     - 採用正統 macOS 雙欄式視窗佈局（220px 側邊欄 + 內容滾動區）。
-     - 左側標頭配備 macOS 紅黃綠視窗控制按鈕（Traffic Lights，紅鈕支援 Hover 關閉與 Esc 快速鍵）。
-     - 側邊導航採用 Apple 圓角矩形多彩圖示（Squircle Icons：藍色 Appearance、綠色 CLI & Agents、紫色 Extensions）。
-     - 項目展示採用 Apple Inset Grouped Lists（內嵌分組圓角 11px，細緻分隔線）。
-     - 整合 Apple 滑動開關（`.apple-toggle`）即時切換 CLI 啟用狀態。
-     - 可執行檔自訂路徑收折至 Disclosure Drawer（點選箭頭展開），兼顧簡潔視覺與進階設定。
-2. **明確區隔 `+` 與 `@` 功能，`@` 升級為 Apple Spotlight 風格之 Agent Prompt Dispatcher**：
-   - `+` (New Terminal Session)：專注於建立新的互動式終端分頁（系統 PowerShell、Command Prompt 或 Agent 原始交互 Shell）。
-   - `@` (Prompt Agent Dispatcher)：點擊開啟如 Raycast / Spotlight / Apple Intelligence 浮動派發 HUD：
-     - 提供已啟用的 Agent 膠囊切換標籤（`@claude`、`@antigravity`、`@codex`）。
-     - 現代化輸入框直接輸入想問的問題或任務描述。
-     - 支援勾選「附加當前終端輸出（Attach terminal output buffer）」，快速帶入錯誤日誌或終端上下文。
-     - 快捷鍵支援：`Enter` 送出、`Shift+Enter` 換行、`Esc` 關閉。
-     - 送出時若該 Agent 尚未開啟終端，自動為使用者建立 session 並派發指令，聚焦該分頁。
-3. **全域 Apple UI/UX 審查與設計細節升級**：
-   - `styles.css`：維持統一 SF Pro / Apple 系統字型棧，修飾控制項最小觸控區域與平滑 transition。
-   - `Icons.tsx`：補充 Apple 風格的 `IconSparkles`、`IconSend`、`IconChevronRight` 等向量圖示。
-   - Launchpad 空白狀態卡片與各 Popover 下拉選單皆具備液態毛玻璃（Liquid Glass / Backdrop Blur）與高對比狀態提示。
+1. **設定視窗亮色適應（解決亮色模式下選單為黑色的問題）**：
+   - `styles.css`：在 `:root` 與 `:root[data-theme='dark']` 補齊 `--border-subtle`、`--shadow-modal` 與 `--bg-surface` 語義化變數。
+   - `settingsModal.css`：徹底清除原本硬編碼的暗色背景（`#1e1e22`）與半透明白色邊框（`rgba(255, 255, 255, 0.08)`），全面改採語義化變數。
+   - 亮色模式下視窗呈現 Apple 系統淺色外觀（`#ffffff` 主體、`#f5f5f7` 側邊欄、細緻 `rgba(0, 0, 0, 0.08)` 分隔線與 Apple 淺色主題卡片）；暗色模式自動切換為深灰石墨色。
+2. **移除設定左上角紅黃綠縮放關閉三鈕**：
+   - `SettingsModal.tsx`：移除 `.macos-traffic-lights` 區塊，側邊欄保留簡約優雅的 `Settings` 標題。
+   - 右側內容區頂部統一加入 Apple 原生圓形關閉按鈕（`IconClose`，支援 Hover 動畫、點擊與 `Esc` 快捷鍵退出）。
+3. **全域排版文字與線條對齊審查（修復段線與不對齊問題）**：
+   - **Path 收折抽屜全寬對齊**：移除舊版 `54px` 左側縮排所導致的割裂斷線，改為與分組列表左右邊界完全貼合的連續邊框（`border-top: 1px solid var(--border)`），內嵌標籤與可執行檔路徑輸入框垂直精確對齊。
+   - **頂層控制列與 Tabbar 對齊**：`styles.css` 統一 `.btn-icon` 為 28px 彈性垂直置中，修飾 `.segmented`、`.dock-switch` 與各 panel tabbar 的文字行高與水平邊界。
+   - **Agent Dispatcher HUD 雙色調適應**：終端派發浮動視窗同步支援亮色與暗色材質，消除白色邊框外溢。
 
 ## Tests
 - `npm run typecheck` → pass (TypeScript 零錯誤通過)
-- `npm run build` → pass (生產環境構建成功，43.30s)
+- `npm run build` → pass (生產環境構建成功，35.61s)
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態
