@@ -1,32 +1,21 @@
 # Latest Handoff
 
-- Updated: 2026-09-10 23:35 Asia/Taipei
+- Updated: 2026-09-10 23:40 Asia/Taipei
 - Agent: Antigravity
-- Task: 新增點選 Git 節點（點）開啟中央 Editor / Diff 差異檢視功能
+- Task: 解析並修復 Antigravity CLI 連接 Session 出現 conversation not found 問題
 - Branch: master
 - Commit: Uncommitted
 
 ## Done（本輪）
-1. **Git 節點與歷史 Commit 點選開啟 Editor / Diff 差異檢視**：
-   - **需求**：使用者在 Git 面板點選 Git Graph 拓撲圖上的點（圓圈節點）或 Commit 項目時，能夠自動於中央 Editor 開啟該 Commit 的差異比較（Diff Editor）。
-   - **IPC 契約與後端實作**（[src/preload/index.ts](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/preload/index.ts) 與 [src/main/ipc/git.ts](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/main/ipc/git.ts)）：
-     - 定義 `GitCommitFileChange` 與 `GitCommitDetail` 介面。
-     - 實作 `git:commitDetails`：解析 `git show --name-status` 取得完整 Commit 雜湊、父母節點、作者、日期、訊息與變更檔案（狀態標記 `A`/`M`/`D`/`R`）。
-     - 實作 `git:commitFileDiff`：藉由 `git.show([`${parent}:${relPath}`])` 與 `git.show([`${hash}:${relPath}`])` 取出比對前後的歷史原始內容，內建二進位檔案防禦過濾。
-   - **全域跨面板比對狀態**（[src/renderer/src/store.ts](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/store.ts)）：
-     - 定義 `GitCommitDiffTarget` 與 `activeCommitDiff` 狀態。
-     - 提供 `openCommitDiff(target)` action：自動產生虛擬比對分頁 `commit:${hash}:${filePath}`，加入 `openTabs`，切換至 `viewMode: 'diff'`，並自動解除中央區域最大化。
-     - 提供 `selectTab` 與優化 `closeTab`，支援虛擬 Commit 分頁無縫切換與關閉。
-   - **Git 拓撲圖與 Inspector 面板升級**（[src/renderer/src/panels/git/GitGraphView.tsx](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/git/GitGraphView.tsx)、[GitPanel.tsx](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/git/GitPanel.tsx) 與 [gitGraph.css](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/git/gitGraph.css)）：
-     - SVG `<g className="git-graph-node">` 圓點加入加大透明點擊感應區（r=14）、hover 光暈與點擊處理常式。
-     - 點擊點或列時呼叫 `handleSelectCommit`，自動在中央打開該 Commit 第一個變更檔案的 Diff。
-     - Git Graph 下方自動停靠/展開 Apple 風格的 Commit Inspector 卡片，陳列該次 Commit 的所有異動檔案（含 `M`/`A`/`D` 彩色徽章），點選任一檔案即可即時切換比對。
-     - 「Recent Commits」清單項目同步支援點擊開啟比對。
-   - **中央 Editor 差異視圖升級**（[src/renderer/src/panels/editor/EditorPanel.tsx](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/editor/EditorPanel.tsx) 與 [EditorPanel.css](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/editor/EditorPanel.css)）：
-     - 分頁標籤顯示檔案名稱與 Commit 短雜湊（例如 `handoff.md (e159872)`）。
-     - 頂部工具列標示 `Commit Diff` 專屬紫色/靛青徽章與 Commit 訊息。
-     - 若 Commit 包含多個變更檔案，工具列自動呈現極簡檔案切換下拉選單，可在 Editor 內直接切換該 Commit 的所有檔案。
-     - 呼叫 `git:commitFileDiff` 載入 Monaco `DiffEditor`，設定 `readOnly: true` 保護歷史節點。
+1. **解析 Antigravity CLI 連接 Session 出現 "conversation not found" 成因**：
+   - **根本成因**：
+     - **Antigravity IDE**（桌面 GUI）與 **Antigravity CLI**（`agy.exe`）的對話儲存架構是分開的。
+     - IDE 的對話記錄存放於 `~/.gemini/antigravity-ide/brain/<UUID>`（以 `transcript.jsonl` 記錄）。
+     - CLI（`agy`）的對話記錄獨立存放在 `~/.gemini/antigravity-cli/conversations/<UUID>.db`（以 SQLite 資料庫管理）。
+     - 儀表板點擊 IDE 的 session ID 嘗試以 `agy --conversation <UUID>` 啟動時，`agy` 在其 CLI 資料庫中找不到該 ID，因而輸出 `warning: conversation "<UUID>" not found`。
+2. **防禦修正與自動降級**（[src/main/ipc/pty.ts](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/main/ipc/pty.ts)）：
+   - 在 `pty:spawn` 啟動 `agy` 或 `antigravity` 時，自動檢查 `--conversation <id>` 對應的 `.db` 檔是否存在於 `~/.gemini/antigravity-cli/conversations/`。
+   - 若為真實 CLI 會話，完整保留參數並無縫 resume；若為 IDE 會話或遺失檔案，自動過濾掉 `--conversation <id>`，避免 CLI 終端跳出警告紅字，而是乾淨啟動並綁定當前專案工作區。
 
 ## Tests
 - `npm run typecheck` → pass (TypeScript 零錯誤通過)
