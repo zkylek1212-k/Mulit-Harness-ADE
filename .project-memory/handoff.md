@@ -1,23 +1,16 @@
 # Latest Handoff
 
-- Updated: 2026-09-10 23:50 Asia/Taipei
+- Updated: 2026-09-10 23:52 Asia/Taipei
 - Agent: Antigravity
-- Task: 修復 Preview 預覽面板分頁未隨工作區同步關閉與 Commit 虛擬路徑 ENOENT 錯誤
+- Task: 調整中央工作區頂部標籤順序為 Editor / Preview / Memory / Browser
 - Branch: master
 - Commit: Uncommitted
 
 ## Done（本輪）
-1. **修復 Preview 預覽面板分頁與工作區不同步（檔案已關閉仍殘留頁籤）**（[src/renderer/src/panels/preview/PreviewPanel.tsx](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/preview/PreviewPanel.tsx)）：
-   - **根本成因**：
-     - `PreviewPanel` 先前使用了孤立的內部 `previewTabs` / `currentPath` state，並未同步全域 `store.ts` 的 `openTabs` 與 `activeFilePath`。
-     - 當在 Editor 或其他面板關閉檔案時，`store.ts` 已移除該檔案，但 `PreviewPanel` 仍殘留舊檔案路徑，且回退邏輯 `currentPath || activeFilePath` 導致關閉失敗。
-   - **修正方案**：
-     - `PreviewPanel` 改以全域 `useWorkbench()` 中的 `openTabs` 作為單一真相來源，動態過濾支援預覽的檔案。
-     - 關閉分頁時直接呼叫 `closeTab(p)`，點選分頁時直接呼叫 `selectTab(p)`，實現跨面板 100% 雙向同步。
-     - 當檔案全部關閉時，乾淨回到 Empty State，徹底清除殘留標題與錯誤訊息。
-2. **支援 Git Commit 虛擬比對分頁即時預覽**：
-   - 當使用者點選 Git Graph 檢視 Markdown 歷史版本（虛擬路徑 `commit:${hash}:${filePath}`）並切換至 Preview 時，自動透過 `window.api.git.commitFileDiff(hash, relPath)` 擷取該 Commit 歷史版本內容渲染，解決原先直接傳入硬碟路徑導致 `files:read ENOENT` 的紅色報錯。
-   - 分頁標籤與工具列自動顯示人性化短雜湊標記（如 `shared-memory.md (51e14f8)`）。
+1. **調整中央頂部 Segmented 標籤與內容面板順序**（[src/renderer/src/App.tsx](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/App.tsx)）：
+   - 將頂部中央的工作區切換分段按鈕順序由原先的 `Editor / Preview / Browser / Memory` 調整為：
+     `Editor / Preview / Memory / Browser`。
+   - 同步調換底層 DOM 面板節點順序，保持一致的使用者體驗與導航邏輯。
 
 ## Tests
 - `npm run typecheck` → pass (TypeScript 零錯誤通過)
