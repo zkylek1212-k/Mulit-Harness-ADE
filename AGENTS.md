@@ -51,28 +51,37 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 # Latest Handoff
 
-- Updated: 2026-09-10 16:45 Asia/Taipei
+- Updated: 2026-09-10 17:56 Asia/Taipei
 - Agent: Antigravity
-- Task: Browser 開關與分頁修復、右上角視窗控制項亮暗雙主題色彩同步、Terminal Split 懸浮下拉選單重構、全新透明可預覽 Agent Handoff 體驗
+- Task: 亮色主題 Git Graph / Preview 配色修正、多分頁水平捲軸、Popover 實底防重疊、Antigravity IDE 風格 Agent Terminals (@/add/delete/split、中下停靠、拔除原生Shell)
 - Branch: master
 - Commit: Uncommitted
 
 ## Done（本輪）
-1. **Browser 標籤切換與生命週期修復（問題 1）**：
-   - `App.tsx` & `styles.css`：移除原先在 `.segmented` 內塞入變形 `+ Browser` 與孤立關閉按鈕的做法，消除按鈕變形與位移，將 `Browser` 恢復為乾淨俐落的第一公民分頁。
-   - `TestBrowserPanel.tsx` & `browser.css`：面板導航列右側加入細緻的 Apple 風格 `[Exit]` 快速返回按鈕；修正外層避免使用 `hidden`（`display: none`）導致 Electron `<webview>` 凍結黑屏的渲染問題，並補齊 `did-fail-load` 監聽防止載入失敗持續轉圈。
-2. **視窗右上角控制項亮暗主題同步（問題 2）**：
-   - `src/main/index.ts`：預設 titleBarOverlay 色彩由 `#161618` 修正為與標題列完全相同的 `#1e1e20`，消除深色模式下細微色差區塊；新增 `window:setTitleBarTheme` IPC 處理函式。
-   - `src/preload/index.ts` & `src/renderer/src/store.ts`：透過 `window.api.window.setTitleBarTheme` 在主題切換及開機套用時動態更新 overlay。深色模式為 `#1e1e20` / `#f5f5f7`，淺色模式即時切換為 `#ffffff` / `#1d1d1f`，徹底解決亮色模式下控制項死黑問題。
-3. **Terminal Split 懸浮下拉選單重構（問題 3）**：
-   - `TerminalPanel.tsx` & `terminal.css`：移除橫排佔用逾 200px 寬度的四顆按鈕分頁膠囊，改為僅佔約 70px 的 Apple 下拉按鈕（顯示當前排版圖標、簡稱與微型箭頭）；點擊透過 `createPortal` 彈出細緻毛玻璃浮動 Popover 選單，包含各模式專屬 SVG 向量圖標（`Single`、`Split V`、`Split H`、`Grid`）與勾選狀態。
-4. **直覺且透明的 Agent Handoff 互動體驗（問題 4）**：
-   - `TerminalPanel.tsx` & `terminal.css`：徹底拔除原先突兀且盲送的 HTML 原生 `<select>` 下拉標籤；工具列新增專屬 `IconHandoff` Apple 風格動作按鈕（有 active session 即可使用，包含僅開 1 個 session 的情境）。
-   - 點擊彈出專屬交棒 Popover 卡片：清楚呈現「來源 Agent ➜ 目標 Agent」、支援直接交棒給「執行中 Agent」或「直接新開 Claude / Antigravity / Codex」、清楚標註附帶之終端上下文（尾端 35 行）、提供可選的自訂指示備註輸入框，並支援快速「Quick Send ➔」一鍵交棒。
+1. **Git Graph 亮色主題色彩修復（問題 1）**：
+   - `gitGraph.css` & `GitGraphView.tsx`：將原本寫死的深黑底色（`#18181a`、`#1e1e22`）改為系統主題變數 `var(--bg)`、`var(--bg2)`、`var(--border)`、`var(--fg)`，SVG Commit 節點描邊亦動態隨主題適配，解決淺色模式下死黑與文字辨識度不良問題。
+2. **中間視窗分頁列水平捲軸支援（問題 2）**：
+   - `EditorPanel.css` & `preview.css`：為 `.editor-tabs` 與 `.preview-tabs-bar` 補上 `overflow-x: auto; overflow-y: hidden; scrollbar-width: thin;`，並將各分頁項目的 `flex-shrink` 設為 `0`，避免開啟大量分頁時標籤被壓縮變形甚至字體截斷，支援滑鼠滾輪橫向捲動。
+3. **Handoff 與視窗切割浮動選單改為 100% 實底（問題 3）**：
+   - `terminal.css`：為 `.term-popover-portal`、`.term-split-popover`、`.term-handoff-popover` 以及 `.term-launch-popover-portal` 統一套用 100% 不透明實底 `background: var(--bg2)`，搭配 `var(--border-strong)` 與精緻陰影，徹底杜絕 Windows xterm 畫布上方模糊滲透導致文字與底層重疊的問題。
+4. **Markdown Preview 亮色模式配色修復（問題 4）**：
+   - `preview.css`：分離 `:root[data-theme='dark']` 與 `:root:not([data-theme='dark'])`，亮色模式重構高對比代碼高亮色彩（關鍵字 `#a31515`、字串 `#0451a5`、數字 `#098658`、變數 `#001080`），Tab 列背景使用 `var(--bg2)` 與 `var(--border)` 清晰分界。
+5. **Agent Terminals 全面重構（Antigravity IDE 風格）（問題 5）**：
+   - `TerminalPanel.tsx`：
+     - 拔除全部原生系統 Shell（PowerShell、CMD、Bash、pwsh），終端僅專注於 Agent CLI：`claude`、`antigravity`、`codex`。
+     - 整合 Antigravity IDE 四大核心控制項：
+       - `@`：新增 `@ Agent` 挑選器浮動選單，點選即可快速開立 `@claude`、`@antigravity`、`@codex`，且終端分頁名稱均以 `@` 開頭（如 `@claude`）。
+       - `add` (`+`)：提供快捷的新增分頁按鈕。
+       - `delete` (`🗑` & `×`)：各 Tab 支援獨立關閉，右側動作列新增專屬 `IconTrash` 刪除/殺死作用中 Agent Process 按鈕。
+       - `split` (`◫`)：支援 Single、Split V、Split H、Grid 佈局，選單採用實底 Popover。
+     - 移除 Launchpad 上的 Native Shell 卡片，3 張 Agent 卡片採三欄式居中排版。
+   - `layout.ts`：
+     - `DEFAULT_LAYOUT.dock` 預設為 `'bottom'`（編輯器正下方開啟）。
+     - 於 `loadLayout` 中增加相容遷移機制，確保更新後即刻在中下方停靠生效。
 
 ## Tests
 - `npm run typecheck` → pass (TypeScript 零錯誤通過)
-- `npm run build` → pass (生產環境構建成功，41.67s)
+- `npm run build` → pass (生產環境全 bundle 構建成功，46.23s)
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態
