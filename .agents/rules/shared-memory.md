@@ -48,28 +48,26 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 # Latest Handoff
 
-- Updated: 2026-09-10 18:40 Asia/Taipei
+- Updated: 2026-09-10 18:53 Asia/Taipei
 - Agent: Antigravity
-- Task: 設定亮暗雙色主題全面適應、移除紅黃綠三鈕改用簡潔右上角關閉鈕、全域排版文字與線條精確對齊
+- Task: 獨立 Agent / Terminal 頁籤至第二排（避免與右側控制鈕擠壓排版）
 - Branch: master
 - Commit: Uncommitted
 
 ## Done（本輪）
-1. **設定視窗亮色適應（解決亮色模式下選單為黑色的問題）**：
-   - `styles.css`：在 `:root` 與 `:root[data-theme='dark']` 補齊 `--border-subtle`、`--shadow-modal` 與 `--bg-surface` 語義化變數。
-   - `settingsModal.css`：徹底清除原本硬編碼的暗色背景（`#1e1e22`）與半透明白色邊框（`rgba(255, 255, 255, 0.08)`），全面改採語義化變數。
-   - 亮色模式下視窗呈現 Apple 系統淺色外觀（`#ffffff` 主體、`#f5f5f7` 側邊欄、細緻 `rgba(0, 0, 0, 0.08)` 分隔線與 Apple 淺色主題卡片）；暗色模式自動切換為深灰石墨色。
-2. **移除設定左上角紅黃綠縮放關閉三鈕**：
-   - `SettingsModal.tsx`：移除 `.macos-traffic-lights` 區塊，側邊欄保留簡約優雅的 `Settings` 標題。
-   - 右側內容區頂部統一加入 Apple 原生圓形關閉按鈕（`IconClose`，支援 Hover 動畫、點擊與 `Esc` 快捷鍵退出）。
-3. **全域排版文字與線條對齊審查（修復段線與不對齊問題）**：
-   - **Path 收折抽屜全寬對齊**：移除舊版 `54px` 左側縮排所導致的割裂斷線，改為與分組列表左右邊界完全貼合的連續邊框（`border-top: 1px solid var(--border)`），內嵌標籤與可執行檔路徑輸入框垂直精確對齊。
-   - **頂層控制列與 Tabbar 對齊**：`styles.css` 統一 `.btn-icon` 為 28px 彈性垂直置中，修飾 `.segmented`、`.dock-switch` 與各 panel tabbar 的文字行高與水平邊界。
-   - **Agent Dispatcher HUD 雙色調適應**：終端派發浮動視窗同步支援亮色與暗色材質，消除白色邊框外溢。
+1. **Agent / Terminal 頁籤獨立第二排（解決與控制項擠壓導致標題被截斷問題）**：
+   - `TerminalPanel.tsx`：將原本終端頂部單一行拆分為兩排式結構：
+     - **第一排（全域工具與動作列 `.term-unified-strip`）**：
+       - 左側：`Terminals` 標題、新增終端下拉選單（`+`）、`@` Prompt Agent CLI 快速派發按鈕。
+       - 右側：獨立視窗彈出、清空緩衝（Ctrl+L）、刪除 active session（垃圾桶）、跨 Agent Handoff、多視窗 Split 分割下拉選單與審批提示。
+     - **第二排（專用分頁頁籤列 `.term-tabs-row`，僅在 `sessions.length > 0` 時顯示）**：
+       - 橫跨終端面板 100% 全寬度，各終端分頁（如 `@claude`, `@antigravity`, `PowerShell` 等）擁有充裕橫向空間，不再與動作按鈕擠壓。
+       - 支援平滑橫向捲動（`overflow-x: auto`）、細緻原生捲軸、完整顯示分頁名稱（`max-width: 220px`，不再截成 `@antig...`）。
+   - `terminal.css`：新增 `.term-strip-left` 與 `.term-tabs-row` 樣式，設定 `min-height: 34px`、微調 Apple 膠囊分頁樣式與 `flex-shrink: 0` 防擠壓。
 
 ## Tests
 - `npm run typecheck` → pass (TypeScript 零錯誤通過)
-- `npm run build` → pass (生產環境構建成功，35.61s)
+- `npm run build` → pass (生產環境構建成功，45.03s)
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態
