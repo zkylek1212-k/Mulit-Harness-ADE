@@ -48,35 +48,33 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 # Latest Handoff
 
-- Updated: 2026-09-10 23:25 Asia/Taipei
+- Updated: 2026-09-10 23:35 Asia/Taipei
 - Agent: Antigravity
-- Task: 新增點選左側 Dashboard Session 於右側直接跳出對應 CLI 終端並開啟/恢復該 Session
+- Task: 新增點選 Git 節點（點）開啟中央 Editor / Diff 差異檢視功能
 - Branch: master
 - Commit: Uncommitted
 
 ## Done（本輪）
-1. **點選左側 Dashboard Session 於右側跳出並開啟對應 CLI 終端**：
-   - **需求**：使用者在左側儀表板點選任何 session 時，右側終端應立即跳出、切換為停靠右側（`dock: 'right'`），並開啟或恢復對應的 Agent CLI Session。
-   - **跨面板通訊設計**（[src/renderer/src/store.ts](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/store.ts)）：
-     - 定義 `TerminalOpenSessionRequest` 介面（包含 `id`, `agent`, `title`, `status`, `ensureRightDock`, `nonce`）。
-     - 提供 `openTerminalSession(req)` action，自動重設 `centerMaximized: false` 並廣播至全域 store。
-   - **右側停靠與佈局防禦**（[src/renderer/src/App.tsx](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/App.tsx)）：
-     - 監聽 `terminalOpenSession`：若目前停靠為 bottom 或處於最大化視圖，自動切換至 `dock: 'right'`，並確保 `rightW >= LIMITS.rightMin`（340px）。
-     - 恪守單一 JSX 結構規則，切換停靠位置時僅動態調整 CSS Grid Areas，完全不造成 TerminalPanel remount，確保活躍終端進程不中斷。
-   - **終端喚醒與 Session 恢復機制**（[src/renderer/src/panels/terminal/TerminalPanel.tsx](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/terminal/TerminalPanel.tsx)）：
-     - 擴充 `TerminalSession.args?: string[]` 與 `handleNewTerminal` 參數介面，並於 `TerminalInstance` 中透過 `window.api.pty.spawn` 傳入 CLI 參數。
-     - 監聽 `terminalOpenSession` 觸發事件：
-       1. **活躍 Session 匹配**：若已有終端匹配（`ptyId`、`id` 或同 Agent 活躍狀態），直接選取該 tab 並呼叫 `term.focus()`，不重複啟動重複進程。
-       2. **歷史 Session 恢復**：若無匹配終端，根據 Agent 類型自動注入恢復旗標：
-          - Claude Code：注入 `['--resume', req.id]`
-          - Antigravity：注入 `['--conversation', req.id]`
-          - 標題自動冠上 Session 標題，啟動後直接切換為作用中分頁。
-   - **Dashboard 面板互動介面**（[src/renderer/src/panels/dashboard/DashboardPanel.tsx](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/dashboard/DashboardPanel.tsx) 與 [dashboard.css](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/dashboard/dashboard.css)）：
-     - 將 Session 卡片左半部主要資訊區塊改為點擊熱區（`.dash-session-click-area`），滑鼠懸浮時呈現 Accent 晶透高亮與字體變色。
-     - 卡片操作列左側加入專屬主要操作鈕（`.dash-action-btn.dash-action-open`）：
-       - 活躍 Session 顯示「`Switch CLI ➔`」
-       - 歷史/閒置 Session 顯示「`Resume CLI ➔`」
-     - 保留 Token 摘要與展開箭頭獨立點擊開合分析圖表，互不干擾。
+1. **Git 節點與歷史 Commit 點選開啟 Editor / Diff 差異檢視**：
+   - **需求**：使用者在 Git 面板點選 Git Graph 拓撲圖上的點（圓圈節點）或 Commit 項目時，能夠自動於中央 Editor 開啟該 Commit 的差異比較（Diff Editor）。
+   - **IPC 契約與後端實作**（[src/preload/index.ts](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/preload/index.ts) 與 [src/main/ipc/git.ts](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/main/ipc/git.ts)）：
+     - 定義 `GitCommitFileChange` 與 `GitCommitDetail` 介面。
+     - 實作 `git:commitDetails`：解析 `git show --name-status` 取得完整 Commit 雜湊、父母節點、作者、日期、訊息與變更檔案（狀態標記 `A`/`M`/`D`/`R`）。
+     - 實作 `git:commitFileDiff`：藉由 `git.show([`${parent}:${relPath}`])` 與 `git.show([`${hash}:${relPath}`])` 取出比對前後的歷史原始內容，內建二進位檔案防禦過濾。
+   - **全域跨面板比對狀態**（[src/renderer/src/store.ts](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/store.ts)）：
+     - 定義 `GitCommitDiffTarget` 與 `activeCommitDiff` 狀態。
+     - 提供 `openCommitDiff(target)` action：自動產生虛擬比對分頁 `commit:${hash}:${filePath}`，加入 `openTabs`，切換至 `viewMode: 'diff'`，並自動解除中央區域最大化。
+     - 提供 `selectTab` 與優化 `closeTab`，支援虛擬 Commit 分頁無縫切換與關閉。
+   - **Git 拓撲圖與 Inspector 面板升級**（[src/renderer/src/panels/git/GitGraphView.tsx](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/git/GitGraphView.tsx)、[GitPanel.tsx](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/git/GitPanel.tsx) 與 [gitGraph.css](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/git/gitGraph.css)）：
+     - SVG `<g className="git-graph-node">` 圓點加入加大透明點擊感應區（r=14）、hover 光暈與點擊處理常式。
+     - 點擊點或列時呼叫 `handleSelectCommit`，自動在中央打開該 Commit 第一個變更檔案的 Diff。
+     - Git Graph 下方自動停靠/展開 Apple 風格的 Commit Inspector 卡片，陳列該次 Commit 的所有異動檔案（含 `M`/`A`/`D` 彩色徽章），點選任一檔案即可即時切換比對。
+     - 「Recent Commits」清單項目同步支援點擊開啟比對。
+   - **中央 Editor 差異視圖升級**（[src/renderer/src/panels/editor/EditorPanel.tsx](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/editor/EditorPanel.tsx) 與 [EditorPanel.css](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/editor/EditorPanel.css)）：
+     - 分頁標籤顯示檔案名稱與 Commit 短雜湊（例如 `handoff.md (e159872)`）。
+     - 頂部工具列標示 `Commit Diff` 專屬紫色/靛青徽章與 Commit 訊息。
+     - 若 Commit 包含多個變更檔案，工具列自動呈現極簡檔案切換下拉選單，可在 Editor 內直接切換該 Commit 的所有檔案。
+     - 呼叫 `git:commitFileDiff` 載入 Monaco `DiffEditor`，設定 `readOnly: true` 保護歷史節點。
 
 ## Tests
 - `npm run typecheck` → pass (TypeScript 零錯誤通過)
