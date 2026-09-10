@@ -1,25 +1,29 @@
 # Latest Handoff
 
-- Updated: 2026-09-10 23:10 Asia/Taipei
+- Updated: 2026-09-10 23:13 Asia/Taipei
 - Agent: Antigravity
-- Task: 修復 Terminal Launchpad 歡迎卡片排版與基準線一致性
+- Task: 設立左側欄最小寬度防禦並優化卡片文字溢出保護
 - Branch: master
 - Commit: Uncommitted
 
 ## Done（本輪）
-1. **修復 Terminal Launchpad 歡迎卡片（Empty State）的排版一致性與置中擴展**：
-   - **問題根源**：原先使用 CSS Grid 固定欄數（`repeat(5, 1fr)` 或 `repeat(3, 1fr)`），當啟用的 CLI 只有 4 個（或在折行時），最後一列的孤立卡片會被強行靠左對齊，右側留出大片突兀空白，整體視覺無法以中央為軸心向外展開；且先前內容層過窄觸發單詞斷行。
-   - [terminal.css](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/terminal/terminal.css)：
-     - 將卡片容器從 CSS Grid 重構為 **Flexbox 置中流式擴展架構**（`display: flex; flex-wrap: wrap; justify-content: center;`）。
-     - 每張卡片鎖定為均勻的 Apple 標準尺寸（`width: 148px; flex: 0 0 148px; min-height: 172px;`）。
-     - 不論啟用 1、2、3、4 或 5 張卡片，抑或視窗縮放折行，所有行均永遠以正中心為軸心對稱向兩側展開（無任何向左單邊傾斜的失衡情況）。
-     - 鎖定卡片內部各層格位高度（Icon 32px、Name 20px、Sub 18px、Meta 18px），設定 `white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`，保證每一列水平絕對齊平。
-     - 底部按鈕以 `margin-top: auto;` 嚴格錨定至卡片底部，並加入 hover 箭頭微動效。
-   - [TerminalPanel.tsx](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/terminal/TerminalPanel.tsx)：
-     - 整理文案結構（如 `Windows PowerShell` 與 `Windows CMD` 對稱），確保卡片資訊架構一體化。
-2. **修復 Settings 中的 CLI Path Test（解決路徑含空格被 cmd 截斷的問題）**：
+1. **設立左側側邊欄（Sidebar）最小寬度限制（防止卡片文字跑掉）**：
+   - **問題根源**：原先 `LIMITS.leftMin` 為 0，且 `nudgeLeft` 允許拖曳縮小至 160px；當左側欄被拖至過窄時，Dashboard 中的 Agent 卡片（原固定 3 等分）會被擠壓至 40-50px，造成「tokens consumed」及名稱等文字破版溢出。
+   - [src/renderer/src/layout.ts](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/layout.ts)：
+     - 將 `LIMITS.leftMin` 從 0 調升為 `260px`（與右側欄 `rightMin: 260px` 對稱）。
+     - `DEFAULT_LAYOUT.leftW` 調升為 `280px`。
+     - `loadLayout()` 讀取本機快取時，自動修正低於 260px 的舊設定。
+   - [src/renderer/src/App.tsx](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/App.tsx)：
+     - `nudgeLeft` 拖曳約束下限改為 `LIMITS.leftMin`（260px），小於 90px 時觸發智慧收合。
+     - 展開按鈕 `btn-expand-left` 自動復原為至少 260px。
+     - `<aside className="col col-left" ...>` 注入 `minWidth: isLeftCollapsed ? 0 : LIMITS.leftMin` 雙重保險。
+   - [src/renderer/src/panels/dashboard/dashboard.css](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/dashboard/dashboard.css)：
+     - `.dash-agents-grid` 改用 `grid-template-columns: repeat(auto-fit, minmax(95px, 1fr));`，使卡片能依側欄寬度智慧適應。
+     - 卡片加入 `overflow: hidden;`，統計文字 `.dash-agent-stat-label` 加上 `overflow: hidden; text-overflow: ellipsis; max-width: 100%;`，徹底防止文字跑出卡片邊界。
+2. **修復 Terminal Launchpad 歡迎卡片（Empty State）的排版一致性與置中擴展**：
+   - [terminal.css](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/terminal/terminal.css)：將卡片容器重構為 Flexbox 置中流式擴展架構（`display: flex; flex-wrap: wrap; justify-content: center;`），卡片鎖定 Apple 標準尺寸（`width: 148px; min-height: 172px;`），保證以中央為軸向外展開，孤行卡片居中對齊。
+3. **修復 Settings 中的 CLI Path Test（解決路徑含空格被 cmd 截斷的問題）**：
    - [src/main/ipc/settings.ts](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/main/ipc/settings.ts)：以 `execAsync` 執行雙引號包裹指令，解決 Windows 含空格路徑截斷問題。
-   - [src/renderer/src/components/SettingsModal.tsx](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/components/SettingsModal.tsx)：當自訂路徑為空時優先取用 `detectedPaths` 進行版本測試。
 
 ## Tests
 - `npm run typecheck` → pass (TypeScript 零錯誤通過)
