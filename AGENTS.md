@@ -51,27 +51,33 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 # Latest Handoff
 
-- Updated: 2026-09-10 18:05 Asia/Taipei
+- Updated: 2026-09-10 18:15 Asia/Taipei
 - Agent: Antigravity
-- Task: 中間視窗下方終端全面整合支援 PowerShell 與 CMD、雙重啟動選單（+ / @）、5 欄式 Launchpad 卡片
+- Task: 設定中新增 CLI 開關（enable/disable）並與 Agent Terminal 顯示選項即時連動
 - Branch: master
 - Commit: Uncommitted
 
 ## Done（本輪）
-1. **中下終端支援原生 PowerShell 與 Command Prompt (CMD)**：
-   - `TerminalPanel.tsx`：定義 `BUILTIN_SHELLS`（Windows 下提供 `powershell` 與 `cmd`，Unix 下提供 `bash` 與 `pwsh`），將其加入 `DIRECT_IDS`，分頁名稱自動解析為 `PowerShell`、`Command Prompt`。
-   - `terminal.css`：新增 `.card-powershell` 與 `.card-cmd` 專屬懸停光暈與邊框色彩，`.term-launchpad-cards` 網格佈局升級為 5 欄式自適應排列。
-2. **直覺的雙重啟動選單交互（+ / @）**：
-   - `+` (Add Menu)：點擊展開整合式浮動選單，清晰區隔 **System Terminals**（PowerShell、Command Prompt）與 **AI Agents**（@claude、@antigravity、@codex）以及自訂 Launchers，100% 實底防重疊。
-   - `@` (Agent Picker)：專注於 AI Agent CLI 的快速切換與開啟，分頁與選單維持 Antigravity IDE 風格。
-3. **Empty State Launchpad 全新呈現**：
-   - 0 Session 時直觀呈現 5 大卡片：`@claude`、`@antigravity`、`@codex`、`PowerShell`、`Command Prompt`，一鍵點擊即可開立原生 Shell 或 AI Agent。
-4. **跨 Session Handoff 支援**：
-   - 支援將 PowerShell / CMD 執行的終端輸出（例如報錯日誌）直接一鍵 Handoff 交棒給任何 AI Agent 進行修復或後續分析。
+1. **設定中新增 CLI Enable/Disable 開關與路徑設定**：
+   - `SettingsModal.tsx` & `settingsModal.css`：
+     - 整合 5 大 CLI 工具（`@claude`、`@antigravity`、`@codex`、`PowerShell`、`Command Prompt`）。
+     - 每個卡片標頭新增 Apple 風格滑動開關（`.apple-toggle`），附帶 `Enabled` / `Disabled` 狀態膠囊標籤。
+     - 當關閉開關時，卡片透明度降低（`opacity: 0.55`），停用輸入框與測試按鈕。
+     - 存檔後呼叫 `bumpSettings()`，即時觸發終端面板刷新，無需重啟應用。
+2. **IPC 與設定資料模型升級**：
+   - `src/preload/index.ts`：`WorkbenchSettings` 新增 `cliEnabled?: Record<string, boolean>`，擴充 `cliPaths`。
+   - `src/main/ipc/settings.ts`：更新 `loadSettings()`（預設值全為 `true` 向下相容）、`saveSettings()`、`isCliEnabled()`。支援 `powershell` 與 `cmd` 的原生測試（`cmd /c ver` 與 `powershell -NoProfile -Command`）。
+   - `src/renderer/src/store.ts`：`WorkbenchState` 加入 `settingsTick`，並導出 `bumpSettings()` 供即時跨元件響應。
+3. **終端面板（TerminalPanel）全面連動**：
+   - `@` (Agent Picker)：僅列出啟用的 AI Agents；若全部關閉，顯示防呆提示並停用按鈕。
+   - `+` (Add Menu)：系統終端與 AI Agents 分區依啟用狀態動態篩選，若分區為空則自動隱藏分隔與標頭。
+   - Empty State Launchpad（0 Sessions）：動態過濾卡片，僅顯示已啟用的 CLI 卡片；若全部關閉，提供提示引導至設定開啟。
+   - Handoff Modal：新 Agent 啟動選項僅提供已啟用的 Agent。
+   - 終端建立 Fallback：若預設或被呼叫的 CLI 已被禁用，自動順位退回至第一個啟用的 CLI。
 
 ## Tests
 - `npm run typecheck` → pass (TypeScript 零錯誤通過)
-- `npm run build` → pass (生產環境構建成功，31.99s)
+- `npm run build` → pass (生產環境構建成功，39.02s)
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態
