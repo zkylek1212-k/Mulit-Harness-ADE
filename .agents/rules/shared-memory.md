@@ -48,22 +48,24 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 # Latest Handoff
 
-- Updated: 2026-09-10 23:40 Asia/Taipei
+- Updated: 2026-09-10 23:50 Asia/Taipei
 - Agent: Antigravity
-- Task: 解析並修復 Antigravity CLI 連接 Session 出現 conversation not found 問題
+- Task: 修復 Preview 預覽面板分頁未隨工作區同步關閉與 Commit 虛擬路徑 ENOENT 錯誤
 - Branch: master
 - Commit: Uncommitted
 
 ## Done（本輪）
-1. **解析 Antigravity CLI 連接 Session 出現 "conversation not found" 成因**：
+1. **修復 Preview 預覽面板分頁與工作區不同步（檔案已關閉仍殘留頁籤）**（[src/renderer/src/panels/preview/PreviewPanel.tsx](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/preview/PreviewPanel.tsx)）：
    - **根本成因**：
-     - **Antigravity IDE**（桌面 GUI）與 **Antigravity CLI**（`agy.exe`）的對話儲存架構是分開的。
-     - IDE 的對話記錄存放於 `~/.gemini/antigravity-ide/brain/<UUID>`（以 `transcript.jsonl` 記錄）。
-     - CLI（`agy`）的對話記錄獨立存放在 `~/.gemini/antigravity-cli/conversations/<UUID>.db`（以 SQLite 資料庫管理）。
-     - 儀表板點擊 IDE 的 session ID 嘗試以 `agy --conversation <UUID>` 啟動時，`agy` 在其 CLI 資料庫中找不到該 ID，因而輸出 `warning: conversation "<UUID>" not found`。
-2. **防禦修正與自動降級**（[src/main/ipc/pty.ts](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/main/ipc/pty.ts)）：
-   - 在 `pty:spawn` 啟動 `agy` 或 `antigravity` 時，自動檢查 `--conversation <id>` 對應的 `.db` 檔是否存在於 `~/.gemini/antigravity-cli/conversations/`。
-   - 若為真實 CLI 會話，完整保留參數並無縫 resume；若為 IDE 會話或遺失檔案，自動過濾掉 `--conversation <id>`，避免 CLI 終端跳出警告紅字，而是乾淨啟動並綁定當前專案工作區。
+     - `PreviewPanel` 先前使用了孤立的內部 `previewTabs` / `currentPath` state，並未同步全域 `store.ts` 的 `openTabs` 與 `activeFilePath`。
+     - 當在 Editor 或其他面板關閉檔案時，`store.ts` 已移除該檔案，但 `PreviewPanel` 仍殘留舊檔案路徑，且回退邏輯 `currentPath || activeFilePath` 導致關閉失敗。
+   - **修正方案**：
+     - `PreviewPanel` 改以全域 `useWorkbench()` 中的 `openTabs` 作為單一真相來源，動態過濾支援預覽的檔案。
+     - 關閉分頁時直接呼叫 `closeTab(p)`，點選分頁時直接呼叫 `selectTab(p)`，實現跨面板 100% 雙向同步。
+     - 當檔案全部關閉時，乾淨回到 Empty State，徹底清除殘留標題與錯誤訊息。
+2. **支援 Git Commit 虛擬比對分頁即時預覽**：
+   - 當使用者點選 Git Graph 檢視 Markdown 歷史版本（虛擬路徑 `commit:${hash}:${filePath}`）並切換至 Preview 時，自動透過 `window.api.git.commitFileDiff(hash, relPath)` 擷取該 Commit 歷史版本內容渲染，解決原先直接傳入硬碟路徑導致 `files:read ENOENT` 的紅色報錯。
+   - 分頁標籤與工具列自動顯示人性化短雜湊標記（如 `shared-memory.md (51e14f8)`）。
 
 ## Tests
 - `npm run typecheck` → pass (TypeScript 零錯誤通過)
