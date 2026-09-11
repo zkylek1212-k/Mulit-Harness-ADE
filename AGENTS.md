@@ -51,29 +51,23 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 # Latest Handoff
 
-- Updated: 2026-09-11 11:36 Asia/Taipei
+- Updated: 2026-09-11 11:42 Asia/Taipei
 - Agent: Antigravity
-- Task: 統一 Dashboard Agent Usage 為「已使用百分比（Used Percentage）」呈現
+- Task: 修復 Dashboard Agent 卡片文字擠壓重疊（Breakdown 改為 3 欄微型網格）
 - Branch: master
 - Commit: Uncommitted
 
 ## Done（本輪完整總結）
-1. **後端統一 Usage 計算邏輯（Used Percentage / 100k 配額基數）**：
-   - [src/main/ipc/dashboard.ts](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/main/ipc/dashboard.ts)：
-     - 解決先前 Antigravity 誤設為剩餘量 14.2k（14% remaining）而 Claude 為 86.5k（86% used）之不一致問題。
-     - 引入 `STANDARD_QUOTA = 100000`（100k tokens 標準容量配額）。
-     - 統一輸出 `usedPct = Math.min(100, Math.round((total / quota) * 100))` 與 `quotaLimit` 欄位。
-     - Claude 與 Antigravity 皆統一依據已使用量呈現（例如 86.5k 即為 86% used）。
-   - [src/preload/index.ts](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/preload/index.ts)：
-     - `AgentUsageSummary` 新增 `usedPct?: number` 與 `quotaLimit?: number`。
-
-2. **前端 Usage 膠囊與計量條呈現全面統一**：
+1. **重構 Breakdown 為 3 欄微型網格（徹底杜絕文字重疊）**：
    - [src/renderer/src/panels/dashboard/DashboardPanel.tsx](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/dashboard/DashboardPanel.tsx)：
-     - 替換原先的工作區佔比，改為明確的已使用百分比膠囊：`.dash-agent-usage-pill`（明確標註例如 `86% used`，Tooltip 提示 `86% used (14% remaining of 100k quota)`）。
-     - Apple Health 分割進度條（`.dash-agent-meter-track`）之寬度依照 `usedPct` 縮放：Prompt、Tools、Output 填滿前 86% 的進度，剩餘 14% 自然保留為未填滿之背景軌道，具備極佳的容量直觀辨識度。
-     - 統計副標（`.dash-agent-stat-sub`）明確標註 `86% used · ~14.4k / session`。
+     - 將原先單行 Flex 擠壓的 `.dash-agent-breakdown-row` 重構為獨立 3 欄 CSS Grid `.dash-agent-breakdown-grid`。
+     - 每一欄由標籤在上方（`● In`、`● Tools`、`● Out`）與等寬數值在下方（`115.8k`、`1.19M`、`198.3k`）垂直堆疊。
+     - 每一欄具備獨立 `1fr` 空間與 `text-overflow: ellipsis`，徹底解決大數值（如 `1.19M`）與相鄰文字互相撞擊重疊的跑版問題。
    - [src/renderer/src/panels/dashboard/dashboard.css](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/dashboard/dashboard.css)：
-     - 增加 `.dash-agent-usage-pill` 的精緻莫蘭迪邊框與柔和背景樣式。
+     - 新增 `.dash-agent-breakdown-grid`、`.dash-agent-breakdown-col`、`.dash-agent-col-label`、`.dash-agent-col-val`。
+     - 卡片 Grid 最小寬度調整為 `minmax(145px, 1fr)`，確保 3 張卡片或折行時都有最佳呼吸感。
+     - 數字行 `.dash-agent-stat-number-row` 增加間距與防擠壓 `flex-shrink: 0`，避免 `1.50M` 與 `TOKENS` 碰觸。
+     - 卡片頭部建立 `.dash-agent-brand` 彈性容器，讓 Agent 名稱、會話數與狀態膠囊平穩對齊。
 
 ## Tests
 - `npm run typecheck` → pass (TypeScript 零錯誤通過)
