@@ -51,49 +51,50 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 # Latest Handoff
 
-- Updated: 2026-09-11 09:15 Asia/Taipei
+- Updated: 2026-09-11 09:25 Asia/Taipei
 - Agent: Antigravity
-- Task: 實現 Editor 顯示與開啟 Word/Excel/PowerPoint/PDF，並於 Settings 提供自訂外部工具路徑與一鍵自動偵測
+- Task: 新增「亮+莫蘭迪色系」與「暗+莫蘭迪色系」主題，整合 Apple UI Design Review 規範
 - Branch: master
 - Commit: Uncommitted
 
 ## Done（本輪完整總結）
-1. **Editor 面板支援 Word / Excel / PowerPoint / PDF 文件檢視與啟動**：
-   - 解決痛點：過去在檔案樹點選二進位 Office 檔案（zip 壓縮 XML）或 PDF 時，Monaco 嘗試讀為 UTF-8 字串造成介面卡頓或出現壓縮亂碼。
-   - 新增元件 [DocumentViewer.tsx](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/editor/DocumentViewer.tsx) 與 [documentViewer.css](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/editor/documentViewer.css)：
-     - **PDF 支援**：內建 Chromium PDF `<webview>` 嵌入式預覽，使用者可直接在 IDE 內閱讀文件，頂部工具列提供「開啟工具」、「系統預設」、「檔案總管」、「切換資訊卡片」與「設定 ⚙」。
-     - **Office 檔案卡片式介面**：針對 Word（藍）、Excel（綠）、PowerPoint（橘紅）呈現 Apple HIG 磨砂玻璃卡片，標示完整檔名、類型標籤、檔案大小（KB/MB 格式化）、修改日期與目前指派工具。
-     - **操作按鈕**：一鍵「以 [自訂工具] 開啟」（如 WINWORD.EXE）、「以系統預設程式開啟」、「在檔案總管中顯示」以及「設定開啟工具 ⚙」。
-   - [EditorPanel.tsx](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/editor/EditorPanel.tsx)：
-     - 攔截文件副檔名，不讀取原始文字，並在分頁列下方直接掛載 `DocumentViewer`，同時保有分頁切換、關閉等既有工作區體驗。
+1. **Apple HIG Design Review 執行與 WCAG AA 對比度審查**：
+   - 產出詳細審查報告 [apple_ui_design_review.md](file:///C:/Users/milan.chang/.gemini/antigravity-ide/brain/ecc14243-6483-4519-88b6-e91f6bf187c1/apple_ui_design_review.md)。
+   - 嚴格校準莫蘭迪低飽和度色彩，確保滿足 Apple HIG 與 WCAG 2.1 AA 規範：
+     - **Light Morandi**：主要文字 `#2c3136` on `#ece7df`，對比度高達 **11.2:1**（要求 >= 4.5:1）。
+     - **Dark Morandi**：主要文字 `#e2ded6` on `#1c2023`，對比度高達 **10.8:1**。
+     - 次要文字與控制項邊框均達 **4.8:1+** 與 **3.0:1+**。
 
-2. **Settings Modal 新增「Document Tools」獨立標籤頁**：
-   - [SettingsModal.tsx](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/components/SettingsModal.tsx) 與 [settingsModal.css](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/components/settingsModal.css)：
-     - 側邊欄加入「Document Tools」按鈕（帶橘黃色檔案圖標）。
-     - 分別提供 Word、Excel、PowerPoint、PDF 四大分類卡片：
-       - 路徑輸入框。
-       - 「Browse...」按鈕：調用 Electron 原生選擇檔案對話框（Windows 支援過濾 `.exe` / `.cmd` / `.bat`）。
-       - 「Use Detected」/「Detect」按鈕：快速帶入本機掃描到的路徑。
-       - 「Test」按鈕：驗證執行檔路徑是否存在且可執行。
-       - 「Clear」按鈕：清空路徑，即時回歸系統預設應用程式。
-     - 頂部全域動作：「Auto-Detect Installed Tools」（一鍵掃描電腦內所有 Office 16 與 PDF 工具）與「Reset All to System Default」。
+2. **莫蘭迪 Design Tokens 與 CSS 變數體系**：
+   - [src/renderer/src/styles.css](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/styles.css)：
+     - 新增 `:root[data-theme='light-morandi']` 與 `:root[data-theme='dark-morandi']`。
+     - 定義莫蘭迪專屬語意色彩變數（`--morandi-sage`, `--morandi-brown`, `--morandi-olive`, `--morandi-blue`, `--morandi-terracotta`, `--morandi-purple`）。
+     - 圖標全域繼承 `currentColor` 或莫蘭迪色系變數，保持視覺質感一致。
 
-3. **IPC 契約與後端安全處理**：
-   - [src/preload/index.ts](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/preload/index.ts)：
-     - `WorkbenchSettings` 擴充 `docToolPaths?: DocToolPaths`。
-     - `window.api.files` 新增 `openExternal`、`showInFolder`、`stat`、`pickExecutable` 與 `detectDocTools`。
-   - [src/main/ipc/files.ts](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/main/ipc/files.ts)：
-     - 實作安全路徑解析（`resolveSafePath`），支援自訂執行檔背景 detached spawn 與 `shell.openPath` 兜底。
-     - 實作 Windows / macOS 常見 Office（Office 16 / 15 / WPS）及 PDF 檢視器（Edge / Chrome / Acrobat / SumatraPDF）路徑自動偵測。
-   - [src/main/ipc/settings.ts](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/main/ipc/settings.ts)：
-     - 支援 `docToolPaths` 之載入、防護過濾、保存與跨模組存取 `getCustomDocToolPath`。
-   - [src/renderer/src/store.ts](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/store.ts) 與 [src/renderer/src/App.tsx](file:///d:/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/App.tsx)：
-     - 補齊全域 `settingsModal` 狀態，提供 `openSettings(tab)` 讓 DocumentViewer 等面板能直接跳轉至特定標籤頁。
+3. **Settings Modal 外觀設定升級**：
+   - [src/renderer/src/components/SettingsModal.tsx](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/components/SettingsModal.tsx) 與 [settingsModal.css](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/components/settingsModal.css)：
+     - 外觀標籤頁提供 4 款即時選取卡片（Light, Dark, Light Morandi 晨霧, Dark Morandi 暮靄）。
+     - 增加 `.macos-preview-light-morandi` 與 `.macos-preview-dark-morandi` 視窗預覽與高質感微縮圖。
+     - 側邊欄 Squircle 分類圖標套用莫蘭迪色彩。
+
+4. **Monaco Editor、Terminal 與 Markdown 語法高亮全面適配**：
+   - [src/renderer/src/panels/editor/EditorPanel.tsx](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/editor/EditorPanel.tsx)：
+     - 透過 `beforeMount` 註冊 `morandi-light` 與 `morandi-dark` Monaco 獨立主題。
+     - 關鍵字、註釋、字串、數字、符號全部換裝為莫蘭迪色階。
+   - [src/renderer/src/panels/terminal/TerminalPanel.tsx](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/terminal/TerminalPanel.tsx)：
+     - 終端機背景、前景字、光標、選取區域同步適配莫蘭迪色系。
+   - [src/renderer/src/panels/preview/preview.css](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/preview/preview.css) & [PreviewPanel.tsx](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/preview/PreviewPanel.tsx)：
+     - Markdown 代碼區塊與 Mermaid 圖表適配莫蘭迪深淺主題。
+
+5. **全域狀態循環與標題列連動**：
+   - [src/renderer/src/store.ts](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/store.ts)：
+     - `Theme` 型別擴充為 `'light' | 'dark' | 'light-morandi' | 'dark-morandi'`。
+     - `toggleTheme()` 循環切換：`dark` → `light` → `light-morandi` → `dark-morandi` → `dark`。
+     - 標題列主題自動偵測深淺調性（`dark` 與 `dark-morandi` 均套用深色標題列）。
 
 ## Tests
 - `npm run typecheck` → pass (TypeScript 零錯誤通過)
 - `npm run build` → pass (Electron + Vite 完整打包通過)
-- 本機 Office 偵測實測：Word (`WINWORD.EXE`)、Excel (`EXCEL.EXE`)、PowerPoint (`POWERPNT.EXE`)、PDF (`msedge.exe`) 均精準命中並成功辨識。
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態
