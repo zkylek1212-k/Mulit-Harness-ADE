@@ -48,26 +48,27 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 # Latest Handoff
 
-- Updated: 2026-09-11 12:02 Asia/Taipei
+- Updated: 2026-09-11 13:26 Asia/Taipei
 - Agent: Antigravity
-- Task: 修復 Dashboard 下方 Session 卡片操作按鈕（Switch CLI / Resume CLI）向左破版跑出邊界問題
+- Task: 取消 Dashboard Agent 卡片 Usage 速率限制百分比與進度條，重構為純 Token 統計與分佈
 - Branch: master
 - Commit: Uncommitted
 
 ## Done（本輪完整總結）
-1. **破版根因定位（為何 Switch CLI / Resume CLI 會往左凸出卡片外）**：
-   - 在窄面板（寬度 < 260px）時，下方 Session 卡片寬度不足以容納 3 個按鈕並列。
-   - 原 `.dash-session-actions-bar` 設定了 `justify-content: flex-end;` 且未允許折行（`nowrap`），左側的 `Switch CLI` 又設定了 `margin-right: auto`。
-   - Flexbox 在寬度溢出且對齊方向為 `flex-end` 時，會將超出尺寸的開頭元素推向**負 X 軸座標（左側邊界外）**，加上卡片沒有 `overflow: hidden`，直接穿透卡片左側邊框。
-2. **完整響應式與防溢出重構（UI/UX）**：
+1. **取消 Usage 速率限制百分比資訊，改為純 Token 統計與分佈**：
+   - 根據使用者決策「取消usage 用量資訊只顯示token」，移除 Agent 卡片頂部 `5h: XX%` / `Wk: YY%` 膠囊標籤以及雙視窗滾動使用進度條（`dash-agent-windows-box`）。
+   - 移除後端 `src/main/ipc/dashboard.ts` 中對 5h/Weekly 視窗的推算與假設配額除法，避免產生不實的 82%、100% 紅色警告。
+2. **Apple HIG 風格 Token 統計與分佈長條圖**：
    - [src/renderer/src/panels/dashboard/DashboardPanel.tsx](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/dashboard/DashboardPanel.tsx)：
-     - 將 `Archive` 與 `Delete` 按鈕封裝進 `.dash-session-actions-right` 專屬彈性群組。
-     - 讓 `Switch CLI ➔`（或 `Resume CLI ➔`）與右側動作群組成為標準的兩端對齊 flex 項目。
+     - 大字醒目呈現各 Agent 累積真實 Total Tokens。
+     - 增加細緻的三段式分佈條（Segmented Meter）：分別以琥珀色（Prompt / In）、薄荷綠（Tools）、紫色（Completion / Out）呈現實際使用比例。
+     - 三欄微型數值網格：清楚標示 `● In`、`● Tools`、`● Out` 的真實 Token 數字與佔比。
    - [src/renderer/src/panels/dashboard/dashboard.css](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/dashboard/dashboard.css)：
-     - `.dash-session-card`：加上 `overflow: hidden` 與 `box-sizing: border-box`，徹底封死任何內容逸出。
-     - `.dash-session-main`：加上 `overflow: hidden`，防止標題或中繼資料在極窄視窗擠壓右側 Tokens 數值。
-     - `.dash-session-actions-bar`：改為 `justify-content: space-between; flex-wrap: wrap; width: 100%;`，移除溢出破版的 `justify-content: flex-end` 與 `margin-right: auto`。
-     - `.dash-action-btn`：設定精緻的內邊距（`2.5px 7px`）與字級（`10.5px`），在面板縮窄時自動平順折至第二行並向右靠齊，100% 嚴格服貼於卡片內部。
+     - 清理廢棄的 `.dash-window-pill` 與 `.dash-agent-windows-box` 樣式。
+     - 精確設定 `.dash-agent-tokens-meter` 與 `.dash-agent-tokens-seg`，支援平滑寬度動畫與圓角收邊。
+   - [src/main/ipc/dashboard.ts](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/main/ipc/dashboard.ts)：
+     - 移除 `fetchClaudeUsageWindows`、`fetchAntigravityUsageWindows`、`fetchCodexUsageWindows` 及遞迴 rate_limits 提取函式。
+     - 統計邏輯直接基於實際掃描到的本地會話紀錄（Antigravity、Claude 與活躍終端行程），回傳精準真實的 tokens 分佈。
 
 ## Tests
 - `npm run typecheck` → pass (TypeScript 零錯誤通過)
