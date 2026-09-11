@@ -51,52 +51,40 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 # Latest Handoff
 
-- Updated: 2026-09-11 11:20 Asia/Taipei
+- Updated: 2026-09-11 11:30 Asia/Taipei
 - Agent: Antigravity
-- Task: Dashboard Session 支援拖曳開啟終端與跨 Agent 拖曳 Handoff 任務
+- Task: Dashboard Agent Usage 卡片用量指標、Token 分佈條與即時過濾
 - Branch: master
 - Commit: Uncommitted
 
 ## Done（本輪完整總結）
-1. **Dashboard SessionCard 拖曳互動與手柄視覺優化**：
+1. **後端 Agent Token 聚合計算（IPC Dashboard）**：
+   - [src/main/ipc/dashboard.ts](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/main/ipc/dashboard.ts)：
+     - 實作 `computeAgentUsage(agentId, fallbackTokens)` 聚合邏輯：
+       - 精確統計歸屬特定 Agent 的所有歷史與即時會話。
+       - 分流彙總 `promptTokens`、`toolReadTokens`、`completionTokens`，若無分項則提供平滑分佈推估。
+       - 計算各 Agent 的活躍進程數（`activeSessions`）與總會話數（`totalSessions`）。
+   - [src/preload/index.ts](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/preload/index.ts)：
+     - `AgentUsageSummary` 介面包含 `promptTokens`、`toolTokens`、`completionTokens`、`totalTokens`、`activeSessions`、`totalSessions` 等完整欄位。
+
+2. **Dashboard Agent Trio 卡片 Usage 視覺升級（Apple HIG & 莫蘭迪）**：
    - [src/renderer/src/panels/dashboard/DashboardPanel.tsx](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/dashboard/DashboardPanel.tsx)：
-     - 在 `SessionCard` 啟用 `draggable={true}`，支援 `onDragStart` 與 `onDragEnd`。
-     - 攜帶結構化資料酬載：`type: 'agent-session'`、`id`、`agent`、`title`、`status`、`workspace`、`workspacePath`、`model`、`totalTokens`。
-     - 封裝為標準 `application/x-agent-session` MIME 類型，並同步注入記憶體狀態以確保拖曳懸浮時即時辨識。
-     - 在卡片左側新增 Apple 風格 `IconGripVertical` 拖曳手柄（`.dash-drag-grip`），並提供清晰 Tooltip 說明支援拖曳開啟或交接任務。
+     - **總量佔比膠囊（`.dash-agent-share-pill`）**：計算該 Agent 佔當前 Workspace 總 Token 的百分比（例 `85%`），提供滑鼠 Hover Tooltip。
+     - **平均會話消耗（`.dash-agent-stat-sub`）**：計算平均每場 Session 消耗 Token（例 `~14.4k / session`）。
+     - **Apple Health 風格分割計量條（`.dash-agent-meter-track`）**：
+       - 分割呈現 Input (Prompt, Amber)、Tools (Mint)、Output (Completion, Purple) 的佔比進度。
+       - Tooltip 清楚列出三個維度的具體 Token 數與百分比。
+     - **三段式 Token 標籤晶片（`.dash-agent-breakdown-row`）**：
+       - 包含微型彩色指標點、類別標籤與等寬字體 Token 數值（`In 11.2k`、`Tools 2.8k`、`Out 1.4k`）。
+     - **互動式 Agent 過濾篩選**：
+       - 點擊任一 Agent 卡片可直接過濾下方會話清單，只顯示該 Agent 的 Sessions。
+       - 在 Session 標頭提供 `.dash-active-filter-badge`，點擊隨時一鍵清除過濾。
+
+3. **樣式優化與莫蘭迪色彩適配**：
    - [src/renderer/src/panels/dashboard/dashboard.css](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/dashboard/dashboard.css)：
-     - 增加 `cursor: grab; cursor: grabbing;` 游標反饋。
-     - 增加 `.dash-session-card.dragging` 半透明（0.38）、虛線 Accent 邊框與柔和深景投影動畫。
-
-2. **跨面板拖曳狀態管理（Store Layer）**：
-   - [src/renderer/src/store.ts](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/store.ts)：
-     - 定義並匯出 `DraggedSessionPayload` 介面。
-     - 提供 `setDraggedSession(session)` 與 `getDraggedSession()`，讓 TerminalPanel 能在 `dragover` / `dragenter` 階段即時讀取來源 Agent 與任務資訊（突破瀏覽器安全策略在 dragover 無法讀取 dataTransfer.getData 的限制）。
-
-3. **Terminal 接收端 Apple Liquid Glass 懸浮感應層**：
-   - [src/renderer/src/panels/terminal/TerminalPanel.tsx](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/terminal/TerminalPanel.tsx)：
-     - 在 `.term-stage` 建立防閃爍計數器（`dragCounterRef`）與 `handleStageDragEnter/Leave/Over/Drop`。
-     - 智慧判斷操作模式：
-       - 若當前終端（或目標 Tab）為**不同 Agent** → 模式切換為 `handoff`。
-       - 若為**相同 Agent** 或終端空白 → 模式切換為 `open`。
-     - 渲染極致毛玻璃懸浮膠囊（`.term-drag-pill`），動態呈現目標 Agent、來源 Agent、任務標題與操作提示（`HANDOFF` vs `OPEN`）。
-   - [src/renderer/src/panels/terminal/terminal.css](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/terminal/terminal.css)：
-     - 設計符合 Apple HIG 與莫蘭迪調色之 `.term-drag-overlay` 與 `.term-drag-pill`，帶有毛玻璃模糊（`backdrop-filter: blur(12px)`）、細緻微光邊框與彈出縮放動畫（`macosScaleUp`）。
-
-4. **分頁 Tab 拖曳命中與 Cross-Agent 任務交接**：
-   - [src/renderer/src/panels/terminal/TerminalPanel.tsx](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/terminal/TerminalPanel.tsx)：
-     - 在 `.term-unified-tab` 實作個別分頁拖曳監聽：
-       - 拖曳至不同 Agent 的分頁時：觸發 `.drag-handoff-target`，並動態浮現 `⇄ Handoff` 莫蘭迪呼吸發光徽章。
-       - 拖曳至相同 Agent 的分頁時：觸發 `.drag-open-target`。
-     - 放開拖曳（Drop）時自動執行 Cross-Agent Handoff：
-       - 抓取來源 Session 之 ID、標題、工作區名稱、路徑、模型等完整元數據。
-       - 若來源 Session 正於任一終端執行中，自動調用 `readTerm` 截取最近 35 行終端輸出。
-       - 結構化組裝交接提示詞（`[Cross-Agent Handoff: Task Transfer from @agent]`），透過 `sendToSession` 注入目標終端執行，並自動切換 Focus 與彈出系統通知。
-   - 分頁列空白處 Drop：自動於終端新開分頁並恢復（`--resume` / `--conversation`）該 Session。
-
-5. **空白 Launchpad 卡片拖曳支援**：
-   - 當終端尚無任何 Session 時，拖曳卡片至特定 CLI 卡片（如將 `@claude` 拖至 `@antigravity`）：
-     - 自動調用 `handleLaunchAndHandoff` 啟動目標 Agent，並直接將任務交接提示詞注入新建立的終端中！
+     - 擴大卡片最小寬度 `minmax(130px, 1fr)` 確保資訊舒適舒展。
+     - 增加 `.dash-agent-card.selected` 各 Agent 專屬莫蘭迪柔光發光邊框與輕底色。
+     - 補齊 `.dash-agent-meter-track`、`.dash-agent-breakdown-row`、`.dash-agent-chip`、`.dot-prompt`、`.dot-tools`、`.dot-comp` 與 `.dash-active-filter-badge`。
 
 ## Tests
 - `npm run typecheck` → pass (TypeScript 零錯誤通過)
