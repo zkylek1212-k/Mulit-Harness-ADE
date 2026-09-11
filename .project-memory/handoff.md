@@ -1,48 +1,51 @@
 # Latest Handoff
 
-- Updated: 2026-09-11 11:03 Asia/Taipei
+- Updated: 2026-09-11 11:20 Asia/Taipei
 - Agent: Antigravity
-- Task: 實作 Agent 終端修改檔案時自動在 Editor 開啟分頁、即時熱重載與 Agent 標記徽章（Like Antigravity IDE）
+- Task: Dashboard Session 支援拖曳開啟終端與跨 Agent 拖曳 Handoff 任務
 - Branch: master
 - Commit: Uncommitted
 
 ## Done（本輪完整總結）
-1. **實作後端檔案即時監控與外部變更推播（Workspace File Watcher）**：
-   - [src/main/ipc/files.ts](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/main/ipc/files.ts)：
-     - 使用 Node 原生 `fs.watch(workspace.root, { recursive: true })` 建立輕量高效的目錄監控。
-     - 智慧排除暫存與依賴目錄：`.git`、`node_modules`、`out`、`dist`、`.workbench`、`.project-memory`、`.gemini`、`.system_generated`、`.vscode`、`*.lock`、`*.tmp` 等。
-     - 白名單支援所有代碼與文件副檔名（`.ts`, `.tsx`, `.js`, `.jsx`, `.json`, `.css`, `.html`, `.md`, `.py`, `.rs`, `.go`, `.yaml`, `.docx`, `.xlsx`, `.pptx`, `.pdf` 等）。
-     - 防抖機制（Debounce 300ms）：避免 Agent 連續寫入多個 chunk 造成多餘觸發。
-     - IDE 內部寫入抑制名單（`suppressedByIdeWrite`）：當使用者在 Editor 內手動 Ctrl+S 存檔時，自動抑制 1000ms，防範將使用者自己的存檔誤判為外部變更。
-     - 工作區切換響應：`pickWorkspace` 成功切換時自動重新掛載 watcher。
-     - 透過 `files:externalChange` IPC 事件向前端推播變更路徑與狀態。
+1. **Dashboard SessionCard 拖曳互動與手柄視覺優化**：
+   - [src/renderer/src/panels/dashboard/DashboardPanel.tsx](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/dashboard/DashboardPanel.tsx)：
+     - 在 `SessionCard` 啟用 `draggable={true}`，支援 `onDragStart` 與 `onDragEnd`。
+     - 攜帶結構化資料酬載：`type: 'agent-session'`、`id`、`agent`、`title`、`status`、`workspace`、`workspacePath`、`model`、`totalTokens`。
+     - 封裝為標準 `application/x-agent-session` MIME 類型，並同步注入記憶體狀態以確保拖曳懸浮時即時辨識。
+     - 在卡片左側新增 Apple 風格 `IconGripVertical` 拖曳手柄（`.dash-drag-grip`），並提供清晰 Tooltip 說明支援拖曳開啟或交接任務。
+   - [src/renderer/src/panels/dashboard/dashboard.css](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/dashboard/dashboard.css)：
+     - 增加 `cursor: grab; cursor: grabbing;` 游標反饋。
+     - 增加 `.dash-session-card.dragging` 半透明（0.38）、虛線 Accent 邊框與柔和深景投影動畫。
 
-2. **IPC 契約與設定管理擴充**：
-   - [src/preload/index.ts](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/preload/index.ts)：
-     - 在 `api.files` 新增 `onExternalChange(cb)` 事件監聽函式。
-     - 在 `WorkbenchSettings` 新增 `autoOpenAgentModifiedFiles?: boolean`（預設為 `true`）。
-   - [src/main/ipc/settings.ts](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/main/ipc/settings.ts)：
-     - `loadSettings()` 支援載入與持久化 `autoOpenAgentModifiedFiles`。
-
-3. **前端狀態管理與自動開檔聯動**：
+2. **跨面板拖曳狀態管理（Store Layer）**：
    - [src/renderer/src/store.ts](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/store.ts)：
-     - 在 `WorkbenchState` 新增 `agentModifiedFiles: Set<string>` 與 `fileReloadTick: Record<string, number>`。
-     - 全域註冊 `onExternalChange`：
-       - 自動調用 `bumpGit()`，同步刷新左側 Git Panel。
-       - 標記該檔案至 `agentModifiedFiles`。
-       - 檢查設定 `autoOpenAgentModifiedFiles`（預設為開）：
-         - 若該檔案尚未在 `openTabs`，自動加入分頁並切換為 Active Tab！
-         - 遞增 `fileReloadTick[path]`，促使 Editor 即時自動熱重載磁碟上的最新內容。
-     - 提供 `clearAgentModified(path)` 於使用者選取/編輯該檔案時清除高亮。
+     - 定義並匯出 `DraggedSessionPayload` 介面。
+     - 提供 `setDraggedSession(session)` 與 `getDraggedSession()`，讓 TerminalPanel 能在 `dragover` / `dragenter` 階段即時讀取來源 Agent 與任務資訊（突破瀏覽器安全策略在 dragover 無法讀取 dataTransfer.getData 的限制）。
 
-4. **Editor UI 體驗與 Apple HIG 微型徽章**：
-   - [src/renderer/src/panels/editor/EditorPanel.tsx](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/editor/EditorPanel.tsx)：
-     - 響應 `fileReloadTick`：若檔案正在編輯器中且使用者無未存檔變更（`!isDirty`），自動重載最新文字，並提示「Updated by Agent」。
-     - 在分頁 Tab 顯示專屬 `.editor-tab-agent-badge` 徽章，點選分頁時自動清除。
-   - [src/renderer/src/panels/editor/EditorPanel.css](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/editor/EditorPanel.css)：
-     - 設計 Apple 莫蘭迪紫色系微型徽章與柔和發光動畫（`agentPulse`），頂部帶有高亮細線（`.agent-modified`）。
-   - [src/renderer/src/components/SettingsModal.tsx](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/components/SettingsModal.tsx)：
-     - 在「Appearance」分頁新增「Editor & Agent Integration」開關，使用者可自由選擇是否自動開啟 Agent 變更的檔案。
+3. **Terminal 接收端 Apple Liquid Glass 懸浮感應層**：
+   - [src/renderer/src/panels/terminal/TerminalPanel.tsx](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/terminal/TerminalPanel.tsx)：
+     - 在 `.term-stage` 建立防閃爍計數器（`dragCounterRef`）與 `handleStageDragEnter/Leave/Over/Drop`。
+     - 智慧判斷操作模式：
+       - 若當前終端（或目標 Tab）為**不同 Agent** → 模式切換為 `handoff`。
+       - 若為**相同 Agent** 或終端空白 → 模式切換為 `open`。
+     - 渲染極致毛玻璃懸浮膠囊（`.term-drag-pill`），動態呈現目標 Agent、來源 Agent、任務標題與操作提示（`HANDOFF` vs `OPEN`）。
+   - [src/renderer/src/panels/terminal/terminal.css](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/terminal/terminal.css)：
+     - 設計符合 Apple HIG 與莫蘭迪調色之 `.term-drag-overlay` 與 `.term-drag-pill`，帶有毛玻璃模糊（`backdrop-filter: blur(12px)`）、細緻微光邊框與彈出縮放動畫（`macosScaleUp`）。
+
+4. **分頁 Tab 拖曳命中與 Cross-Agent 任務交接**：
+   - [src/renderer/src/panels/terminal/TerminalPanel.tsx](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/terminal/TerminalPanel.tsx)：
+     - 在 `.term-unified-tab` 實作個別分頁拖曳監聽：
+       - 拖曳至不同 Agent 的分頁時：觸發 `.drag-handoff-target`，並動態浮現 `⇄ Handoff` 莫蘭迪呼吸發光徽章。
+       - 拖曳至相同 Agent 的分頁時：觸發 `.drag-open-target`。
+     - 放開拖曳（Drop）時自動執行 Cross-Agent Handoff：
+       - 抓取來源 Session 之 ID、標題、工作區名稱、路徑、模型等完整元數據。
+       - 若來源 Session 正於任一終端執行中，自動調用 `readTerm` 截取最近 35 行終端輸出。
+       - 結構化組裝交接提示詞（`[Cross-Agent Handoff: Task Transfer from @agent]`），透過 `sendToSession` 注入目標終端執行，並自動切換 Focus 與彈出系統通知。
+   - 分頁列空白處 Drop：自動於終端新開分頁並恢復（`--resume` / `--conversation`）該 Session。
+
+5. **空白 Launchpad 卡片拖曳支援**：
+   - 當終端尚無任何 Session 時，拖曳卡片至特定 CLI 卡片（如將 `@claude` 拖至 `@antigravity`）：
+     - 自動調用 `handleLaunchAndHandoff` 啟動目標 Agent，並直接將任務交接提示詞注入新建立的終端中！
 
 ## Tests
 - `npm run typecheck` → pass (TypeScript 零錯誤通過)
