@@ -48,44 +48,32 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 # Latest Handoff
 
-- Updated: 2026-09-11 11:30 Asia/Taipei
+- Updated: 2026-09-11 11:36 Asia/Taipei
 - Agent: Antigravity
-- Task: Dashboard Agent Usage 卡片用量指標、Token 分佈條與即時過濾
+- Task: 統一 Dashboard Agent Usage 為「已使用百分比（Used Percentage）」呈現
 - Branch: master
 - Commit: Uncommitted
 
 ## Done（本輪完整總結）
-1. **後端 Agent Token 聚合計算（IPC Dashboard）**：
+1. **後端統一 Usage 計算邏輯（Used Percentage / 100k 配額基數）**：
    - [src/main/ipc/dashboard.ts](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/main/ipc/dashboard.ts)：
-     - 實作 `computeAgentUsage(agentId, fallbackTokens)` 聚合邏輯：
-       - 精確統計歸屬特定 Agent 的所有歷史與即時會話。
-       - 分流彙總 `promptTokens`、`toolReadTokens`、`completionTokens`，若無分項則提供平滑分佈推估。
-       - 計算各 Agent 的活躍進程數（`activeSessions`）與總會話數（`totalSessions`）。
+     - 解決先前 Antigravity 誤設為剩餘量 14.2k（14% remaining）而 Claude 為 86.5k（86% used）之不一致問題。
+     - 引入 `STANDARD_QUOTA = 100000`（100k tokens 標準容量配額）。
+     - 統一輸出 `usedPct = Math.min(100, Math.round((total / quota) * 100))` 與 `quotaLimit` 欄位。
+     - Claude 與 Antigravity 皆統一依據已使用量呈現（例如 86.5k 即為 86% used）。
    - [src/preload/index.ts](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/preload/index.ts)：
-     - `AgentUsageSummary` 介面包含 `promptTokens`、`toolTokens`、`completionTokens`、`totalTokens`、`activeSessions`、`totalSessions` 等完整欄位。
+     - `AgentUsageSummary` 新增 `usedPct?: number` 與 `quotaLimit?: number`。
 
-2. **Dashboard Agent Trio 卡片 Usage 視覺升級（Apple HIG & 莫蘭迪）**：
+2. **前端 Usage 膠囊與計量條呈現全面統一**：
    - [src/renderer/src/panels/dashboard/DashboardPanel.tsx](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/dashboard/DashboardPanel.tsx)：
-     - **總量佔比膠囊（`.dash-agent-share-pill`）**：計算該 Agent 佔當前 Workspace 總 Token 的百分比（例 `85%`），提供滑鼠 Hover Tooltip。
-     - **平均會話消耗（`.dash-agent-stat-sub`）**：計算平均每場 Session 消耗 Token（例 `~14.4k / session`）。
-     - **Apple Health 風格分割計量條（`.dash-agent-meter-track`）**：
-       - 分割呈現 Input (Prompt, Amber)、Tools (Mint)、Output (Completion, Purple) 的佔比進度。
-       - Tooltip 清楚列出三個維度的具體 Token 數與百分比。
-     - **三段式 Token 標籤晶片（`.dash-agent-breakdown-row`）**：
-       - 包含微型彩色指標點、類別標籤與等寬字體 Token 數值（`In 11.2k`、`Tools 2.8k`、`Out 1.4k`）。
-     - **互動式 Agent 過濾篩選**：
-       - 點擊任一 Agent 卡片可直接過濾下方會話清單，只顯示該 Agent 的 Sessions。
-       - 在 Session 標頭提供 `.dash-active-filter-badge`，點擊隨時一鍵清除過濾。
-
-3. **樣式優化與莫蘭迪色彩適配**：
+     - 替換原先的工作區佔比，改為明確的已使用百分比膠囊：`.dash-agent-usage-pill`（明確標註例如 `86% used`，Tooltip 提示 `86% used (14% remaining of 100k quota)`）。
+     - Apple Health 分割進度條（`.dash-agent-meter-track`）之寬度依照 `usedPct` 縮放：Prompt、Tools、Output 填滿前 86% 的進度，剩餘 14% 自然保留為未填滿之背景軌道，具備極佳的容量直觀辨識度。
+     - 統計副標（`.dash-agent-stat-sub`）明確標註 `86% used · ~14.4k / session`。
    - [src/renderer/src/panels/dashboard/dashboard.css](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/dashboard/dashboard.css)：
-     - 擴大卡片最小寬度 `minmax(130px, 1fr)` 確保資訊舒適舒展。
-     - 增加 `.dash-agent-card.selected` 各 Agent 專屬莫蘭迪柔光發光邊框與輕底色。
-     - 補齊 `.dash-agent-meter-track`、`.dash-agent-breakdown-row`、`.dash-agent-chip`、`.dot-prompt`、`.dot-tools`、`.dot-comp` 與 `.dash-active-filter-badge`。
+     - 增加 `.dash-agent-usage-pill` 的精緻莫蘭迪邊框與柔和背景樣式。
 
 ## Tests
 - `npm run typecheck` → pass (TypeScript 零錯誤通過)
-- `npm run build` → pass (Electron + Vite 完整打包通過)
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態
