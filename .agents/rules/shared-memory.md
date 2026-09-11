@@ -48,34 +48,26 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 # Latest Handoff
 
-- Updated: 2026-09-11 11:56 Asia/Taipei
+- Updated: 2026-09-11 12:02 Asia/Taipei
 - Agent: Antigravity
-- Task: 實現 Dashboard Agent 支援 5 小時（5hrs）與每週（weekly）使用量百分比與重設倒數
+- Task: 修復 Dashboard 下方 Session 卡片操作按鈕（Switch CLI / Resume CLI）向左破版跑出邊界問題
 - Branch: master
 - Commit: Uncommitted
 
 ## Done（本輪完整總結）
-1. **使用量模型全面升級為雙視窗模型（5hrs Session + Weekly Limit）**：
-   - 使用者明確指明：Agent 的使用量不應是粗糙單一的 100k 偽百分比，而需依照訂閱配額視窗顯示 **5hrs 與 weekly 的使用量百分比**。
-   - [src/preload/index.ts](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/preload/index.ts)：
-     - 新增 `WindowUsage` 介面（`usedPct`, `resetsAt`, `resetsInSeconds`, `tokens`, `label`）。
-     - 在 `AgentUsageSummary` 中加入 `fiveHour: WindowUsage` 與 `weekly: WindowUsage` 雙視窗欄位。
-2. **多 Agent 雙視窗使用量即時計算與端點抓取（IPC Core）**：
-   - [src/main/ipc/dashboard.ts](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/main/ipc/dashboard.ts)：
-     - **Claude Code**：
-       - 優先請求 Anthropic OAuth API 端點 `https://api.anthropic.com/api/oauth/usage`（與 `usage_hud.py` 機制一致），提取 `five_hour` 與 `seven_day`（weekly）的 `utilization` 及 `resets_at`。
-       - 離線/無 token 時自動切換為本地 5 小時與 7 天真實會話滾動計算，並推算距下次視窗重設剩餘時間。
-     - **Antigravity / Gemini**：
-       - 自動掃描 `~/.gemini/antigravity-ide/brain/` 最近 5 小時與 7 天的會話日誌與 Token 消耗量，精準計算 5h 與 Weekly 百分比及滾動重設時間。
-     - **Codex**：
-       - 遞迴檢索 `~/.codex/sessions` 中的 `rate_limits`（`primary` 5h 與 `secondary` weekly 視窗配額），未安裝時平穩呈現 0% 待命狀態。
-3. **Apple HIG 雙進度視窗卡片設計（UI/UX）**：
+1. **破版根因定位（為何 Switch CLI / Resume CLI 會往左凸出卡片外）**：
+   - 在窄面板（寬度 < 260px）時，下方 Session 卡片寬度不足以容納 3 個按鈕並列。
+   - 原 `.dash-session-actions-bar` 設定了 `justify-content: flex-end;` 且未允許折行（`nowrap`），左側的 `Switch CLI` 又設定了 `margin-right: auto`。
+   - Flexbox 在寬度溢出且對齊方向為 `flex-end` 時，會將超出尺寸的開頭元素推向**負 X 軸座標（左側邊界外）**，加上卡片沒有 `overflow: hidden`，直接穿透卡片左側邊框。
+2. **完整響應式與防溢出重構（UI/UX）**：
    - [src/renderer/src/panels/dashboard/DashboardPanel.tsx](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/dashboard/DashboardPanel.tsx)：
-     - 卡片頂部狀態徽章改為雙膠囊：`5h: XX%` 與 `Wk: YY%`，並依用量自動著色（安全綠/警告橙/高危紅）。
-     - 卡片主體新增專屬 `.dash-agent-windows-box`，直觀顯示 **5h Window** 與 **Weekly** 的雙滑動條與重設倒數（如 `in 2h 15m`、`in 3d 4h`）。
-     - 保留 Total Tokens 數值與 3 欄 Breakdown 微型網格（`In` / `Tools` / `Out`），資訊層次分明、無文字擠壓。
+     - 將 `Archive` 與 `Delete` 按鈕封裝進 `.dash-session-actions-right` 專屬彈性群組。
+     - 讓 `Switch CLI ➔`（或 `Resume CLI ➔`）與右側動作群組成為標準的兩端對齊 flex 項目。
    - [src/renderer/src/panels/dashboard/dashboard.css](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/dashboard/dashboard.css)：
-     - 新增 `.dash-window-pill`、`.dash-agent-windows-box`、`.dash-agent-window-row`、`.dash-agent-window-track`、`.dash-agent-window-bar` 等細膩毛玻璃樣式與色調類別。
+     - `.dash-session-card`：加上 `overflow: hidden` 與 `box-sizing: border-box`，徹底封死任何內容逸出。
+     - `.dash-session-main`：加上 `overflow: hidden`，防止標題或中繼資料在極窄視窗擠壓右側 Tokens 數值。
+     - `.dash-session-actions-bar`：改為 `justify-content: space-between; flex-wrap: wrap; width: 100%;`，移除溢出破版的 `justify-content: flex-end` 與 `margin-right: auto`。
+     - `.dash-action-btn`：設定精緻的內邊距（`2.5px 7px`）與字級（`10.5px`），在面板縮窄時自動平順折至第二行並向右靠齊，100% 嚴格服貼於卡片內部。
 
 ## Tests
 - `npm run typecheck` → pass (TypeScript 零錯誤通過)
