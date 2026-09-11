@@ -57,9 +57,11 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 ## Done
 - **Commit-diff 修復**（前一輪）：Git Graph / Recent Commits 點擊改走 `git.commitFileDiff`（見 `EditorPanel.tsx`），已於 commit 2c64c41 落地。
 - **v0.1.0 打包整理**：
-  - 新增 `LICENSE`（MIT, © 2026 zkyle）與 `README.md`（含功能、build 指令、商標免責、第三方授權說明）。
+  - 新增 `LICENSE`（MIT, © 2026 zkylek1212-k）與雙語 `README.md`（英文為主 + 繁中；含功能、build 指令、商標免責、第三方授權說明）。
   - `.gitignore` 補上：`.workbench/settings.json`、`.workbench/dashboard-state.json`（每機 runtime state）、`.agents/skills/`（本機外部 skill clone）。
-  - `package.json` 已是 `version 0.1.0` / `license MIT` / `author zkyle`（未改）。
+  - `package.json`：`version 0.1.0` / `license MIT`、`author` 改為 `zkylek1212-k`，並加 `repository`/`homepage`/`bugs`（repo: github.com/zkylek1212-k/Mulit-Harness-ADE）。
+  - `electron-builder.yml` appId 改為 `io.github.zkylek1212-k.agent-workbench`。
+  - 個人資訊/本機路徑掃描：追蹤檔內無本機路徑、email、使用者名（paths.ts 皆為 env 動態組出）；僅有的 `zkyle` 署名已全數改為 `zkylek1212-k`。
 - **IP/所有權 review 發現**：
   - 所有 runtime 依賴皆 MIT（monaco、xterm、react、simple-git、@lydell/node-pty…），與 MIT 相容；TypeScript 為 Apache-2.0 但僅 devDependency、不隨產品散布。
   - `.agents/skills/apple-design/` 是 `github.com/dickwu/apple-design-skill` 的 clone 且**無 LICENSE（預設全權利留保）**，且帶自己的 `.git` → **已排除，不得併入本 repo**。
