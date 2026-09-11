@@ -22,6 +22,7 @@
 - [x] Preview 預覽面板全域分頁同步（修正關閉殘留）與 Git 歷史版本 Markdown 預覽
 - [x] Antigravity CLI 會話防禦降級（解決 conversation not found）
 - [x] 中央工作區分段順序優化（Editor / Preview / Memory / Browser）
+- [x] Office & PDF 整合：Editor 內建 DocumentViewer（Word/Excel/PowerPoint/PDF）與 Settings 自訂外部工具路徑及自動偵測
 
 ## Long-term Tasks
 - P1: 真的需要硬體分析時再包 MCP。判準：**只包 LLM 做不到或容易做錯的事**
