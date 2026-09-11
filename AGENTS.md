@@ -51,34 +51,49 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 # Latest Handoff
 
-- Updated: 2026-09-11 10:56 Asia/Taipei
+- Updated: 2026-09-11 11:03 Asia/Taipei
 - Agent: Antigravity
-- Task: 修正 Dashboard 活躍會話誤判為 Completed 與去除冗餘假卡片，並在 Session 卡片顯示所屬 Workspace
+- Task: 實作 Agent 終端修改檔案時自動在 Editor 開啟分頁、即時熱重載與 Agent 標記徽章（Like Antigravity IDE）
 - Branch: master
 - Commit: Uncommitted
 
 ## Done（本輪完整總結）
-1. **修復活躍 Session 顯示 Completed 的根本問題與消除孤立佔位卡片**：
-   - 根本原因分析：
-     - 在 [src/main/ipc/dashboard.ts](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/main/ipc/dashboard.ts) 的 `scanAntigravitySessions` 與 `scanClaudeSessions` 中，歷史日誌掃描硬寫死為 `status: 'completed'`。
-     - 同時，PTY 在啟動終端進程時，於最外層無差別生成了一張虛構的佔位卡片 `Terminal: antigravity (PID: ...)`（固定 15.4k tokens），導致真實執行中的會話（包含標題與 139k tokens）被排在下方且標為 `Completed`，產生雙重錯亂。
-   - 解決方案：
-     - 實作智慧 PTY 行程認領（Claiming）：當有 `antigravity` / `agy` 或 `claude` 的 PTY 進程正在執行時，自動與最新更新的未歸檔 session 關聯，將其 `status` 正確設定為 `'active'`，`lastActiveTime` 即時更新。
-     - 消除冗餘假卡片：已被認領的 PTY 行程不再額外生成 `Terminal: ... (PID: ...)` 佔位卡片，只有未與任何會話關聯的純終端（如一般 Bash/PowerShell）才獨立呈現。
-     - 合併清單排序規則強化：`active` 會話永遠排在最頂端，其次按 `lastActiveTime` 倒序排列。
+1. **實作後端檔案即時監控與外部變更推播（Workspace File Watcher）**：
+   - [src/main/ipc/files.ts](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/main/ipc/files.ts)：
+     - 使用 Node 原生 `fs.watch(workspace.root, { recursive: true })` 建立輕量高效的目錄監控。
+     - 智慧排除暫存與依賴目錄：`.git`、`node_modules`、`out`、`dist`、`.workbench`、`.project-memory`、`.gemini`、`.system_generated`、`.vscode`、`*.lock`、`*.tmp` 等。
+     - 白名單支援所有代碼與文件副檔名（`.ts`, `.tsx`, `.js`, `.jsx`, `.json`, `.css`, `.html`, `.md`, `.py`, `.rs`, `.go`, `.yaml`, `.docx`, `.xlsx`, `.pptx`, `.pdf` 等）。
+     - 防抖機制（Debounce 300ms）：避免 Agent 連續寫入多個 chunk 造成多餘觸發。
+     - IDE 內部寫入抑制名單（`suppressedByIdeWrite`）：當使用者在 Editor 內手動 Ctrl+S 存檔時，自動抑制 1000ms，防範將使用者自己的存檔誤判為外部變更。
+     - 工作區切換響應：`pickWorkspace` 成功切換時自動重新掛載 watcher。
+     - 透過 `files:externalChange` IPC 事件向前端推播變更路徑與狀態。
 
-2. **在 Session 卡片與刪除對話框完整支援顯示所屬 Workspace**：
+2. **IPC 契約與設定管理擴充**：
    - [src/preload/index.ts](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/preload/index.ts)：
-     - 在 `AgentSessionInfo` 介面增加 `workspace?: string` 與 `workspacePath?: string` 欄位。
-   - [src/main/ipc/dashboard.ts](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/main/ipc/dashboard.ts)：
-     - 實作 `extractAntigravityWorkspace`：精準從 `transcript.jsonl` 前置日誌中解析 `[URI] -> [CorpusName]`、`Cwd`、`Active Document` 等，匹配或還原專案名稱與完整路徑。
-     - 實作 `extractClaudeWorkspace`：從專案資料夾名稱中提取專案工作區名稱。
-     - Standalone PTY Sessions 亦帶入當前 `workspace.root`。
-   - [src/renderer/src/panels/dashboard/DashboardPanel.tsx](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/dashboard/DashboardPanel.tsx)：
-     - 在 `SessionCard` 的 `dash-session-meta-line` 渲染包含資料夾圖示的 Workspace 膠囊徽章，並提供 hover 顯示完整路徑的 tooltip。
-     - 在 `AppleAlertDialog` 刪除確認對話框中亦同步顯示工作區資訊。
-   - [src/renderer/src/panels/dashboard/dashboard.css](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/dashboard/dashboard.css)：
-     - 加入 `.dash-session-workspace` 樣式，符合 Apple HIG 莫蘭迪微圓角與高對比階層質感。
+     - 在 `api.files` 新增 `onExternalChange(cb)` 事件監聽函式。
+     - 在 `WorkbenchSettings` 新增 `autoOpenAgentModifiedFiles?: boolean`（預設為 `true`）。
+   - [src/main/ipc/settings.ts](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/main/ipc/settings.ts)：
+     - `loadSettings()` 支援載入與持久化 `autoOpenAgentModifiedFiles`。
+
+3. **前端狀態管理與自動開檔聯動**：
+   - [src/renderer/src/store.ts](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/store.ts)：
+     - 在 `WorkbenchState` 新增 `agentModifiedFiles: Set<string>` 與 `fileReloadTick: Record<string, number>`。
+     - 全域註冊 `onExternalChange`：
+       - 自動調用 `bumpGit()`，同步刷新左側 Git Panel。
+       - 標記該檔案至 `agentModifiedFiles`。
+       - 檢查設定 `autoOpenAgentModifiedFiles`（預設為開）：
+         - 若該檔案尚未在 `openTabs`，自動加入分頁並切換為 Active Tab！
+         - 遞增 `fileReloadTick[path]`，促使 Editor 即時自動熱重載磁碟上的最新內容。
+     - 提供 `clearAgentModified(path)` 於使用者選取/編輯該檔案時清除高亮。
+
+4. **Editor UI 體驗與 Apple HIG 微型徽章**：
+   - [src/renderer/src/panels/editor/EditorPanel.tsx](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/editor/EditorPanel.tsx)：
+     - 響應 `fileReloadTick`：若檔案正在編輯器中且使用者無未存檔變更（`!isDirty`），自動重載最新文字，並提示「Updated by Agent」。
+     - 在分頁 Tab 顯示專屬 `.editor-tab-agent-badge` 徽章，點選分頁時自動清除。
+   - [src/renderer/src/panels/editor/EditorPanel.css](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/panels/editor/EditorPanel.css)：
+     - 設計 Apple 莫蘭迪紫色系微型徽章與柔和發光動畫（`agentPulse`），頂部帶有高亮細線（`.agent-modified`）。
+   - [src/renderer/src/components/SettingsModal.tsx](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade%20-2/src/renderer/src/components/SettingsModal.tsx)：
+     - 在「Appearance」分頁新增「Editor & Agent Integration」開關，使用者可自由選擇是否自動開啟 Agent 變更的檔案。
 
 ## Tests
 - `npm run typecheck` → pass (TypeScript 零錯誤通過)
