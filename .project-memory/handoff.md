@@ -2,29 +2,26 @@
 
 - Updated: 2026-09-14 Asia/Taipei
 - Agent: Antigravity (Gemini 3.8 Flash)
-- Task: 專案進版至 v0.1.1 並補齊完整 Release Description 與 Changelog
-- Branch: feat/workbench-enhancements
-- Commit: chore(release): bump version to v0.1.1 and add changelog
+- Task: Dashboard Agent 卡片與會話列表與 Settings CLI 啟用/停用狀態連動
+- Branch: feat/dashboard-cli-linkage
+- Commit: feat(dashboard): link agent and session visibility to CLI enable/disable settings
 
 ## Done
-- **進版至 v0.1.1 與版本發布描述**：
-  - `package.json` & `package-lock.json`：版本號由 `0.1.0` 進版至 `0.1.1`，更新專案描述以精確反映 Codex/Claude 遙測與雙語系支援。
-  - `CHANGELOG.md`：建立標準 Keep a Changelog 格式變更日誌，詳細記錄 v0.1.1 與 v0.1.0 之功能亮點、新增項目與問題修復（PR #2 Codex 遙測整合、資料夾分組與一鍵工作區切換、中英雙語系 i18n、遙測精準度校準、終端捲動修正）。
-  - `README.md`：更新中英文功能清單（文件預覽、儀表板與遙測、雙語系）並加入版本紀錄與變更日誌連結。
-  - `.project-memory/STATE.md`：里程碑正式標記為 `v0.1.1` 完成。
-- **整合外部 PR #2 (Codex 擴充掃描與真實會話 Token 統計)**：
-  - `src/main/ext/paths.ts` & `src/main/ext/inventory.ts`: 引入 Codex 的 `skillsDir` 與 `pluginsDir` 路徑設定，新增 `scanCodex()` 解析 `~/.codex/config.toml` (MCP 與 Plugins) 以及 `~/.codex/skills/` 下的 SKILL.md。
-  - `src/main/ipc/dashboard.ts`: 引入 `scanCodexSessions()`，遞迴讀取 `~/.codex/sessions/**/rollout-*.jsonl` 與 `~/.codex/session_index.jsonl`，計算真實累計 Token 數與會話標題。
-  - **架構融合與衝突解決**：將 Codex 掃描結果無縫併入工作台的智慧 PTY 行程匹配（優先級 1~3）、資料夾分組系統與中英文雙語系標準化 Token 分類。
-- **Session 卡片資料夾按鈕連動切換工作區與 Files 側邊欄**：
-  - `src/main/ipc/files.ts`: 新增 `files:setWorkspaceRoot` IPC，即時廣播 `files:treeChange`。
-  - `src/renderer/src/store.ts`: 實作 `switchWorkspace(path: string)`，自動切換至 Files 面板並遞增計數觸發重整。
-  - `src/renderer/src/App.tsx`: 側邊欄收合時點擊自動展開。
-  - `src/renderer/src/panels/filetree/FileTreePanel.tsx`: 監聽工作區切換並自動重新整理。
-  - `src/renderer/src/panels/dashboard/DashboardPanel.tsx`: SessionCard 與資料夾群組標頭新增切換按鈕，嚴格阻斷冒泡並引入 Apple HIG 動畫。
+- **後端主行程會話掃描依 CLI 啟用狀態過濾 (Backend CLI Guard)**：
+  - `src/main/ipc/dashboard.ts`: 引入 `isCliEnabled(agentId)`，在 `dashboard:data` 抓取會話記錄時，若該 Agent CLI 在 Settings 中已被停用，則跳過其會話掃描（不掃描磁碟、不建立空快取，省去 I/O 與 CPU）；同時在活躍 PTY 進程關聯時排除已停用之 Agent CLI。
+- **前端 Dashboard 面板即時連動與空狀態引導 (Reactive UI & Empty State)**：
+  - `src/renderer/src/panels/dashboard/DashboardPanel.tsx`: 訂閱 `settingsTick`，當使用者在設定中切換 CLI 啟用/停用開關時，即時重載設定並刷新遙測數據；
+  - 遙測卡片網格（`dash-agents-grid`）僅渲染目前啟用的 Agent 卡片；若全部停用則顯示提示 Banner 並提供快捷跳轉「設定 ➔ CLI 設定」按鈕；
+  - 統計數值（`workspaceTokens`、`activeProcesses`、`totalSessions`）動態計算已啟用的 Agent 資料；
+  - 會話資料夾群組（`folderGroups`）與會話卡片全面過濾已停用的 Agent 歷史，停用後不再顯示；若使用者原本選取的 Agent 被停用，自動重設為 `'all'`；
+  - 下方會話清單空狀態在全停用時顯示導引文案與跳轉按鈕。
+- **樣式與多國語系 (Styling & i18n)**：
+  - `src/renderer/src/panels/dashboard/dashboard.css`: 實作 `.dash-no-agents-banner` 與 `.dash-no-agents-btn`，延續 Apple HIG 半透明磨砂與微互動風格。
+  - `src/renderer/src/i18n/index.ts`: 補齊中英文 `noAgentsEnabled` 與 `noAgentsEnabledDesc` 語系鍵值。
 
 ## Tests
 - `npm run typecheck` → pass（TS 零錯誤）。
+- `npm run build` → pass（所有 chunk 編譯成功）。
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態。
