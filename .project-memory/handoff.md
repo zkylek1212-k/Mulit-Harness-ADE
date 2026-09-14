@@ -2,46 +2,36 @@
 
 - Updated: 2026-09-14 Asia/Taipei
 - Agent: Antigravity (Gemini 3.8 Flash)
-- Task: 實作 Auto-Updater 自動更新系統（支援安裝版與免安裝版）
+- Task: 建立 PowerShell 一鍵安裝腳本、README 安裝說明更新，並對齊 Logo 與更新檢查動畫
 - Branch: fix/settings-persistence-and-doc-tools
-- Commit: feat(updater): add auto-update system for installed and portable distributions
+- Commit: docs(readme): add one-line quick installer and releases guide
 
 ## Done
-- **實作 Auto-Updater 自動更新推送與管理系統**：
-  - `electron-builder.yml`: 新增 GitHub Releases `publish` 配置（repo: `zkylek1212-k/Mulit-Harness-ADE`）。
-  - `package.json`: 安裝並配置 `electron-updater`。
-  - `src/main/ipc/updater.ts`:
-    - 新增 `isInstalledApp()` 精確判斷 NSIS 安裝版 vs 免安裝綠色目錄。
-    - 封裝 `autoUpdater` 事件監聽（`update-available`、`download-progress`、`update-downloaded`）。
-    - 提供 GitHub Releases API 直接查詢備援（適用免安裝版與開發模式）。
-    - 提供完整 IPC Handlers：`updater:getStatus`、`updater:check`、`updater:download`、`updater:install`、`updater:openRelease`。
-  - `src/preload/index.ts`: 暴露 `window.api.updater`，支援即時事件廣播監聽與手動操作；定義 `UpdaterStatus` 與 `UpdateInfo`。
-  - `src/renderer/src/components/SettingsModal.tsx` & `settingsModal.css`:
-    - 新增「關於與更新 (About & Updates)」分頁，含品牌資訊與發行版本類型標籤（安裝版 vs 免安裝版）。
-    - 提供即時「檢查更新」按鈕、更新日誌預覽、下載進度條。
-    - 安裝版支援一鍵背景下載與重啟覆蓋升級（`quitAndInstall`）；免安裝版提供一鍵導向最新 Release 包下載。
-    - 新增啟動時自動檢查更新開關。
-    - 有新版時側邊欄分頁徽章紅點提醒。
-  - `src/renderer/src/components/Icons.tsx`: 新增 `IconInfo`、`IconDownload`、`IconSpark`。
-  - `src/renderer/src/i18n/index.ts`: 繁體中文與英文完整語系支援。
-- **整合 PR #4 (Codex / Antigravity 會話恢復與 Token 顯示修正)**：
-  - `src/renderer/src/panels/terminal/TerminalPanel.tsx`:
-    - 修復 Codex 會話恢復缺少參數：改為 `args = ['resume', req.id]`。
-    - 新增 Antigravity 終端恢復提示 `▸ Resuming Antigravity session...`。
-  - `src/main/ipc/dashboard.ts`:
-    - 新增 `scanAntigravityCliConversations()`：直接掃描 `~/.gemini/antigravity-cli/conversations/*.db`。
-    - 新增 `estimateTokensFromBlob()`：從 Protobuf 二進位 .db 中掃描 UTF-8 可讀文字估算 Token。
-  - `src/main/ipc/pty.ts`:
-    - 在 `onData` 與 `onExit` 加入 `event.sender.isDestroyed()` 防護，修復分離終端視窗關閉時導致主行程崩潰的 bug。
-- **修正安裝版設定檔持久化 (EPERM 權限錯誤)**：
-  - `src/main/ipc/settings.ts`: 優先存儲至 `app.getPath('userData')/settings.json`（`%APPDATA%`），保證讀寫權限。
-  - `src/main/index.ts`: 初始化工作區防止將 `C:\Program Files` 誤當作專案目錄。
-- **修復 Document Tool 測試「成功開啟卻顯示 Verification Failed」**：
-  - `src/preload/index.ts` & `src/main/ipc/settings.ts`: 新增 `testDocToolPath`，改為檢查路徑與執行檔屬性，不執行 `--version`，徹底解決 GUI 程式 6 秒逾時報錯。
+- **PowerShell 一鍵安裝腳本 (`install.ps1`)**：
+  - 支援 TLS 1.2/1.3，適用 Windows 10/11 預設環境。
+  - 自動呼叫 GitHub Releases API (`zkylek1212-k/Mulit-Harness-ADE`) 抓取最新版本安裝檔 (`Agent Workbench-*-setup.exe`)。
+  - 下載至 `$env:TEMP` 並自動啟動安裝精靈；支援 `-Silent` 背景靜默安裝、`-DownloadOnly` 僅下載、`-Portable` 免安裝包支援。
+  - 具備 API 速率限制與未上傳 binary 時的降級與提示引導。
+- **更新 `README.md` 安裝說明**：
+  - 英文與繁體中文雙語同步新增「Installation / 安裝指南」章節。
+  - 方法一：提供 PowerShell 單行指令 `irm https://raw.githubusercontent.com/zkylek1212-k/Mulit-Harness-ADE/master/install.ps1 | iex`。
+  - 方法二：提供 GitHub Releases 最新發行包直接下載連結。
+  - 方法三：保留原有的原始碼 clone 與開發者編譯步驟。
+- **對齊應用程式 Logo 與更新按鈕動畫**：
+  - `src/renderer/src/components/Icons.tsx`:
+    - 新增向量 `IconAppLogo`，完整重現深色圓形基底、青色核心原子核與三條旋轉 30°/90° 的軌域電子環，與 Windows 桌面圖示完全一致。
+    - 新增 `IconRefresh` 重整圖示。
+  - `src/renderer/src/components/settingsModal.css`:
+    - 新增 `@keyframes macosSpin` 與 `.macos-spin`，使檢查更新按鈕於進行中平滑旋轉。
+  - `src/renderer/src/components/SettingsModal.tsx`:
+    - 品牌卡替換為 `IconAppLogo`；檢查按鈕替換為 `IconRefresh` 並於檢查中旋轉。
+    - 自動更新開關對齊 macOS 設定列樣式（`.macos-row` / `.apple-toggle`）。
+- **修復主行程啟動 TDZ 異常**：
+  - `src/main/ipc/settings.ts`: 在 `getWorkspaceSettingsPath()` 存取 `workspace` 時加上 `try...catch` 防護，避免主行程初始化階段觸發 `ReferenceError`。
 
 ## Tests
+- `powershell -ExecutionPolicy Bypass -File .\install.ps1 -Tag "v0.1.1"` → pass（成功識別 Release 物件並安全處理）。
 - `npm run typecheck` → pass（TS 零錯誤）。
-- `npm run build` → pass（Vite 生產 bundle 與 SSR 編譯打包成功）。
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態。
