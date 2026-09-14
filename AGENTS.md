@@ -51,36 +51,30 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 # Latest Handoff
 
-- Updated: 2026-09-11 Asia/Taipei
-- Agent: Claude (Opus 4.8)
-- Task: 整理成可上傳 GitHub 的初始版 v0.1.0（MIT），並做 IP/所有權 review
-- Branch: master
-- Commit: 見本輪 release commit
+- Updated: 2026-09-14 Asia/Taipei
+- Agent: Antigravity (Gemini 3.8 Flash)
+- Task: 檔案自動讀取更新、Session 資料夾分組摺疊與一鍵摺疊/展開、幽靈 Session 修正
+- Branch: feat/mobile-dispatch
+- Commit: pending memory commit
 
 ## Done
-- **Commit-diff 修復**（前一輪）：Git Graph / Recent Commits 點擊改走 `git.commitFileDiff`（見 `EditorPanel.tsx`），已於 commit 2c64c41 落地。
-- **v0.1.0 打包整理**：
-  - 新增 `LICENSE`（MIT, © 2026 zkylek1212-k）與雙語 `README.md`（英文為主 + 繁中；含功能、build 指令、商標免責、第三方授權說明）。
-  - `.gitignore` 補上：`.workbench/settings.json`、`.workbench/dashboard-state.json`（每機 runtime state）、`.agents/skills/`（本機外部 skill clone）。
-  - `package.json`：`version 0.1.0` / `license MIT`、`author` 改為 `zkylek1212-k`，並加 `repository`/`homepage`/`bugs`（repo: github.com/zkylek1212-k/Mulit-Harness-ADE）。
-  - `electron-builder.yml` appId 改為 `io.github.zkylek1212-k.agent-workbench`。
-  - 個人資訊/本機路徑掃描：追蹤檔內無本機路徑、email、使用者名（paths.ts 皆為 env 動態組出）；僅有的 `zkyle` 署名已全數改為 `zkylek1212-k`。
-- **IP/所有權 review 發現**：
-  - 所有 runtime 依賴皆 MIT（monaco、xterm、react、simple-git、@lydell/node-pty…），與 MIT 相容；TypeScript 為 Apache-2.0 但僅 devDependency、不隨產品散布。
-  - `.agents/skills/apple-design/` 是 `github.com/dickwu/apple-design-skill` 的 clone 且**無 LICENSE（預設全權利留保）**，且帶自己的 `.git` → **已排除，不得併入本 repo**。
-  - 商標：Claude Code / Codex / Antigravity / VS Code 屬各家所有；README 已加獨立、未關聯之免責聲明。
-  - 無捆綁二進位資產、無專有圖示；未發現逐字抄襲他人程式碼。
-
-## Not done
-- 尚未 `git remote add` 也未 push（repo 尚無 remote）。
-- 未做正式專利檢索（需律師/專利檢索服務；MIT 不含明示專利授權）。
-
-## Next agent should
-- 若要上傳：`git remote add origin <url>` → `git push -u origin master` →（可選）`git tag v0.1.0 && git push --tags`。
-- 上傳後於 GitHub 設定 repo 描述與 topics；README 的商標免責已就緒。
+- **檔案自動讀取更新 (Auto-Refresh File Tree)**：
+  - `src/main/ipc/files.ts`: 新增 `triggerTreeChange()` 防抖通知，監聽工作區任意檔案/目錄異動並在 `files:write` 存檔後自動廣播 `files:treeChange`。
+  - `src/preload/index.ts`: 在 `files` 介面新增 `onTreeChange` 監聽契約。
+  - `src/renderer/src/store.ts`: 新增 `fileTreeTick` 與 `bumpFileTree()`，全域監聽 `onTreeChange` 自動推進計數器。
+  - `FileTreePanel.tsx`: 訂閱 `fileTreeTick`、`gitTick` 與視窗 `focus` 事件，自動靜默重新拉取 root 及所有已展開資料夾子項目，維持使用者樹狀展開狀態不跳動。
+- **Session 資料夾分組、摺疊與一鍵摺疊/展開**：
+  - `DashboardPanel.tsx`: 依 Session 的真實執行資料夾（`workspacePath` / `workspace`）自動分組歸類；當前 IDE 開啟之工作區自動置頂並標記 `Current Workspace`。
+  - 每個資料夾群組可單獨展開/收合，並於頂部提供「展開全部」與「摺疊全部」一鍵操作按鈕。
+  - `dashboard.css`: 實作 Apple HIG 風格之資料夾群組外框、標頭、徽章與展開箭頭動畫。
+- **幽靈 Session 與假 Token 徹底修正**：
+  - `src/main/ipc/dashboard.ts`: 移除 `slice(0, 2)` 隨意抓取電腦中無關專案的 fallback 機制；Claude 會話精準從 `.jsonl` 訊息的 `cwd` 提取真實執行路徑。
+  - Antigravity 會話精確匹配 `[URI]` 或 `"Cwd"`，未指定者標記為獨立會話，不再任意冠上當前工作區路徑。
+  - 移除一般終端（PowerShell/CMD/Bash）被偽造為帶有 15,400 假 Token 的 Agent Session 卡片；移除寫死之 11,500 / 12,000 假 Token 基準值。
 
 ## Tests
-- `npm run typecheck` → pass（TS 零錯誤）。未跑實機/單元測試。
+- `npm run typecheck` → pass（TS 零錯誤）。
+- `npm run build` → pass（產出 production bundle，Vite / Electron 編譯通過）。
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態。
