@@ -64,6 +64,8 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
   - 診斷出因使用者在 PowerShell 貼上指令時重複貼上兩次且無換行，導致 `... | iex` 與 `irm ...` 黏在一起變成 `iexirm`。在 `README.md` 補齊簡潔指令與提示。
 - **明確標註 npm run release 僅限專案維護者**：
   - 在 `README.md` 中英文版與 `scripts/release.ps1` 標頭標註 `(Maintainers only)` 與安全說明，告知外部人員此指令需本機 `gh` 倉庫寫入權限，無法隨意發布或更動專案。
+- **修復 PowerShell 5.1 Unicode 字元解析報錯**：
+  - `scripts/release.ps1` 內的原生 Unicode 符號（`✓`、`•`、`🎉`）在 Windows PowerShell 5.1 預設 ANSI 編碼環境下會被誤讀為雙引號 `“`，導致字串閉合中斷並引發 `Unexpected token 'MB'` 語法解析錯誤。已全數替換為標準 ASCII 符號（`[OK]`、`*`），徹底解決解析錯誤。
 
 ## Tests
 - 實測 `powershell -ExecutionPolicy Bypass -Command "& .\install.ps1 -DownloadOnly"`：成功透過 `curl.exe` 呈現平滑即時百分比進度條。
