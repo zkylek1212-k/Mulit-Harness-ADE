@@ -2,18 +2,16 @@
 
 - Updated: 2026-09-14 Asia/Taipei
 - Agent: Antigravity (Gemini 3.8 Flash)
-- Task: 深入分析與修復 Session Token 正確性及活躍狀態顯示 completed 根因
+- Task: 修復設定語言選擇 radio dot 實心狀態樣式
 - Branch: feat/mobile-dispatch
 - Commit: pending memory commit
 
 ## Done
-- **Token 正確性分析與計算法修復**：
-  - **Claude 專案 Token**：底層讀取 Anthropic API 的真實 usage 標頭（`input_tokens`, `output_tokens`, `cache_read_input_tokens`, `cache_creation_input_tokens`）。修復 `dashboard.ts` 中 `toolTokens += estimateTokens(len.toString())` 之嚴重 bug（原將字元長度轉為字串如 `"20000"` 計為 5 字元 = 2 tokens），改為 `Math.ceil(len / 3.5)` 正確計算工具 payload。
-  - **Antigravity Token**：日誌由 Gemini IDE 產生，因 transcript 僅記錄完整文字對話而無底層 API usage 標頭，採業界通用之字元數比率（`Math.ceil(charCount / 3.5)`）進行 BPE token 估算。
-- **解決「明明還在 active 卻顯示 completed」之根本原因**：
-  - **根因 1（工作區正規化與 Regex 逃逸字元 Bug）**：`extractAntigravityWorkspace` 於匹配工具調用之 `Cwd` 時，因未處理跳脫引號 `\"`，導致路徑擷取為 `"\\"`。在 Windows 下 `fs.existsSync("\\")` 為 true（磁碟根目錄），導致工作區路徑錯設為 `"\\"`，進而使 `workspace.root` 比對永遠失敗，會話狀態始終困在預設值 `completed`。已修正將當前 `workspace.root` 優先級移至第一位，並修復 `cwd` 引號清理與路徑比對長度防禦。
-  - **根因 2（即時日誌活躍度偵測）**：歷史會話掃描不再一律標記為 `completed`，改依 `lastActiveTime` 即時判定（5 分鐘內有磁碟寫入更新者判定為 `active`，20 分鐘內為 `idle`，超過則為 `completed`）。
-  - **根因 3（PTY 終端行程與 Agent Session ID 鏈結）**：`src/preload/index.ts` 之 `PtySpawnOptions` 與 `src/main/ipc/pty.ts` 之 `ActiveSessionMeta` 增設 `sessionId` 與 `cwd`；`TerminalPanel.tsx` 於啟動終端時精確傳遞 `associatedSessionId`，讓後端可直接 100% 精準將活躍 PTY 映射至 Session 卡片，杜絕重複產生 0 token 的 standalone 假卡片。
+- **修復語言卡片 Radio Dot 實心狀態（CSS 規則缺漏修復）**：
+  - 在 `src/renderer/src/components/settingsModal.css` 中，原本僅針對 `.macos-theme-card.active .macos-radio-dot` 定義了 `border-color: var(--accent)`、`background: var(--accent)` 與 `:after` 白點樣式，缺少 `.macos-lang-card.active` 的對應規則，導致語言卡片選中時圓圈維持中空。
+  - 已補齊 `.macos-lang-card.active .macos-radio-dot` 及通用 `.active .macos-radio-dot` 樣式，並增設柔和的過渡動畫（`transition: border-color 0.15s ease, background 0.15s ease`），選中時圓圈即轉為主題強調色實心與中央亮點（標準 Apple macOS HIG Radio 風格）。
+- **優化 Dashboard 靜默輪詢**：
+  - `src/renderer/src/panels/dashboard/DashboardPanel.tsx`: `loadData(silent)` 在背景每 5 秒輪詢時採靜默模式，不觸發右上角重新整理按鈕旋轉或短暫 disabled，操作更平滑。
 
 ## Tests
 - `npm run typecheck` → pass（TS 零錯誤）。
