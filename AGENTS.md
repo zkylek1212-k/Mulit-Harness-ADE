@@ -53,30 +53,29 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 - Updated: 2026-09-14 Asia/Taipei
 - Agent: Antigravity (Gemini 3.8 Flash)
-- Task: 左側儀表板縮小排版跑版修復、自適應優化與更新器 404 錯誤淨化
+- Task: 儀表板排版重構、Browser 本地 Web 測試分頁說明與未啟動引導畫面
 - Branch: fix/settings-persistence-and-doc-tools
-- Commit: fix(dashboard): implement responsive two-row folder layout and container query action bar
+- Commit: feat(browser): add dev server offline guidance and explain localhost port presets
 
 ## Done
 - **儀表板側邊欄縮小排版全面重構（防重疊與跑版）**：
   - `src/renderer/src/panels/dashboard/DashboardPanel.tsx`:
-    - 資料夾標題重構為雙層結構：
-      - 上層（`.dash-folder-top`）：專注資料夾身份（折疊箭頭、圖示、名稱、當前工作區標記）與右側 Token 總量，設定 `min-width: 0` 與 `text-overflow: ellipsis`。
-      - 下層（`.dash-folder-sub`）：專注狀態與動作（Active 綠燈標籤、Session 數量、以及右側切換資料夾按鈕）。
-    - Session 卡片右側資訊重整為 `.dash-session-right-col`，並為操作按鈕加上 `.dash-action-icon-btn` 與 `.dash-action-label`。
+    - 資料夾標題重構為雙層結構（上層名稱+Token、下層狀態+切換按鈕），解決文字疊加。
+    - Session 卡片按鈕加上 `.dash-action-icon-btn` 與 `.dash-action-label`。
   - `src/renderer/src/panels/dashboard/dashboard.css`:
-    - 在 `.dash-root` 啟用 CSS Container Query（`container-type: inline-size; container-name: dash-panel;`）。
-    - 解決「切換資料夾」按鈕文字被壓成四行垂直文字：加上 `white-space: nowrap; flex-shrink: 0;`。
-    - 徹底根絕文字融合重疊 bug：為所有文字容器設定嚴格的 `min-width: 0`、`flex: 1` 與 `overflow: hidden`。
-    - 窄版自適應（`@container dash-panel (max-width: 330px)`）：
-      - `Archive` 與 `Delete` 自動隱藏文字標籤，縮成精美帶 Tooltip 的 Icon 按鈕。
-      - 主要按鈕 `>_ Switch CLI ➔` 佔據彈性寬度，三顆按鈕保證維持**單行整齊排列，永不折行**。
-      - 隱藏 Session 卡片重複的 `TOKENS` 小標籤，讓主要標題字數空間擴增 2.5 倍以上。
-    - 超窄版自適應（`@container dash-panel (max-width: 290px)`）：緊湊調整頂部 3 欄 Token 統計（In / Tools / Out）。
+    - 啟用 CSS Container Query（`@container dash-panel`）。
+    - 窄版自動將 `Archive`/`Delete` 轉為圖示按鈕，維持單行排列不折行；消除 `TOKENS` 小標籤放大標題寬度。
+    - 切換資料夾按鈕強制 `white-space: nowrap` 避免垂直折行。
+- **內建 Web 測試瀏覽器（Browser Panel）引導強化**：
+  - `src/renderer/src/panels/browser/TestBrowserPanel.tsx` & `browser.css`:
+    - 監聽 `<webview>` 的 `did-fail-load` 事件。
+    - 當本機尚未啟動 Web 服務時，取代原本的死白畫面，改為顯示「本地開發伺服器未啟動」專屬引導卡片。
+    - 提供清晰繁中/英文說明、重新載入、外部瀏覽器開啟，以及快速切換常見開發 Port（`:5173`, `:3000`, `:8080`, `:8000`）的晶片按鈕。
+  - `src/renderer/src/i18n/index.ts`: 新增 `browser` 繁中與英文雙語翻譯。
 - **Auto-Updater 404 錯誤淨化與容錯**：
-  - `src/main/ipc/updater.ts`: 新增 `formatUpdaterError()`，過濾原生幾十行 HTTP Header 與 stack trace；在 GitHub REST API 備援查詢成功且確認為最新版時，自動清空先前 `latest.yml` 的 404 錯誤，畫面乾淨顯示「✓ You are on the latest version!」。
-- **PowerShell 一鍵安裝腳本與說明**：
-  - 專案根目錄建立 `install.ps1`，並同步更新 `README.md`（英文與繁體中文雙語）。
+  - `src/main/ipc/updater.ts`: 清空備援查詢成功後的 404 錯誤，乾淨顯示打勾。
+- **PowerShell 一鍵安裝腳本**：
+  - 根目錄 `install.ps1` 與 `README.md` 更新。
 
 ## Tests
 - `npm run typecheck` → pass（TS 零錯誤）。
