@@ -54,7 +54,7 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 - Updated: 2026-09-14 Asia/Taipei
 - Agent: Antigravity (Gemini 3.8 Flash)
 - Task: 今日工作成果統整提交（雙語系支援、會話分類、工作區切換、遙測真實度修正、Launchpad 滾動修復）
-- Branch: feat/mobile-dispatch
+- Branch: feat/workbench-enhancements
 - Commit: feat(workbench): bilingual i18n, folder grouping, workspace switching, telemetry fixes
 
 ## Done
