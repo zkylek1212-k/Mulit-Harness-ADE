@@ -13,8 +13,9 @@
   - `src/main/ipc/files.ts`: 工作區切換時調用 `invalidateDashboardMemoryCache()` 重整快取。
 - **前端面板按需掛載與狀態保持 (Mount-on-Demand with Keep-Alive)**：
   - `src/renderer/src/App.tsx`: 側邊欄（Files, Git）與中央區（Preview, Memory）改採 `visitedTabs` 按需掛載，冷啟動時不再生成 4 個 Git child process，亦不預載 Mermaid 庫；訪問過後持續保留於 DOM，確保切換分頁狀態不丟失。
-- **消除開發模式雙重掛載**：
+- **消除開發模式雙重掛載與忽略本機快取檔**：
   - `src/renderer/src/main.tsx`: 移除 `<React.StrictMode>`，消除開機兩次重複觸發全盤掃描與 effect 負擔。
+  - `.gitignore`: 將 `.workbench/dashboard-cache.json` 列入忽略清單，避免各環境快取污染版控。
 
 ## Tests
 - `npm run typecheck` → pass（TS 零錯誤）。
