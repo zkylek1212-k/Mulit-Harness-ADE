@@ -50,31 +50,32 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 - Updated: 2026-09-14 Asia/Taipei
 - Agent: Antigravity (Gemini 3.8 Flash)
-- Task: 發布 v0.1.3 — CLI 啟動權限 Bypass Mode
-- Branch: master
-- Commit: chore(release): bump version to v0.1.3
+- Task: 合併 PR #4、發布自動化、儀表板防跑版、Web 測試離線引導、版本推進至 v0.1.4
+- Branch: fix/settings-persistence-and-doc-tools
+- Commit: feat(v0.1.4): release automation, auto-updater, responsive dashboard, and bump version to v0.1.4
 
 ## Done
-- **新增 CLI 啟動權限 Bypass Mode 全域開關**：
-  - `src/preload/index.ts`: 在 `WorkbenchSettings` 新增 `cliBypassPermissions?: boolean` 欄位（預設 `false`）。
-  - `src/main/ipc/settings.ts`: 於 `loadSettings` 與 `settings:set` 完整持久化至 `.workbench/settings.json`，並匯出 `isCliBypassPermissions()`。
-- **PTY 子行程參數自動注入**：
-  - `src/main/ipc/pty.ts`: 實作 `getAgentBypassArgs` 與 `applyAgentBypassArgs`。當啟用 Bypass 模式時，啟動 CLI 自動帶入指定參數且防止重複注入：
-    - Claude Code: `claude --permission-mode bypassPermissions`
-    - Codex: `codex --dangerously-bypass-approvals-and-sandbox`
-    - Antigravity: `agy --dangerously-skip-permissions`
-  - `pty:launchers` 與 `pty:spawn` 皆支援此注入邏輯，相容 Windows `.ps1`、`.cmd`、直接執行檔等多種環境。
-- **macOS Sequoia 風格設定面板 UI 與雙語系**：
-  - `src/renderer/src/components/SettingsModal.tsx` & `settingsModal.css`: 在 CLI 分頁新增專屬區塊，配備 Apple HIG 盾牌圖標、Toggle 開關、警告通知橫幅與各 Agent 指令代碼預覽卡片。
-  - `src/renderer/src/components/Icons.tsx`: 新增 `IconShield` 元件。
-  - `src/renderer/src/i18n/index.ts`: 繁體中文與英文完整語系支援。
-- **終端面板即時狀態連動**：
-  - `src/renderer/src/panels/terminal/TerminalPanel.tsx` & `terminal.css`: 在 Launchpad 啟動卡片與 `+` 下拉選單中，若 Bypass 模式啟用即時展示橘色 `Bypass` 徽章。
+- **合併 PR #4 (by Jerrywu-TT)**：
+  - 修正 Codex 會話恢復未傳入 `resume` 參數。
+  - 對接 Antigravity CLI 原生資料庫會話 ID，支援真正 resume。
+  - 加入 `estimateTokensFromBlob` 啟發式計算二進位 DB 的 Token 數量。
+  - PTY 增加 `isDestroyed()` 避免已關閉 WebContents 崩潰。
+- **一鍵式自動化發布腳本（`scripts/release.ps1` & `npm run release`）**：
+  - 驗證本機已安裝且已登入的 `gh`（GitHub CLI）。
+  - 自動讀取 `package.json` 中的目標版本號（如 `v0.1.4`）。
+  - 執行完整 TS 檢查（`typecheck`）與 electron-builder 打包（`npm run dist`）。
+  - 自動壓縮綠色免安裝目錄 `release/win-unpacked` 成 `release/Agent-Workbench-<version>-portable.zip`。
+  - 自動透過 `gh release create` / `gh release upload --clobber` 將安裝檔（`.exe`）、免安裝包（`.zip`）、區塊校驗檔（`.blockmap`）與自動更新清單（`latest.yml`）直接發布至 GitHub Releases。
+- **儀表板窄版防跑版與側邊欄防重疊**：
+  - 雙層資料夾標題結構 + CSS Container Query（極窄時按鈕動態轉為圖示）。
+- **內建 Web 測試瀏覽器離線智慧引導**：
+  - 伺服器離線時展示友善引導卡片與常用 Port（:5173, :3000, :8080, :8000）按鈕。
+- **版本推進至 v0.1.4**：
+  - 更新 `package.json`、`package-lock.json`、`CHANGELOG.md`。
 
 ## Tests
 - `npm run typecheck` → pass（TS 零錯誤）。
-- `npm run build` → pass（所有 chunk 編譯打包成功）。
-- `scratch/test_bypass.ts` → pass（getAgentBypassArgs, applyAgentBypassArgs 與 settings 持久化雙向測試完全通過）。
+- `powershell -ExecutionPolicy Bypass -File ./scripts/release.ps1` → 預備執行 v0.1.4 打包與 GitHub Releases 發布。
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態。
