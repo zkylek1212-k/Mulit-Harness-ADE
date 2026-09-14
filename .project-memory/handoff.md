@@ -2,11 +2,20 @@
 
 - Updated: 2026-09-14 Asia/Taipei
 - Agent: Antigravity (Gemini 3.8 Flash)
-- Task: 修正安裝版設定持久化 EPERM 與 Document Tool 驗證超時
+- Task: 整合 PR #4 (Codex/Antigravity Session Resume 與 Token 估計) 與設定持久化修正
 - Branch: fix/settings-persistence-and-doc-tools
-- Commit: fix(settings): persist settings to userData and fix doc tool validation
+- Commit: merge(pr-4): implement real Codex/Antigravity session resume and fix token display
 
 ## Done
+- **整合 PR #4 (Codex / Antigravity 會話恢復與 Token 顯示修正)**：
+  - `src/renderer/src/panels/terminal/TerminalPanel.tsx`:
+    - 修復 Codex 會話恢復缺少參數：改為 `args = ['resume', req.id]`（Codex resume 為子命令＋位置參數）。
+    - 新增 Antigravity 終端恢復提示 `▸ Resuming Antigravity session...`。
+  - `src/main/ipc/dashboard.ts`:
+    - 新增 `scanAntigravityCliConversations()`：直接掃描 `~/.gemini/antigravity-cli/conversations/*.db`，獲取與 CLI 相容的真正 Session ID。
+    - 新增 `estimateTokensFromBlob()`：從 Protobuf 二進位 .db 中掃描 UTF-8 可讀文字估算 Token，解決先前恆定 0 Token 的問題。
+  - `src/main/ipc/pty.ts`:
+    - 在 `onData` 與 `onExit` 加入 `event.sender.isDestroyed()` 防護，徹底修復分離終端視窗關閉時導致主行程崩潰的 bug。
 - **修正安裝版設定檔持久化 (EPERM 權限錯誤)**：
   - `src/main/ipc/settings.ts`:
     - 新增 `getGlobalSettingsPath()` 優先存儲至 `app.getPath('userData')/settings.json`（`%APPDATA%`），保證無需管理員權限即可正常讀寫。
@@ -30,8 +39,7 @@
 ## Tests
 - `npm run typecheck` → pass（TS 零錯誤）。
 - `npm run build` → pass（Vite 生產 bundle 與 SSR 編譯打包成功）。
-- `npm run dist` → pass（安裝程式 `Agent Workbench-0.1.3-setup.exe` 成功打包）。
-- Node/Electron 單元驗證腳本 → pass（`isProtectedPath`, `determineInitialWorkspace`, `saveSettings` 無 EPERM 驗證通過）。
+- PR #4 merge → pass（零衝突自動合併成功）。
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態。
