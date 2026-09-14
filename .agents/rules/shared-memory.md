@@ -62,6 +62,8 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
     - **環境變數簡便模式**：支援 `$env:INSTALL_SILENT=1` 與 `$env:INSTALL_DOWNLOAD_ONLY=1`，方便單行 `irm ... | iex` 搭配環境變數執行。
 - **解決 `iexirm` 報錯原因**：
   - 診斷出因使用者在 PowerShell 貼上指令時重複貼上兩次且無換行，導致 `... | iex` 與 `irm ...` 黏在一起變成 `iexirm`。在 `README.md` 補齊簡潔指令與提示。
+- **明確標註 npm run release 僅限專案維護者**：
+  - 在 `README.md` 中英文版與 `scripts/release.ps1` 標頭標註 `(Maintainers only)` 與安全說明，告知外部人員此指令需本機 `gh` 倉庫寫入權限，無法隨意發布或更動專案。
 
 ## Tests
 - 實測 `powershell -ExecutionPolicy Bypass -Command "& .\install.ps1 -DownloadOnly"`：成功透過 `curl.exe` 呈現平滑即時百分比進度條。
