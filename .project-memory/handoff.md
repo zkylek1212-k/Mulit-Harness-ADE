@@ -2,32 +2,32 @@
 
 - Updated: 2026-09-14 Asia/Taipei
 - Agent: Antigravity (Gemini 3.8 Flash)
-- Task: 自動化 Release 發布腳本（npm run release）與 GitHub Releases 發布 v0.1.3
+- Task: 合併 PR #4、發布自動化、儀表板防跑版、Web 測試離線引導、版本推進至 v0.1.4
 - Branch: fix/settings-persistence-and-doc-tools
-- Commit: feat(release): add automated release publisher script and npm run release workflow
+- Commit: feat(v0.1.4): release automation, auto-updater, responsive dashboard, and bump version to v0.1.4
 
 ## Done
+- **合併 PR #4 (by Jerrywu-TT)**：
+  - 修正 Codex 會話恢復未傳入 `resume` 參數。
+  - 對接 Antigravity CLI 原生資料庫會話 ID，支援真正 resume。
+  - 加入 `estimateTokensFromBlob` 啟發式計算二進位 DB 的 Token 數量。
+  - PTY 增加 `isDestroyed()` 避免已關閉 WebContents 崩潰。
 - **一鍵式自動化發布腳本（`scripts/release.ps1` & `npm run release`）**：
   - 驗證本機已安裝且已登入的 `gh`（GitHub CLI）。
-  - 自動讀取 `package.json` 中的目標版本號（如 `v0.1.3`）。
-  - 執行完整 TS 檢查（`typecheck`）與 electron-builder 打包（`npm run dist`），支援 `-SkipBuild` 參數快速略過已建置產物。
+  - 自動讀取 `package.json` 中的目標版本號（如 `v0.1.4`）。
+  - 執行完整 TS 檢查（`typecheck`）與 electron-builder 打包（`npm run dist`）。
   - 自動壓縮綠色免安裝目錄 `release/win-unpacked` 成 `release/Agent-Workbench-<version>-portable.zip`。
   - 自動透過 `gh release create` / `gh release upload --clobber` 將安裝檔（`.exe`）、免安裝包（`.zip`）、區塊校驗檔（`.blockmap`）與自動更新清單（`latest.yml`）直接發布至 GitHub Releases。
-  - 支援選填 `-GoogleDrivePath` 參數，若有需要可額外同步備份一份至 Google 雲端硬碟本地目錄。
-- **README 與 package.json 更新**：
-  - `package.json`: 註冊 `"release": "powershell -ExecutionPolicy Bypass -File ./scripts/release.ps1"`。
-  - `README.md`: 在繁體中文與英文建置說明章節中加入「自動化發布至 GitHub Releases（Automated Release）」指引與指令。
-- **Release v0.1.3 實測驗證成功**：
-  - 成功建立並上傳至 GitHub Release `v0.1.3`：
-    - `Agent Workbench-0.1.3-setup.exe` (123.49 MB)
-    - `Agent-Workbench-0.1.3-portable.zip` (168.77 MB)
-    - `latest.yml`
-    - `Agent Workbench-0.1.3-setup.exe.blockmap`
-  - 使用者快速安裝指令：`irm https://raw.githubusercontent.com/zkylek1212-k/Mulit-Harness-ADE/master/install.ps1 | iex`
+- **儀表板窄版防跑版與側邊欄防重疊**：
+  - 雙層資料夾標題結構 + CSS Container Query（極窄時按鈕動態轉為圖示）。
+- **內建 Web 測試瀏覽器離線智慧引導**：
+  - 伺服器離線時展示友善引導卡片與常用 Port（:5173, :3000, :8080, :8000）按鈕。
+- **版本推進至 v0.1.4**：
+  - 更新 `package.json`、`package-lock.json`、`CHANGELOG.md`。
 
 ## Tests
 - `npm run typecheck` → pass（TS 零錯誤）。
-- `powershell -ExecutionPolicy Bypass -File ./scripts/release.ps1 -SkipBuild` → pass（所有 4 項 Release Assets 成功上傳至 GitHub Releases）。
+- `powershell -ExecutionPolicy Bypass -File ./scripts/release.ps1` → 預備執行 v0.1.4 打包與 GitHub Releases 發布。
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態。
