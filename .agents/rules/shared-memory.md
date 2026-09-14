@@ -50,9 +50,9 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 - Updated: 2026-09-14 Asia/Taipei
 - Agent: Antigravity (Gemini 3.8 Flash)
-- Task: 優化 install.ps1 支援即時下載進度條與靜默安裝狀態動畫，解決無進度條與 iexirm 黏貼問題
+- Task: 升級版本至 v0.1.5，優化 install.ps1 即時進度條與發布安全標註，推送到 GitHub
 - Branch: master
-- Commit: pending
+- Commit: chore(release): bump version to v0.1.5
 
 ## Done
 - **解決安裝指令無進度條問題（下載階段 + 靜默安裝階段）**：
