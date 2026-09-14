@@ -2,23 +2,33 @@
 
 - Updated: 2026-09-14 Asia/Taipei
 - Agent: Antigravity (Gemini 3.8 Flash)
-- Task: 修復終端頂部滾動卡住問題、剖析並修復 Session 活躍(Active)與完成(Completed)狀態不準確及更新機制
+- Task: 點擊 Session 卡片資料夾按鈕自動切換至 Files 面板並無縫切換工作區根目錄
 - Branch: feat/mobile-dispatch
 - Commit: pending memory commit
 
 ## Done
-- **終端 Launchpad 頂部滾動截斷卡住修復**：
-  - `src/renderer/src/panels/terminal/terminal.css`: 解決 Flexbox 滾動容器經典負座標剪裁（Flexbox scroll clipping）問題。將 `.term-launchpad` 由 `justify-content: center` 修正為 `justify-content: flex-start`，並將 `.term-launchpad-content` 之 `margin: auto auto` 修正為 `margin: 0 auto`，使窄寬度或內容溢出時頂部標題、副標題及頂部卡片圖示能 100% 完整顯示且可自然滾動至頂。
-  - 新增 `@container launchpad (max-width: 330px)` 專屬緊湊間距與字級設定。
-- **Session 狀態 (Active / Completed) 誤判與更新機制徹底修復**：
-  - **Antigravity 誤判 Completed 成因與修復**：Windows NTFS 中資料夾 mtime 不隨深層檔案更新，原先讀取 `d.path` 導致時間永遠停留在資料夾建立的數十分鐘前；修正為讀取 `.system_generated/logs/transcript.jsonl` 的真實 `statSync(logPath).mtimeMs`，使正在對話進行中的 Antigravity 會話即時呈現 `● Active`。
-  - **Claude 幽靈 Active 成因與修復**：原先僅以檔案寫入時間 < 5 分鐘就硬標記為 `active`，導致終端早已關閉結束的會話仍顯示活躍；修正為磁碟紀錄預設為 `completed`/`idle`，僅在 `activePtySessions` 中真正有執行中終端行程匹配時才賦予 `active`。
-  - **PTY 行程匹配機制完善**：引入 `matchedSet` 防止重複歸屬，落實優先匹配關聯 sessionId、工作區目錄與時間戳，若為全新 CLI 則呈現即時活躍卡片。
-  - **狀態文字中英文在地化**：在 `i18n` 補充 `statusActive`、`statusCompleted`、`statusIdle`、`statusWaitingApproval`，支援中英文切換。
+- **Session 卡片資料夾按鈕連動切換工作區與 Files 側邊欄**：
+  - `src/main/ipc/files.ts`: 新增 `files:setWorkspaceRoot` IPC 處理常式，直接設定主行程 `workspace.root`、重設檔案監聽器 `initWorkspaceWatcher()` 並即時向視窗廣播 `files:treeChange`。
+  - `src/preload/index.ts`: 補齊型別與 IPC 暴露 `setWorkspaceRoot: (path: string) => Promise<boolean>`。
+  - `src/renderer/src/store.ts`:
+    - 定義全域 `SidebarTab = 'dashboard' | 'files' | 'git'` 與 `fileTreeTick` 變更計數器。
+    - 實作 `switchWorkspace(path: string)`：安全呼叫後端切換工作區根目錄、將狀態中的 `workspaceRoot` 更新、自動切換側邊欄至 `'files'`，並遞增 `fileTreeTick` 與 `gitTick`。
+  - `src/renderer/src/App.tsx`:
+    - 側邊欄分頁切換改為連動全域 `sidebarTab`。
+    - 加入自動展開邏輯：若側邊欄為摺疊狀態，當 `sidebarTab` 變更時自動展開側邊欄，確保切換至 Files 時使用者能直接看見檔案清單。
+  - `src/renderer/src/panels/filetree/FileTreePanel.tsx`:
+    - 監聽 `workspaceRoot` 變更，在路徑切換時自動重新載入新目錄之檔案樹 `refreshTree(workspaceRoot, false)`。
+  - `src/renderer/src/panels/dashboard/DashboardPanel.tsx`:
+    - `SessionCard`：將資料夾標籤改為 `<button type="button" className="dash-session-workspace">`，加入 `handleWorkspaceClick`，並嚴格阻斷事件冒泡 (`e.stopPropagation()`)，點擊時執行 `switchWorkspace(session.workspacePath)`。
+    - 在資料夾群組標頭新增快捷切換按鈕 `.dash-folder-switch-btn` (`切換資料夾 ➔`)。
+  - `src/renderer/src/panels/dashboard/dashboard.css`:
+    - 為 `.dash-session-workspace` 與 `.dash-folder-switch-btn` 導入 Apple HIG 互動微動畫（微幅上浮、按壓縮放 0.96、聚焦輪廓與主題高亮）。
+  - `src/renderer/src/i18n/index.ts`:
+    - 補充 `switchFolder` 中英文在地化語系文字。
 
 ## Tests
 - `npm run typecheck` → pass（TS 零錯誤）。
-- `npm run build` → pass（已通過 Vite 與 Electron 打包編譯）。
+- `npm run build` → pass（Vite + Electron SSR/Renderer 打包編譯無誤）。
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態。
