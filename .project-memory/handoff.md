@@ -2,44 +2,46 @@
 
 - Updated: 2026-09-14 Asia/Taipei
 - Agent: Antigravity (Gemini 3.8 Flash)
-- Task: 整合 PR #4 (Codex/Antigravity Session Resume 與 Token 估計) 與設定持久化修正
+- Task: 實作 Auto-Updater 自動更新系統（支援安裝版與免安裝版）
 - Branch: fix/settings-persistence-and-doc-tools
-- Commit: merge(pr-4): implement real Codex/Antigravity session resume and fix token display
+- Commit: feat(updater): add auto-update system for installed and portable distributions
 
 ## Done
+- **實作 Auto-Updater 自動更新推送與管理系統**：
+  - `electron-builder.yml`: 新增 GitHub Releases `publish` 配置（repo: `zkylek1212-k/Mulit-Harness-ADE`）。
+  - `package.json`: 安裝並配置 `electron-updater`。
+  - `src/main/ipc/updater.ts`:
+    - 新增 `isInstalledApp()` 精確判斷 NSIS 安裝版 vs 免安裝綠色目錄。
+    - 封裝 `autoUpdater` 事件監聽（`update-available`、`download-progress`、`update-downloaded`）。
+    - 提供 GitHub Releases API 直接查詢備援（適用免安裝版與開發模式）。
+    - 提供完整 IPC Handlers：`updater:getStatus`、`updater:check`、`updater:download`、`updater:install`、`updater:openRelease`。
+  - `src/preload/index.ts`: 暴露 `window.api.updater`，支援即時事件廣播監聽與手動操作；定義 `UpdaterStatus` 與 `UpdateInfo`。
+  - `src/renderer/src/components/SettingsModal.tsx` & `settingsModal.css`:
+    - 新增「關於與更新 (About & Updates)」分頁，含品牌資訊與發行版本類型標籤（安裝版 vs 免安裝版）。
+    - 提供即時「檢查更新」按鈕、更新日誌預覽、下載進度條。
+    - 安裝版支援一鍵背景下載與重啟覆蓋升級（`quitAndInstall`）；免安裝版提供一鍵導向最新 Release 包下載。
+    - 新增啟動時自動檢查更新開關。
+    - 有新版時側邊欄分頁徽章紅點提醒。
+  - `src/renderer/src/components/Icons.tsx`: 新增 `IconInfo`、`IconDownload`、`IconSpark`。
+  - `src/renderer/src/i18n/index.ts`: 繁體中文與英文完整語系支援。
 - **整合 PR #4 (Codex / Antigravity 會話恢復與 Token 顯示修正)**：
   - `src/renderer/src/panels/terminal/TerminalPanel.tsx`:
-    - 修復 Codex 會話恢復缺少參數：改為 `args = ['resume', req.id]`（Codex resume 為子命令＋位置參數）。
+    - 修復 Codex 會話恢復缺少參數：改為 `args = ['resume', req.id]`。
     - 新增 Antigravity 終端恢復提示 `▸ Resuming Antigravity session...`。
   - `src/main/ipc/dashboard.ts`:
-    - 新增 `scanAntigravityCliConversations()`：直接掃描 `~/.gemini/antigravity-cli/conversations/*.db`，獲取與 CLI 相容的真正 Session ID。
-    - 新增 `estimateTokensFromBlob()`：從 Protobuf 二進位 .db 中掃描 UTF-8 可讀文字估算 Token，解決先前恆定 0 Token 的問題。
+    - 新增 `scanAntigravityCliConversations()`：直接掃描 `~/.gemini/antigravity-cli/conversations/*.db`。
+    - 新增 `estimateTokensFromBlob()`：從 Protobuf 二進位 .db 中掃描 UTF-8 可讀文字估算 Token。
   - `src/main/ipc/pty.ts`:
-    - 在 `onData` 與 `onExit` 加入 `event.sender.isDestroyed()` 防護，徹底修復分離終端視窗關閉時導致主行程崩潰的 bug。
+    - 在 `onData` 與 `onExit` 加入 `event.sender.isDestroyed()` 防護，修復分離終端視窗關閉時導致主行程崩潰的 bug。
 - **修正安裝版設定檔持久化 (EPERM 權限錯誤)**：
-  - `src/main/ipc/settings.ts`:
-    - 新增 `getGlobalSettingsPath()` 優先存儲至 `app.getPath('userData')/settings.json`（`%APPDATA%`），保證無需管理員權限即可正常讀寫。
-    - 新增 `isProtectedPath()` 辨識 `C:\Program Files`、`C:\Windows` 與應用程式安裝目錄。
-    - `saveSettings` 先寫入 `userData`，若當前工作區非保護目錄則非同步同步至 `.workbench/settings.json`（避免拋出中斷性 EPERM）。
-    - 支援 `lastWorkspace` 記錄與還原。
-  - `src/main/index.ts`:
-    - 初始化 `workspace.root` 時改用 `determineInitialWorkspace()`，由 `lastWorkspace` 或安全的使用者目錄（Documents/Home）啟動，防止從 `C:\Program Files` 安裝路徑啟動時將安裝目錄誤當作使用者工作區。
-  - `src/main/ipc/files.ts`:
-    - 在 `pickWorkspace` 與 `setWorkspaceRoot` 成功時呼叫 `saveLastWorkspace(workspace.root)`。
-  - `src/main/ipc/dashboard.ts` & `src/main/ipc/ext.ts`:
-    - 在寫入快取與狀態檔前加入 `isProtectedPath(workspace.root)` 防護。
-  - `src/renderer/src/components/SettingsModal.tsx` & `src/renderer/src/i18n/index.ts`:
-    - 儲存設定時加入例外捕捉與錯誤提示橫幅，底部提示語系說明設定存儲於全域設定與工作區。
+  - `src/main/ipc/settings.ts`: 優先存儲至 `app.getPath('userData')/settings.json`（`%APPDATA%`），保證讀寫權限。
+  - `src/main/index.ts`: 初始化工作區防止將 `C:\Program Files` 誤當作專案目錄。
 - **修復 Document Tool 測試「成功開啟卻顯示 Verification Failed」**：
-  - **根本原因**：Office / PDF 軟體為 Windows GUI 桌面程式（`IMAGE_SUBSYSTEM_WINDOWS_GUI`），執行 `--version` 會拉起視窗但永不結束退出，導致 Node.js `exec` 超過 6 秒逾時報錯。
-  - `src/preload/index.ts`: 新增 `testDocToolPath(path: string)`。
-  - `src/main/ipc/settings.ts`: 實作 `settings:testDocToolPath`，改為檢查路徑存在性與執行檔屬性（< 5ms 完成），不呼叫 `--version`；同時於 `testCliPath` 增加常見 GUI 文件工具之攔截防護。
-  - `src/renderer/src/components/SettingsModal.tsx`: 文件工具測試改呼叫 `testDocToolPath`。
+  - `src/preload/index.ts` & `src/main/ipc/settings.ts`: 新增 `testDocToolPath`，改為檢查路徑與執行檔屬性，不執行 `--version`，徹底解決 GUI 程式 6 秒逾時報錯。
 
 ## Tests
 - `npm run typecheck` → pass（TS 零錯誤）。
 - `npm run build` → pass（Vite 生產 bundle 與 SSR 編譯打包成功）。
-- PR #4 merge → pass（零衝突自動合併成功）。
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態。
