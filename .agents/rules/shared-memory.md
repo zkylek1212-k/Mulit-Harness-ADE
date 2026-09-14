@@ -50,33 +50,32 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 - Updated: 2026-09-14 Asia/Taipei
 - Agent: Antigravity (Gemini 3.8 Flash)
-- Task: 儀表板排版重構、Browser 本地 Web 測試分頁說明與未啟動引導畫面
+- Task: 自動化 Release 發布腳本（npm run release）與 GitHub Releases 發布 v0.1.3
 - Branch: fix/settings-persistence-and-doc-tools
-- Commit: feat(browser): add dev server offline guidance and explain localhost port presets
+- Commit: feat(release): add automated release publisher script and npm run release workflow
 
 ## Done
-- **儀表板側邊欄縮小排版全面重構（防重疊與跑版）**：
-  - `src/renderer/src/panels/dashboard/DashboardPanel.tsx`:
-    - 資料夾標題重構為雙層結構（上層名稱+Token、下層狀態+切換按鈕），解決文字疊加。
-    - Session 卡片按鈕加上 `.dash-action-icon-btn` 與 `.dash-action-label`。
-  - `src/renderer/src/panels/dashboard/dashboard.css`:
-    - 啟用 CSS Container Query（`@container dash-panel`）。
-    - 窄版自動將 `Archive`/`Delete` 轉為圖示按鈕，維持單行排列不折行；消除 `TOKENS` 小標籤放大標題寬度。
-    - 切換資料夾按鈕強制 `white-space: nowrap` 避免垂直折行。
-- **內建 Web 測試瀏覽器（Browser Panel）引導強化**：
-  - `src/renderer/src/panels/browser/TestBrowserPanel.tsx` & `browser.css`:
-    - 監聽 `<webview>` 的 `did-fail-load` 事件。
-    - 當本機尚未啟動 Web 服務時，取代原本的死白畫面，改為顯示「本地開發伺服器未啟動」專屬引導卡片。
-    - 提供清晰繁中/英文說明、重新載入、外部瀏覽器開啟，以及快速切換常見開發 Port（`:5173`, `:3000`, `:8080`, `:8000`）的晶片按鈕。
-  - `src/renderer/src/i18n/index.ts`: 新增 `browser` 繁中與英文雙語翻譯。
-- **Auto-Updater 404 錯誤淨化與容錯**：
-  - `src/main/ipc/updater.ts`: 清空備援查詢成功後的 404 錯誤，乾淨顯示打勾。
-- **PowerShell 一鍵安裝腳本**：
-  - 根目錄 `install.ps1` 與 `README.md` 更新。
+- **一鍵式自動化發布腳本（`scripts/release.ps1` & `npm run release`）**：
+  - 驗證本機已安裝且已登入的 `gh`（GitHub CLI）。
+  - 自動讀取 `package.json` 中的目標版本號（如 `v0.1.3`）。
+  - 執行完整 TS 檢查（`typecheck`）與 electron-builder 打包（`npm run dist`），支援 `-SkipBuild` 參數快速略過已建置產物。
+  - 自動壓縮綠色免安裝目錄 `release/win-unpacked` 成 `release/Agent-Workbench-<version>-portable.zip`。
+  - 自動透過 `gh release create` / `gh release upload --clobber` 將安裝檔（`.exe`）、免安裝包（`.zip`）、區塊校驗檔（`.blockmap`）與自動更新清單（`latest.yml`）直接發布至 GitHub Releases。
+  - 支援選填 `-GoogleDrivePath` 參數，若有需要可額外同步備份一份至 Google 雲端硬碟本地目錄。
+- **README 與 package.json 更新**：
+  - `package.json`: 註冊 `"release": "powershell -ExecutionPolicy Bypass -File ./scripts/release.ps1"`。
+  - `README.md`: 在繁體中文與英文建置說明章節中加入「自動化發布至 GitHub Releases（Automated Release）」指引與指令。
+- **Release v0.1.3 實測驗證成功**：
+  - 成功建立並上傳至 GitHub Release `v0.1.3`：
+    - `Agent Workbench-0.1.3-setup.exe` (123.49 MB)
+    - `Agent-Workbench-0.1.3-portable.zip` (168.77 MB)
+    - `latest.yml`
+    - `Agent Workbench-0.1.3-setup.exe.blockmap`
+  - 使用者快速安裝指令：`irm https://raw.githubusercontent.com/zkylek1212-k/Mulit-Harness-ADE/master/install.ps1 | iex`
 
 ## Tests
 - `npm run typecheck` → pass（TS 零錯誤）。
-- `npm run build` → pass（Vite 生產 bundle 完整構建成功）。
+- `powershell -ExecutionPolicy Bypass -File ./scripts/release.ps1 -SkipBuild` → pass（所有 4 項 Release Assets 成功上傳至 GitHub Releases）。
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態。
