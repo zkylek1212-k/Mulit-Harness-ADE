@@ -2,22 +2,17 @@
 
 - Updated: 2026-09-14 Asia/Taipei
 - Agent: Antigravity (Gemini 3.8 Flash)
-- Task: Dashboard Agent 卡片與會話列表與 Settings CLI 啟用/停用狀態連動
-- Branch: feat/dashboard-cli-linkage
-- Commit: feat(dashboard): link agent and session visibility to CLI enable/disable settings
+- Task: 本地整合測試：開機效能優化 (perf/fast-startup) + CLI 啟用連動 (feat/dashboard-cli-linkage)
+- Branch: test/local-integration
+- Commit: merge: integrate perf/fast-startup into feat/dashboard-cli-linkage for local testing
 
 ## Done
-- **後端主行程會話掃描依 CLI 啟用狀態過濾 (Backend CLI Guard)**：
-  - `src/main/ipc/dashboard.ts`: 引入 `isCliEnabled(agentId)`，在 `dashboard:data` 抓取會話記錄時，若該 Agent CLI 在 Settings 中已被停用，則跳過其會話掃描（不掃描磁碟、不建立空快取，省去 I/O 與 CPU）；同時在活躍 PTY 進程關聯時排除已停用之 Agent CLI。
-- **前端 Dashboard 面板即時連動與空狀態引導 (Reactive UI & Empty State)**：
-  - `src/renderer/src/panels/dashboard/DashboardPanel.tsx`: 訂閱 `settingsTick`，當使用者在設定中切換 CLI 啟用/停用開關時，即時重載設定並刷新遙測數據；
-  - 遙測卡片網格（`dash-agents-grid`）僅渲染目前啟用的 Agent 卡片；若全部停用則顯示提示 Banner 並提供快捷跳轉「設定 ➔ CLI 設定」按鈕；
-  - 統計數值（`workspaceTokens`、`activeProcesses`、`totalSessions`）動態計算已啟用的 Agent 資料；
-  - 會話資料夾群組（`folderGroups`）與會話卡片全面過濾已停用的 Agent 歷史，停用後不再顯示；若使用者原本選取的 Agent 被停用，自動重設為 `'all'`；
-  - 下方會話清單空狀態在全停用時顯示導引文案與跳轉按鈕。
-- **樣式與多國語系 (Styling & i18n)**：
-  - `src/renderer/src/panels/dashboard/dashboard.css`: 實作 `.dash-no-agents-banner` 與 `.dash-no-agents-btn`，延續 Apple HIG 半透明磨砂與微互動風格。
-  - `src/renderer/src/i18n/index.ts`: 補齊中英文 `noAgentsEnabled` 與 `noAgentsEnabledDesc` 語系鍵值。
+- **雙分支完整整合（Local Integration）**：
+  - 同時包含 `perf/fast-startup`（mtime 快取、冷啟動 42 倍加速、面板按需掛載）與 `feat/dashboard-cli-linkage`（Settings CLI 啟用/停用即時過濾 Dashboard 遙測卡片與會話紀錄）。
+- **後端主行程合流**：
+  - `src/main/ipc/dashboard.ts`: 結合 mtime 磁碟持久化快取與 `isCliEnabled(agentId)` 雙重防護，已停用的 Agent 既不讀磁碟、亦不建快取，啟用的 Agent 則直接享受 < 7ms 極速快取命中。
+- **前端面板合流**：
+  - 按需掛載（Mount-on-Demand）降低冷開機負載，同時 Dashboard 即時監聽 `settingsTick`，動態顯示/隱藏卡片與會話。
 
 ## Tests
 - `npm run typecheck` → pass（TS 零錯誤）。
