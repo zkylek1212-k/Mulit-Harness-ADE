@@ -2,36 +2,34 @@
 
 - Updated: 2026-09-14 Asia/Taipei
 - Agent: Antigravity (Gemini 3.8 Flash)
-- Task: 建立 PowerShell 一鍵安裝腳本、README 安裝說明更新，並對齊 Logo 與更新檢查動畫
+- Task: 左側儀表板縮小排版跑版修復、自適應優化與更新器 404 錯誤淨化
 - Branch: fix/settings-persistence-and-doc-tools
-- Commit: docs(readme): add one-line quick installer and releases guide
+- Commit: fix(dashboard): implement responsive two-row folder layout and container query action bar
 
 ## Done
-- **PowerShell 一鍵安裝腳本 (`install.ps1`)**：
-  - 支援 TLS 1.2/1.3，適用 Windows 10/11 預設環境。
-  - 自動呼叫 GitHub Releases API (`zkylek1212-k/Mulit-Harness-ADE`) 抓取最新版本安裝檔 (`Agent Workbench-*-setup.exe`)。
-  - 下載至 `$env:TEMP` 並自動啟動安裝精靈；支援 `-Silent` 背景靜默安裝、`-DownloadOnly` 僅下載、`-Portable` 免安裝包支援。
-  - 具備 API 速率限制與未上傳 binary 時的降級與提示引導。
-- **更新 `README.md` 安裝說明**：
-  - 英文與繁體中文雙語同步新增「Installation / 安裝指南」章節。
-  - 方法一：提供 PowerShell 單行指令 `irm https://raw.githubusercontent.com/zkylek1212-k/Mulit-Harness-ADE/master/install.ps1 | iex`。
-  - 方法二：提供 GitHub Releases 最新發行包直接下載連結。
-  - 方法三：保留原有的原始碼 clone 與開發者編譯步驟。
-- **對齊應用程式 Logo 與更新按鈕動畫**：
-  - `src/renderer/src/components/Icons.tsx`:
-    - 新增向量 `IconAppLogo`，完整重現深色圓形基底、青色核心原子核與三條旋轉 30°/90° 的軌域電子環，與 Windows 桌面圖示完全一致。
-    - 新增 `IconRefresh` 重整圖示。
-  - `src/renderer/src/components/settingsModal.css`:
-    - 新增 `@keyframes macosSpin` 與 `.macos-spin`，使檢查更新按鈕於進行中平滑旋轉。
-  - `src/renderer/src/components/SettingsModal.tsx`:
-    - 品牌卡替換為 `IconAppLogo`；檢查按鈕替換為 `IconRefresh` 並於檢查中旋轉。
-    - 自動更新開關對齊 macOS 設定列樣式（`.macos-row` / `.apple-toggle`）。
-- **修復主行程啟動 TDZ 異常**：
-  - `src/main/ipc/settings.ts`: 在 `getWorkspaceSettingsPath()` 存取 `workspace` 時加上 `try...catch` 防護，避免主行程初始化階段觸發 `ReferenceError`。
+- **儀表板側邊欄縮小排版全面重構（防重疊與跑版）**：
+  - `src/renderer/src/panels/dashboard/DashboardPanel.tsx`:
+    - 資料夾標題重構為雙層結構：
+      - 上層（`.dash-folder-top`）：專注資料夾身份（折疊箭頭、圖示、名稱、當前工作區標記）與右側 Token 總量，設定 `min-width: 0` 與 `text-overflow: ellipsis`。
+      - 下層（`.dash-folder-sub`）：專注狀態與動作（Active 綠燈標籤、Session 數量、以及右側切換資料夾按鈕）。
+    - Session 卡片右側資訊重整為 `.dash-session-right-col`，並為操作按鈕加上 `.dash-action-icon-btn` 與 `.dash-action-label`。
+  - `src/renderer/src/panels/dashboard/dashboard.css`:
+    - 在 `.dash-root` 啟用 CSS Container Query（`container-type: inline-size; container-name: dash-panel;`）。
+    - 解決「切換資料夾」按鈕文字被壓成四行垂直文字：加上 `white-space: nowrap; flex-shrink: 0;`。
+    - 徹底根絕文字融合重疊 bug：為所有文字容器設定嚴格的 `min-width: 0`、`flex: 1` 與 `overflow: hidden`。
+    - 窄版自適應（`@container dash-panel (max-width: 330px)`）：
+      - `Archive` 與 `Delete` 自動隱藏文字標籤，縮成精美帶 Tooltip 的 Icon 按鈕。
+      - 主要按鈕 `>_ Switch CLI ➔` 佔據彈性寬度，三顆按鈕保證維持**單行整齊排列，永不折行**。
+      - 隱藏 Session 卡片重複的 `TOKENS` 小標籤，讓主要標題字數空間擴增 2.5 倍以上。
+    - 超窄版自適應（`@container dash-panel (max-width: 290px)`）：緊湊調整頂部 3 欄 Token 統計（In / Tools / Out）。
+- **Auto-Updater 404 錯誤淨化與容錯**：
+  - `src/main/ipc/updater.ts`: 新增 `formatUpdaterError()`，過濾原生幾十行 HTTP Header 與 stack trace；在 GitHub REST API 備援查詢成功且確認為最新版時，自動清空先前 `latest.yml` 的 404 錯誤，畫面乾淨顯示「✓ You are on the latest version!」。
+- **PowerShell 一鍵安裝腳本與說明**：
+  - 專案根目錄建立 `install.ps1`，並同步更新 `README.md`（英文與繁體中文雙語）。
 
 ## Tests
-- `powershell -ExecutionPolicy Bypass -File .\install.ps1 -Tag "v0.1.1"` → pass（成功識別 Release 物件並安全處理）。
 - `npm run typecheck` → pass（TS 零錯誤）。
+- `npm run build` → pass（Vite 生產 bundle 完整構建成功）。
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態。
