@@ -50,27 +50,23 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 - Updated: 2026-09-14 Asia/Taipei
 - Agent: Antigravity (Gemini 3.8 Flash)
-- Task: 更新安裝版重啟安裝採用靜默模式 (isSilent: true, isForceRunAfter: true)
+- Task: 優化 install.ps1 支援即時下載進度條與靜默安裝狀態動畫，解決無進度條與 iexirm 黏貼問題
 - Branch: master
-- Commit: fix(updater): enable silent installation on restart and install
+- Commit: pending
 
 ## Done
-- **更新安裝版採用無感靜默安裝（不跳出 Install 精靈畫面）**：
-  - `src/main/ipc/updater.ts`: 在 `updater:install` 呼叫 `autoUpdater.quitAndInstall(true, true)`。
-    - `isSilent = true`：自動向 NSIS 注入 `/S` 參數，背景靜默覆蓋安裝，不再彈出安裝精靈、目錄選取或下一步視窗。
-    - `isForceRunAfter = true`：靜默更新完成後自動重啟 Agent Workbench。
-- **Release 資產名稱連字號標準化（徹底根治下載 404）**：
-  - 原因：`electron-builder` 在 `latest.yml` 內將空白轉換為 `-`（`Agent-Workbench-0.1.4-setup.exe`），而 GitHub Releases 預設會將檔名空白轉換為 `.`（`Agent.Workbench-0.1.4-setup.exe`），導致客戶端下載時找不到檔案回傳 404。
-  - 修復：
-    - 在 `electron-builder.yml` 設定 `artifactName: Agent-Workbench-${version}-setup.${ext}`，直接產出連字號檔名。
-    - 在 `scripts/release.ps1` 加入自動將空白置換為 `-` 的正規化與複製邏輯，確保上傳至 GitHub 的檔名 100% 與 `latest.yml` 一致。
-    - 已直接在 GitHub Releases `v0.1.4` 上傳修正後的 `Agent-Workbench-0.1.4-setup.exe`，實測 `curl.exe` 回傳 HTTP 200 OK。
-- **更新日誌 HTML 標籤過濾**：
-  - 在 `src/renderer/src/components/SettingsModal.tsx` 加入 `formatReleaseNotes`，自動過濾 GitHub API 回傳的 `<a ...>`、`<br>` 等原始 HTML 標籤，呈現乾淨文字。
+- **解決安裝指令無進度條問題（下載階段 + 靜默安裝階段）**：
+  - `install.ps1`:
+    - **下載階段**：改寫為 `Download-FileWithProgress`。優先使用 Windows 10/11 內建的 `curl.exe -fL --progress-bar`，提供即時動態 `#=#=# ... 100%` 進度條與百分比；若 `curl` 不可用，自動降級為 `.NET HttpWebRequest` 串流下載，搭配 PowerShell `Write-Progress` 頂部進度條與行內百分比/容量回顯，徹底告別過去 `WebClient.DownloadFile` 靜默無回應卡頓假象。
+    - **靜默安裝階段**：在 `-Silent` 執行 NSIS 安裝期間，新增動態轉圈 Spinner (`| / - \`) 與已耗時秒數顯示（`Installing Agent Workbench... / (4s elapsed)`），並在結束時顯示總耗時與安裝路徑，讓使用者清楚掌握進度。
+    - **環境變數簡便模式**：支援 `$env:INSTALL_SILENT=1` 與 `$env:INSTALL_DOWNLOAD_ONLY=1`，方便單行 `irm ... | iex` 搭配環境變數執行。
+- **解決 `iexirm` 報錯原因**：
+  - 診斷出因使用者在 PowerShell 貼上指令時重複貼上兩次且無換行，導致 `... | iex` 與 `irm ...` 黏在一起變成 `iexirm`。在 `README.md` 補齊簡潔指令與提示。
 
 ## Tests
-- `curl.exe -I -L https://github.com/zkylek1212-k/Mulit-Harness-ADE/releases/download/v0.1.4/Agent-Workbench-0.1.4-setup.exe` → HTTP 200 OK（129,488,962 bytes）。
-- `npm run typecheck` → pass（TS 零錯誤）。
+- 實測 `powershell -ExecutionPolicy Bypass -Command "& .\install.ps1 -DownloadOnly"`：成功透過 `curl.exe` 呈現平滑即時百分比進度條。
+- 實測靜默安裝 spinner 邏輯：字符旋轉與秒數計算運作正常。
+- `npm run typecheck` → pass（0 errors）。
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態。
