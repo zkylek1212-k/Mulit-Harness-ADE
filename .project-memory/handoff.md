@@ -2,11 +2,15 @@
 
 - Updated: 2026-09-14 Asia/Taipei
 - Agent: Antigravity (Gemini 3.8 Flash)
-- Task: 修正 Release 資產名稱連字號 (404 根治)、清除更新日誌 HTML 標籤
+- Task: 更新安裝版重啟安裝採用靜默模式 (isSilent: true, isForceRunAfter: true)
 - Branch: master
-- Commit: fix(updater): sanitize release notes html and normalize setup exe filename
+- Commit: fix(updater): enable silent installation on restart and install
 
 ## Done
+- **更新安裝版採用無感靜默安裝（不跳出 Install 精靈畫面）**：
+  - `src/main/ipc/updater.ts`: 在 `updater:install` 呼叫 `autoUpdater.quitAndInstall(true, true)`。
+    - `isSilent = true`：自動向 NSIS 注入 `/S` 參數，背景靜默覆蓋安裝，不再彈出安裝精靈、目錄選取或下一步視窗。
+    - `isForceRunAfter = true`：靜默更新完成後自動重啟 Agent Workbench。
 - **Release 資產名稱連字號標準化（徹底根治下載 404）**：
   - 原因：`electron-builder` 在 `latest.yml` 內將空白轉換為 `-`（`Agent-Workbench-0.1.4-setup.exe`），而 GitHub Releases 預設會將檔名空白轉換為 `.`（`Agent.Workbench-0.1.4-setup.exe`），導致客戶端下載時找不到檔案回傳 404。
   - 修復：
