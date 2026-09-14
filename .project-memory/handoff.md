@@ -2,31 +2,36 @@
 
 - Updated: 2026-09-14 Asia/Taipei
 - Agent: Antigravity (Gemini 3.8 Flash)
-- Task: 發布 v0.1.3 — CLI 啟動權限 Bypass Mode
-- Branch: master
-- Commit: chore(release): bump version to v0.1.3
+- Task: 修正安裝版設定持久化 EPERM 與 Document Tool 驗證超時
+- Branch: fix/settings-persistence-and-doc-tools
+- Commit: fix(settings): persist settings to userData and fix doc tool validation
 
 ## Done
-- **新增 CLI 啟動權限 Bypass Mode 全域開關**：
-  - `src/preload/index.ts`: 在 `WorkbenchSettings` 新增 `cliBypassPermissions?: boolean` 欄位（預設 `false`）。
-  - `src/main/ipc/settings.ts`: 於 `loadSettings` 與 `settings:set` 完整持久化至 `.workbench/settings.json`，並匯出 `isCliBypassPermissions()`。
-- **PTY 子行程參數自動注入**：
-  - `src/main/ipc/pty.ts`: 實作 `getAgentBypassArgs` 與 `applyAgentBypassArgs`。當啟用 Bypass 模式時，啟動 CLI 自動帶入指定參數且防止重複注入：
-    - Claude Code: `claude --permission-mode bypassPermissions`
-    - Codex: `codex --dangerously-bypass-approvals-and-sandbox`
-    - Antigravity: `agy --dangerously-skip-permissions`
-  - `pty:launchers` 與 `pty:spawn` 皆支援此注入邏輯，相容 Windows `.ps1`、`.cmd`、直接執行檔等多種環境。
-- **macOS Sequoia 風格設定面板 UI 與雙語系**：
-  - `src/renderer/src/components/SettingsModal.tsx` & `settingsModal.css`: 在 CLI 分頁新增專屬區塊，配備 Apple HIG 盾牌圖標、Toggle 開關、警告通知橫幅與各 Agent 指令代碼預覽卡片。
-  - `src/renderer/src/components/Icons.tsx`: 新增 `IconShield` 元件。
-  - `src/renderer/src/i18n/index.ts`: 繁體中文與英文完整語系支援。
-- **終端面板即時狀態連動**：
-  - `src/renderer/src/panels/terminal/TerminalPanel.tsx` & `terminal.css`: 在 Launchpad 啟動卡片與 `+` 下拉選單中，若 Bypass 模式啟用即時展示橘色 `Bypass` 徽章。
+- **修正安裝版設定檔持久化 (EPERM 權限錯誤)**：
+  - `src/main/ipc/settings.ts`:
+    - 新增 `getGlobalSettingsPath()` 優先存儲至 `app.getPath('userData')/settings.json`（`%APPDATA%`），保證無需管理員權限即可正常讀寫。
+    - 新增 `isProtectedPath()` 辨識 `C:\Program Files`、`C:\Windows` 與應用程式安裝目錄。
+    - `saveSettings` 先寫入 `userData`，若當前工作區非保護目錄則非同步同步至 `.workbench/settings.json`（避免拋出中斷性 EPERM）。
+    - 支援 `lastWorkspace` 記錄與還原。
+  - `src/main/index.ts`:
+    - 初始化 `workspace.root` 時改用 `determineInitialWorkspace()`，由 `lastWorkspace` 或安全的使用者目錄（Documents/Home）啟動，防止從 `C:\Program Files` 安裝路徑啟動時將安裝目錄誤當作使用者工作區。
+  - `src/main/ipc/files.ts`:
+    - 在 `pickWorkspace` 與 `setWorkspaceRoot` 成功時呼叫 `saveLastWorkspace(workspace.root)`。
+  - `src/main/ipc/dashboard.ts` & `src/main/ipc/ext.ts`:
+    - 在寫入快取與狀態檔前加入 `isProtectedPath(workspace.root)` 防護。
+  - `src/renderer/src/components/SettingsModal.tsx` & `src/renderer/src/i18n/index.ts`:
+    - 儲存設定時加入例外捕捉與錯誤提示橫幅，底部提示語系說明設定存儲於全域設定與工作區。
+- **修復 Document Tool 測試「成功開啟卻顯示 Verification Failed」**：
+  - **根本原因**：Office / PDF 軟體為 Windows GUI 桌面程式（`IMAGE_SUBSYSTEM_WINDOWS_GUI`），執行 `--version` 會拉起視窗但永不結束退出，導致 Node.js `exec` 超過 6 秒逾時報錯。
+  - `src/preload/index.ts`: 新增 `testDocToolPath(path: string)`。
+  - `src/main/ipc/settings.ts`: 實作 `settings:testDocToolPath`，改為檢查路徑存在性與執行檔屬性（< 5ms 完成），不呼叫 `--version`；同時於 `testCliPath` 增加常見 GUI 文件工具之攔截防護。
+  - `src/renderer/src/components/SettingsModal.tsx`: 文件工具測試改呼叫 `testDocToolPath`。
 
 ## Tests
 - `npm run typecheck` → pass（TS 零錯誤）。
-- `npm run build` → pass（所有 chunk 編譯打包成功）。
-- `scratch/test_bypass.ts` → pass（getAgentBypassArgs, applyAgentBypassArgs 與 settings 持久化雙向測試完全通過）。
+- `npm run build` → pass（Vite 生產 bundle 與 SSR 編譯打包成功）。
+- `npm run dist` → pass（安裝程式 `Agent Workbench-0.1.3-setup.exe` 成功打包）。
+- Node/Electron 單元驗證腳本 → pass（`isProtectedPath`, `determineInitialWorkspace`, `saveSettings` 無 EPERM 驗證通過）。
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態。
