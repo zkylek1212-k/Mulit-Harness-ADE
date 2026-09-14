@@ -53,26 +53,31 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 - Updated: 2026-09-14 Asia/Taipei
 - Agent: Antigravity (Gemini 3.8 Flash)
-- Task: 合併雙分支並正式發布 v0.1.2（開機效能優化 + Dashboard CLI 動態連動）
+- Task: 新增 CLI 啟動權限 Bypass Mode（Claude, Codex, Antigravity 略過審批開關）
 - Branch: master
-- Commit: chore(release): bump version to v0.1.2 and add changelog
+- Commit: pending user commit
 
 ## Done
-- **雙分支完整合併至 master**：
-  - 合併 `perf/fast-startup`（mtime 快取、冷啟動 42 倍加速、面板按需掛載）與 `feat/dashboard-cli-linkage`（Settings CLI 啟用/停用動態過濾 Dashboard 遙測卡片與會話紀錄）。
-- **進版至 v0.1.2 與發布描述文件**：
-  - `package.json` & `package-lock.json`：進版至 `0.1.2`。
-  - `CHANGELOG.md`：建立標準 Keep a Changelog 格式變更日誌，詳細記錄 v0.1.2 之更新亮點、新增功能與效能改進。
-  - `README.md`：更新中英文功能清單（極速冷啟動與快取、Dashboard CLI 連動）。
-  - `.project-memory/STATE.md`：里程碑正式更新為 `v0.1.2` 完成。
-- **後端主行程合流**：
-  - `src/main/ipc/dashboard.ts`: 結合 mtime 磁碟持久化快取與 `isCliEnabled(agentId)` 雙重防護，已停用的 Agent 既不讀磁碟、亦不建快取，啟用的 Agent 則直接享受 < 7ms 極速快取命中。
-- **前端面板合流**：
-  - 按需掛載（Mount-on-Demand）降低冷開機負載，同時 Dashboard 即時監聽 `settingsTick`，動態顯示/隱藏卡片與會話。
+- **新增 CLI 啟動權限 Bypass Mode 全域開關**：
+  - `src/preload/index.ts`: 在 `WorkbenchSettings` 新增 `cliBypassPermissions?: boolean` 欄位（預設 `false`）。
+  - `src/main/ipc/settings.ts`: 於 `loadSettings` 與 `settings:set` 完整持久化至 `.workbench/settings.json`，並匯出 `isCliBypassPermissions()`。
+- **PTY 子行程參數自動注入**：
+  - `src/main/ipc/pty.ts`: 實作 `getAgentBypassArgs` 與 `applyAgentBypassArgs`。當啟用 Bypass 模式時，啟動 CLI 自動帶入指定參數且防止重複注入：
+    - Claude Code: `claude --permission-mode bypassPermissions`
+    - Codex: `codex --dangerously-bypass-approvals-and-sandbox`
+    - Antigravity: `agy --dangerously-skip-permissions`
+  - `pty:launchers` 與 `pty:spawn` 皆支援此注入邏輯，相容 Windows `.ps1`、`.cmd`、直接執行檔等多種環境。
+- **macOS Sequoia 風格設定面板 UI 與雙語系**：
+  - `src/renderer/src/components/SettingsModal.tsx` & `settingsModal.css`: 在 CLI 分頁新增專屬區塊，配備 Apple HIG 盾牌圖標、Toggle 開關、警告通知橫幅與各 Agent 指令代碼預覽卡片。
+  - `src/renderer/src/components/Icons.tsx`: 新增 `IconShield` 元件。
+  - `src/renderer/src/i18n/index.ts`: 繁體中文與英文完整語系支援。
+- **終端面板即時狀態連動**：
+  - `src/renderer/src/panels/terminal/TerminalPanel.tsx` & `terminal.css`: 在 Launchpad 啟動卡片與 `+` 下拉選單中，若 Bypass 模式啟用即時展示橘色 `Bypass` 徽章。
 
 ## Tests
 - `npm run typecheck` → pass（TS 零錯誤）。
-- `npm run build` → pass（所有 chunk 編譯成功）。
+- `npm run build` → pass（所有 chunk 編譯打包成功）。
+- `scratch/test_bypass.ts` → pass（getAgentBypassArgs, applyAgentBypassArgs 與 settings 持久化雙向測試完全通過）。
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態。
