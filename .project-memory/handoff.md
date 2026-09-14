@@ -2,32 +2,23 @@
 
 - Updated: 2026-09-14 Asia/Taipei
 - Agent: Antigravity (Gemini 3.8 Flash)
-- Task: 合併 PR #4、發布自動化、儀表板防跑版、Web 測試離線引導、版本推進至 v0.1.4
-- Branch: fix/settings-persistence-and-doc-tools
-- Commit: feat(v0.1.4): release automation, auto-updater, responsive dashboard, and bump version to v0.1.4
+- Task: 修正 Release 資產名稱連字號 (404 根治)、清除更新日誌 HTML 標籤
+- Branch: master
+- Commit: fix(updater): sanitize release notes html and normalize setup exe filename
 
 ## Done
-- **合併 PR #4 (by Jerrywu-TT)**：
-  - 修正 Codex 會話恢復未傳入 `resume` 參數。
-  - 對接 Antigravity CLI 原生資料庫會話 ID，支援真正 resume。
-  - 加入 `estimateTokensFromBlob` 啟發式計算二進位 DB 的 Token 數量。
-  - PTY 增加 `isDestroyed()` 避免已關閉 WebContents 崩潰。
-- **一鍵式自動化發布腳本（`scripts/release.ps1` & `npm run release`）**：
-  - 驗證本機已安裝且已登入的 `gh`（GitHub CLI）。
-  - 自動讀取 `package.json` 中的目標版本號（如 `v0.1.4`）。
-  - 執行完整 TS 檢查（`typecheck`）與 electron-builder 打包（`npm run dist`）。
-  - 自動壓縮綠色免安裝目錄 `release/win-unpacked` 成 `release/Agent-Workbench-<version>-portable.zip`。
-  - 自動透過 `gh release create` / `gh release upload --clobber` 將安裝檔（`.exe`）、免安裝包（`.zip`）、區塊校驗檔（`.blockmap`）與自動更新清單（`latest.yml`）直接發布至 GitHub Releases。
-- **儀表板窄版防跑版與側邊欄防重疊**：
-  - 雙層資料夾標題結構 + CSS Container Query（極窄時按鈕動態轉為圖示）。
-- **內建 Web 測試瀏覽器離線智慧引導**：
-  - 伺服器離線時展示友善引導卡片與常用 Port（:5173, :3000, :8080, :8000）按鈕。
-- **版本推進至 v0.1.4**：
-  - 更新 `package.json`、`package-lock.json`、`CHANGELOG.md`。
+- **Release 資產名稱連字號標準化（徹底根治下載 404）**：
+  - 原因：`electron-builder` 在 `latest.yml` 內將空白轉換為 `-`（`Agent-Workbench-0.1.4-setup.exe`），而 GitHub Releases 預設會將檔名空白轉換為 `.`（`Agent.Workbench-0.1.4-setup.exe`），導致客戶端下載時找不到檔案回傳 404。
+  - 修復：
+    - 在 `electron-builder.yml` 設定 `artifactName: Agent-Workbench-${version}-setup.${ext}`，直接產出連字號檔名。
+    - 在 `scripts/release.ps1` 加入自動將空白置換為 `-` 的正規化與複製邏輯，確保上傳至 GitHub 的檔名 100% 與 `latest.yml` 一致。
+    - 已直接在 GitHub Releases `v0.1.4` 上傳修正後的 `Agent-Workbench-0.1.4-setup.exe`，實測 `curl.exe` 回傳 HTTP 200 OK。
+- **更新日誌 HTML 標籤過濾**：
+  - 在 `src/renderer/src/components/SettingsModal.tsx` 加入 `formatReleaseNotes`，自動過濾 GitHub API 回傳的 `<a ...>`、`<br>` 等原始 HTML 標籤，呈現乾淨文字。
 
 ## Tests
+- `curl.exe -I -L https://github.com/zkylek1212-k/Mulit-Harness-ADE/releases/download/v0.1.4/Agent-Workbench-0.1.4-setup.exe` → HTTP 200 OK（129,488,962 bytes）。
 - `npm run typecheck` → pass（TS 零錯誤）。
-- `powershell -ExecutionPolicy Bypass -File ./scripts/release.ps1` → 預備執行 v0.1.4 打包與 GitHub Releases 發布。
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態。
