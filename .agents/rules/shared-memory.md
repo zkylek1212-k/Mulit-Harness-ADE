@@ -48,36 +48,31 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 # Latest Handoff
 
-- Updated: 2026-09-11 Asia/Taipei
-- Agent: Claude (Opus 4.8)
-- Task: 整理成可上傳 GitHub 的初始版 v0.1.0（MIT），並做 IP/所有權 review
-- Branch: master
-- Commit: 見本輪 release commit
+- Updated: 2026-09-14 Asia/Taipei
+- Agent: Antigravity (Gemini 3.8 Flash)
+- Task: 專案進版至 v0.1.1 並補齊完整 Release Description 與 Changelog
+- Branch: feat/workbench-enhancements
+- Commit: chore(release): bump version to v0.1.1 and add changelog
 
 ## Done
-- **Commit-diff 修復**（前一輪）：Git Graph / Recent Commits 點擊改走 `git.commitFileDiff`（見 `EditorPanel.tsx`），已於 commit 2c64c41 落地。
-- **v0.1.0 打包整理**：
-  - 新增 `LICENSE`（MIT, © 2026 zkylek1212-k）與雙語 `README.md`（英文為主 + 繁中；含功能、build 指令、商標免責、第三方授權說明）。
-  - `.gitignore` 補上：`.workbench/settings.json`、`.workbench/dashboard-state.json`（每機 runtime state）、`.agents/skills/`（本機外部 skill clone）。
-  - `package.json`：`version 0.1.0` / `license MIT`、`author` 改為 `zkylek1212-k`，並加 `repository`/`homepage`/`bugs`（repo: github.com/zkylek1212-k/Mulit-Harness-ADE）。
-  - `electron-builder.yml` appId 改為 `io.github.zkylek1212-k.agent-workbench`。
-  - 個人資訊/本機路徑掃描：追蹤檔內無本機路徑、email、使用者名（paths.ts 皆為 env 動態組出）；僅有的 `zkyle` 署名已全數改為 `zkylek1212-k`。
-- **IP/所有權 review 發現**：
-  - 所有 runtime 依賴皆 MIT（monaco、xterm、react、simple-git、@lydell/node-pty…），與 MIT 相容；TypeScript 為 Apache-2.0 但僅 devDependency、不隨產品散布。
-  - `.agents/skills/apple-design/` 是 `github.com/dickwu/apple-design-skill` 的 clone 且**無 LICENSE（預設全權利留保）**，且帶自己的 `.git` → **已排除，不得併入本 repo**。
-  - 商標：Claude Code / Codex / Antigravity / VS Code 屬各家所有；README 已加獨立、未關聯之免責聲明。
-  - 無捆綁二進位資產、無專有圖示；未發現逐字抄襲他人程式碼。
-
-## Not done
-- 尚未 `git remote add` 也未 push（repo 尚無 remote）。
-- 未做正式專利檢索（需律師/專利檢索服務；MIT 不含明示專利授權）。
-
-## Next agent should
-- 若要上傳：`git remote add origin <url>` → `git push -u origin master` →（可選）`git tag v0.1.0 && git push --tags`。
-- 上傳後於 GitHub 設定 repo 描述與 topics；README 的商標免責已就緒。
+- **進版至 v0.1.1 與版本發布描述**：
+  - `package.json` & `package-lock.json`：版本號由 `0.1.0` 進版至 `0.1.1`，更新專案描述以精確反映 Codex/Claude 遙測與雙語系支援。
+  - `CHANGELOG.md`：建立標準 Keep a Changelog 格式變更日誌，詳細記錄 v0.1.1 與 v0.1.0 之功能亮點、新增項目與問題修復（PR #2 Codex 遙測整合、資料夾分組與一鍵工作區切換、中英雙語系 i18n、遙測精準度校準、終端捲動修正）。
+  - `README.md`：更新中英文功能清單（文件預覽、儀表板與遙測、雙語系）並加入版本紀錄與變更日誌連結。
+  - `.project-memory/STATE.md`：里程碑正式標記為 `v0.1.1` 完成。
+- **整合外部 PR #2 (Codex 擴充掃描與真實會話 Token 統計)**：
+  - `src/main/ext/paths.ts` & `src/main/ext/inventory.ts`: 引入 Codex 的 `skillsDir` 與 `pluginsDir` 路徑設定，新增 `scanCodex()` 解析 `~/.codex/config.toml` (MCP 與 Plugins) 以及 `~/.codex/skills/` 下的 SKILL.md。
+  - `src/main/ipc/dashboard.ts`: 引入 `scanCodexSessions()`，遞迴讀取 `~/.codex/sessions/**/rollout-*.jsonl` 與 `~/.codex/session_index.jsonl`，計算真實累計 Token 數與會話標題。
+  - **架構融合與衝突解決**：將 Codex 掃描結果無縫併入工作台的智慧 PTY 行程匹配（優先級 1~3）、資料夾分組系統與中英文雙語系標準化 Token 分類。
+- **Session 卡片資料夾按鈕連動切換工作區與 Files 側邊欄**：
+  - `src/main/ipc/files.ts`: 新增 `files:setWorkspaceRoot` IPC，即時廣播 `files:treeChange`。
+  - `src/renderer/src/store.ts`: 實作 `switchWorkspace(path: string)`，自動切換至 Files 面板並遞增計數觸發重整。
+  - `src/renderer/src/App.tsx`: 側邊欄收合時點擊自動展開。
+  - `src/renderer/src/panels/filetree/FileTreePanel.tsx`: 監聽工作區切換並自動重新整理。
+  - `src/renderer/src/panels/dashboard/DashboardPanel.tsx`: SessionCard 與資料夾群組標頭新增切換按鈕，嚴格阻斷冒泡並引入 Apple HIG 動畫。
 
 ## Tests
-- `npm run typecheck` → pass（TS 零錯誤）。未跑實機/單元測試。
+- `npm run typecheck` → pass（TS 零錯誤）。
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態。
