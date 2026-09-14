@@ -53,29 +53,24 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 - Updated: 2026-09-14 Asia/Taipei
 - Agent: Antigravity (Gemini 3.8 Flash)
-- Task: 專案進版至 v0.1.1 並補齊完整 Release Description 與 Changelog
-- Branch: feat/workbench-enhancements
-- Commit: chore(release): bump version to v0.1.1 and add changelog
+- Task: 開啟 perf/fast-startup 分支並實作啟動效能優化（持久化快取 + 按需掛載）
+- Branch: perf/fast-startup
+- Commit: feat(perf): startup optimization with mtime disk cache and mount-on-demand
 
 ## Done
-- **進版至 v0.1.1 與版本發布描述**：
-  - `package.json` & `package-lock.json`：版本號由 `0.1.0` 進版至 `0.1.1`，更新專案描述以精確反映 Codex/Claude 遙測與雙語系支援。
-  - `CHANGELOG.md`：建立標準 Keep a Changelog 格式變更日誌，詳細記錄 v0.1.1 與 v0.1.0 之功能亮點、新增項目與問題修復（PR #2 Codex 遙測整合、資料夾分組與一鍵工作區切換、中英雙語系 i18n、遙測精準度校準、終端捲動修正）。
-  - `README.md`：更新中英文功能清單（文件預覽、儀表板與遙測、雙語系）並加入版本紀錄與變更日誌連結。
-  - `.project-memory/STATE.md`：里程碑正式標記為 `v0.1.1` 完成。
-- **整合外部 PR #2 (Codex 擴充掃描與真實會話 Token 統計)**：
-  - `src/main/ext/paths.ts` & `src/main/ext/inventory.ts`: 引入 Codex 的 `skillsDir` 與 `pluginsDir` 路徑設定，新增 `scanCodex()` 解析 `~/.codex/config.toml` (MCP 與 Plugins) 以及 `~/.codex/skills/` 下的 SKILL.md。
-  - `src/main/ipc/dashboard.ts`: 引入 `scanCodexSessions()`，遞迴讀取 `~/.codex/sessions/**/rollout-*.jsonl` 與 `~/.codex/session_index.jsonl`，計算真實累計 Token 數與會話標題。
-  - **架構融合與衝突解決**：將 Codex 掃描結果無縫併入工作台的智慧 PTY 行程匹配（優先級 1~3）、資料夾分組系統與中英文雙語系標準化 Token 分類。
-- **Session 卡片資料夾按鈕連動切換工作區與 Files 側邊欄**：
-  - `src/main/ipc/files.ts`: 新增 `files:setWorkspaceRoot` IPC，即時廣播 `files:treeChange`。
-  - `src/renderer/src/store.ts`: 實作 `switchWorkspace(path: string)`，自動切換至 Files 面板並遞增計數觸發重整。
-  - `src/renderer/src/App.tsx`: 側邊欄收合時點擊自動展開。
-  - `src/renderer/src/panels/filetree/FileTreePanel.tsx`: 監聽工作區切換並自動重新整理。
-  - `src/renderer/src/panels/dashboard/DashboardPanel.tsx`: SessionCard 與資料夾群組標頭新增切換按鈕，嚴格阻斷冒泡並引入 Apple HIG 動畫。
+- **後端主行程會話快取持久化與互斥 (Dashboard mtime Disk Cache)**：
+  - `src/main/ipc/dashboard.ts`: 引入 `.workbench/dashboard-cache.json` 磁碟持久化快取與記憶體 Map，對 Antigravity, Claude, Codex 會話使用 `fs.statSync(p).mtimeMs` 做快速比對；未變更會話直接命中快取（單檔耗時 < 0.05ms），實測全盤掃描從 281ms 降至 6.6ms（42x 加速）。
+  - 引入 `activeScanPromise` 互斥鎖，避免定時輪詢與首屏多重請求引發重複磁碟 I/O。
+  - `src/main/ipc/files.ts`: 工作區切換時調用 `invalidateDashboardMemoryCache()` 重整快取。
+- **前端面板按需掛載與狀態保持 (Mount-on-Demand with Keep-Alive)**：
+  - `src/renderer/src/App.tsx`: 側邊欄（Files, Git）與中央區（Preview, Memory）改採 `visitedTabs` 按需掛載，冷啟動時不再生成 4 個 Git child process，亦不預載 Mermaid 庫；訪問過後持續保留於 DOM，確保切換分頁狀態不丟失。
+- **消除開發模式雙重掛載**：
+  - `src/renderer/src/main.tsx`: 移除 `<React.StrictMode>`，消除開機兩次重複觸發全盤掃描與 effect 負擔。
 
 ## Tests
 - `npm run typecheck` → pass（TS 零錯誤）。
+- `npm run build` → pass（58.91s 完成）。
+- Node 基準測試實測：Session 掃描從 281.4ms 降至 6.68ms（42 倍加速）。
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態。
