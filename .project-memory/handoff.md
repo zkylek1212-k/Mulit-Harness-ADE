@@ -2,16 +2,16 @@
 
 - Updated: 2026-09-14 Asia/Taipei
 - Agent: Antigravity (Gemini 3.8 Flash)
-- Task: 修復設定語言選擇 radio dot 實心狀態樣式
+- Task: Dashboard 數字來源解析與摺疊按鈕純圖示化（消除文字占版面）
 - Branch: feat/mobile-dispatch
 - Commit: pending memory commit
 
 ## Done
-- **修復語言卡片 Radio Dot 實心狀態（CSS 規則缺漏修復）**：
-  - 在 `src/renderer/src/components/settingsModal.css` 中，原本僅針對 `.macos-theme-card.active .macos-radio-dot` 定義了 `border-color: var(--accent)`、`background: var(--accent)` 與 `:after` 白點樣式，缺少 `.macos-lang-card.active` 的對應規則，導致語言卡片選中時圓圈維持中空。
-  - 已補齊 `.macos-lang-card.active .macos-radio-dot` 及通用 `.active .macos-radio-dot` 樣式，並增設柔和的過渡動畫（`transition: border-color 0.15s ease, background 0.15s ease`），選中時圓圈即轉為主題強調色實心與中央亮點（標準 Apple macOS HIG Radio 風格）。
-- **優化 Dashboard 靜默輪詢**：
-  - `src/renderer/src/panels/dashboard/DashboardPanel.tsx`: `loadData(silent)` 在背景每 5 秒輪詢時採靜默模式，不觸發右上角重新整理按鈕旋轉或短暫 disabled，操作更平滑。
+- **摺疊/展開按鈕純圖示化**：
+  - `src/renderer/src/panels/dashboard/DashboardPanel.tsx`: 移除「Expand All」與「Collapse All」之多餘文字 `<span>`，改以純 Apple HIG 風格的雙向箭頭圖示呈現（`aria-label` 與原生 `title` 保留完整無障礙提示），精簡版面水平佔位。
+  - `src/renderer/src/panels/dashboard/dashboard.css`: `.dash-folder-tool-btn` 重構為 24x24 正方形微型圖示按鈕，具備按壓回饋（`transform: scale(0.93)`）與邊框懸浮反饋。
+- **Dashboard 遙測數字來源完整溯源與解析**：
+  - 詳盡剖析頂部橫幅（`18.38M Tokens`、`1 Active`、`61 Sessions`）以及三大 Agent（Claude Code 41 個對話 16.00M、Antigravity 20 個對話 2.37M、Codex 0 個）之原始日誌路徑、計算公式與先前 Tool Tokens 為 0 之成因。
 
 ## Tests
 - `npm run typecheck` → pass（TS 零錯誤）。
