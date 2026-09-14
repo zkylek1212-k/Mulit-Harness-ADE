@@ -2,11 +2,15 @@
 
 - Updated: 2026-09-14 Asia/Taipei
 - Agent: Antigravity (Gemini 3.8 Flash)
-- Task: 今日工作成果統整提交（雙語系支援、會話分類、工作區切換、遙測真實度修正、Launchpad 滾動修復）
+- Task: 合併外部 PR #2 (Codex 掃描與 Token 統計) 至 feat/workbench-enhancements 分支
 - Branch: feat/workbench-enhancements
-- Commit: feat(workbench): bilingual i18n, folder grouping, workspace switching, telemetry fixes
+- Commit: merge(codex): merge PR #2 into feat/workbench-enhancements
 
 ## Done
+- **整合外部 PR #2 (Codex 擴充掃描與真實會話 Token 統計)**：
+  - `src/main/ext/paths.ts` & `src/main/ext/inventory.ts`: 引入 Codex 的 `skillsDir` 與 `pluginsDir` 路徑設定，新增 `scanCodex()` 解析 `~/.codex/config.toml` (MCP 與 Plugins) 以及 `~/.codex/skills/` 下的 SKILL.md。
+  - `src/main/ipc/dashboard.ts`: 引入 `scanCodexSessions()`，遞迴讀取 `~/.codex/sessions/**/rollout-*.jsonl` 與 `~/.codex/session_index.jsonl`，計算真實累計 Token 數與會話標題。
+  - **架構融合與衝突解決**：將 Codex 掃描結果無縫併入工作台的智慧 PTY 行程匹配（優先級 1~3）、資料夾分組系統與中英文雙語系標準化 Token 分類（`Context & System Prompt`、`Cached Input Context`、`Thinking & Generation`）。
 - **Session 卡片資料夾按鈕連動切換工作區與 Files 側邊欄**：
   - `src/main/ipc/files.ts`: 新增 `files:setWorkspaceRoot` IPC 處理常式，直接設定主行程 `workspace.root`、重設檔案監聽器 `initWorkspaceWatcher()` 並即時向視窗廣播 `files:treeChange`。
   - `src/preload/index.ts`: 補齊型別與 IPC 暴露 `setWorkspaceRoot: (path: string) => Promise<boolean>`。
