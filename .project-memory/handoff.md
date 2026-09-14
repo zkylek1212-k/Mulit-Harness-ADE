@@ -2,28 +2,30 @@
 
 - Updated: 2026-09-14 Asia/Taipei
 - Agent: Antigravity (Gemini 3.8 Flash)
-- Task: 檔案自動讀取更新、Session 資料夾分組摺疊與一鍵摺疊/展開、幽靈 Session 修正
+- Task: 設定新增語言選擇功能（支援 English 與繁體中文）
 - Branch: feat/mobile-dispatch
 - Commit: pending memory commit
 
 ## Done
-- **檔案自動讀取更新 (Auto-Refresh File Tree)**：
-  - `src/main/ipc/files.ts`: 新增 `triggerTreeChange()` 防抖通知，監聽工作區任意檔案/目錄異動並在 `files:write` 存檔後自動廣播 `files:treeChange`。
-  - `src/preload/index.ts`: 在 `files` 介面新增 `onTreeChange` 監聽契約。
-  - `src/renderer/src/store.ts`: 新增 `fileTreeTick` 與 `bumpFileTree()`，全域監聽 `onTreeChange` 自動推進計數器。
-  - `FileTreePanel.tsx`: 訂閱 `fileTreeTick`、`gitTick` 與視窗 `focus` 事件，自動靜默重新拉取 root 及所有已展開資料夾子項目，維持使用者樹狀展開狀態不跳動。
-- **Session 資料夾分組、摺疊與一鍵摺疊/展開**：
-  - `DashboardPanel.tsx`: 依 Session 的真實執行資料夾（`workspacePath` / `workspace`）自動分組歸類；當前 IDE 開啟之工作區自動置頂並標記 `Current Workspace`。
-  - 每個資料夾群組可單獨展開/收合，並於頂部提供「展開全部」與「摺疊全部」一鍵操作按鈕。
-  - `dashboard.css`: 實作 Apple HIG 風格之資料夾群組外框、標頭、徽章與展開箭頭動畫。
-- **幽靈 Session 與假 Token 徹底修正**：
-  - `src/main/ipc/dashboard.ts`: 移除 `slice(0, 2)` 隨意抓取電腦中無關專案的 fallback 機制；Claude 會話精準從 `.jsonl` 訊息的 `cwd` 提取真實執行路徑。
-  - Antigravity 會話精確匹配 `[URI]` 或 `"Cwd"`，未指定者標記為獨立會話，不再任意冠上當前工作區路徑。
-  - 移除一般終端（PowerShell/CMD/Bash）被偽造為帶有 15,400 假 Token 的 Agent Session 卡片；移除寫死之 11,500 / 12,000 假 Token 基準值。
+- **雙語 i18n 系統與翻譯架構**：
+  - `src/renderer/src/i18n/index.ts`: 新增零依賴、型別安全之雙語模組，定義 `Language = 'en' | 'zh-TW'`，建立涵蓋所有面板之雙語字典，並匯出 `useTranslation()` Hook 與 `t()` 函式。
+  - **English 模式嚴格純英文**：移除淺深色莫蘭迪主題名稱中硬編碼之中文（`Light Morandi`、`Dark Morandi`），修正 Dashboard 之「展開全部/摺疊全部」為 `Expand All / Collapse All`，消除所有中文字串洩漏。
+  - **繁體中文模式**：採用台灣慣用之標準繁體中文（如「偏好設定」、「工作目錄變更」、「暫存變更」、「當前工作區」等），專有名詞與 CLI 指令保留英文。
+- **後端設定契約與持久化**：
+  - `src/preload/index.ts`: 在 `WorkbenchSettings` 新增 `language?: 'en' | 'zh-TW'`。
+  - `src/main/ipc/settings.ts`: 在 `loadSettings()` 與 `settings:set` 讀寫 `language` 欄位並儲存於 `.workbench/settings.json`。
+  - `src/main/ipc/dashboard.ts`: Token 分類常數統一為英文（`Context & System Prompt`、`Tool Execution & Files`、`Thinking & Generation`），杜絕後端硬編碼中文。
+- **全域狀態與即時同步**：
+  - `src/renderer/src/store.ts`: `WorkbenchState` 支援 `language`，初始自動載入 `localStorage ('wb-language')` 或瀏覽器語系，提供 `setLanguage()` 同步更新狀態、`localStorage` 與後端設定檔，免重啟即時切換。
+- **Settings Modal 語言切換介面**：
+  - `src/renderer/src/components/SettingsModal.tsx`: 在 Appearance 頁籤最上方新增 Apple HIG 風格雙卡片選擇器（`English` 與 `繁體中文`），點擊即刻生效。
+  - `src/renderer/src/components/settingsModal.css`: 實作 `.macos-lang-cards` 等現代化選單樣式。
+- **全域面板對接 i18n**：
+  - `App.tsx`、`DashboardPanel.tsx`、`FileTreePanel.tsx`、`EditorPanel.tsx`、`GitPanel.tsx` 全面接軌 `t()`。
 
 ## Tests
 - `npm run typecheck` → pass（TS 零錯誤）。
-- `npm run build` → pass（產出 production bundle，Vite / Electron 編譯通過）。
+- `npm run build` → pass（Vite / Electron 生產環境打包編譯通過）。
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態。
