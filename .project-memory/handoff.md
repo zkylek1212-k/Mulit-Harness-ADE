@@ -2,9 +2,9 @@
 
 - Updated: 2026-09-14 Asia/Taipei
 - Agent: Antigravity (Gemini 3.8 Flash)
-- Task: 新增 CLI 啟動權限 Bypass Mode（Claude, Codex, Antigravity 略過審批開關）
-- Branch: feat/cli-bypass-mode
-- Commit: pending user commit
+- Task: 發布 v0.1.3 — CLI 啟動權限 Bypass Mode
+- Branch: master
+- Commit: chore(release): bump version to v0.1.3
 
 ## Done
 - **新增 CLI 啟動權限 Bypass Mode 全域開關**：
