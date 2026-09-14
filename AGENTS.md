@@ -53,9 +53,9 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 - Updated: 2026-09-14 Asia/Taipei
 - Agent: Antigravity (Gemini 3.8 Flash)
-- Task: 點擊 Session 卡片資料夾按鈕自動切換至 Files 面板並無縫切換工作區根目錄
+- Task: 今日工作成果統整提交（雙語系支援、會話分類、工作區切換、遙測真實度修正、Launchpad 滾動修復）
 - Branch: feat/mobile-dispatch
-- Commit: pending memory commit
+- Commit: feat(workbench): bilingual i18n, folder grouping, workspace switching, telemetry fixes
 
 ## Done
 - **Session 卡片資料夾按鈕連動切換工作區與 Files 側邊欄**：

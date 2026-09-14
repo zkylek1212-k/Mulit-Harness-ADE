@@ -23,6 +23,10 @@
 - [x] Antigravity CLI 會話防禦降級（解決 conversation not found）
 - [x] 中央工作區分段順序優化（Editor / Preview / Memory / Browser）
 - [x] Office & PDF 整合：Editor 內建 DocumentViewer（Word/Excel/PowerPoint/PDF）與 Settings 自訂外部工具路徑及自動偵測
+- [x] 雙語系 i18n 支援：支援 Strict English 與繁體中文切換，全域面板與 Settings 全面對接
+- [x] 檔案樹即時自動監聽與工作區切換連動：後端 fs.watch 廣播、點擊 Session 卡片資料夾無縫切換根目錄
+- [x] Dashboard 會話摺疊分組與遙測精準校準：消除幽靈會話、精準校準 Active/Completed 狀態與真實 Token 計算
+- [x] 終端 Launchpad 頂部滾動卡住修復與 Mobile Dispatch 完整架構規劃完稿
 
 ## Long-term Tasks
 - P1: 真的需要硬體分析時再包 MCP。判準：**只包 LLM 做不到或容易做錯的事**
