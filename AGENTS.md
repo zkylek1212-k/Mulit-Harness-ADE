@@ -53,26 +53,18 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 - Updated: 2026-09-14 Asia/Taipei
 - Agent: Antigravity (Gemini 3.8 Flash)
-- Task: 設定新增語言選擇功能（支援 English 與繁體中文）
+- Task: 深入分析與修復 Session Token 正確性及活躍狀態顯示 completed 根因
 - Branch: feat/mobile-dispatch
 - Commit: pending memory commit
 
 ## Done
-- **雙語 i18n 系統與翻譯架構**：
-  - `src/renderer/src/i18n/index.ts`: 新增零依賴、型別安全之雙語模組，定義 `Language = 'en' | 'zh-TW'`，建立涵蓋所有面板之雙語字典，並匯出 `useTranslation()` Hook 與 `t()` 函式。
-  - **English 模式嚴格純英文**：移除淺深色莫蘭迪主題名稱中硬編碼之中文（`Light Morandi`、`Dark Morandi`），修正 Dashboard 之「展開全部/摺疊全部」為 `Expand All / Collapse All`，消除所有中文字串洩漏。
-  - **繁體中文模式**：採用台灣慣用之標準繁體中文（如「偏好設定」、「工作目錄變更」、「暫存變更」、「當前工作區」等），專有名詞與 CLI 指令保留英文。
-- **後端設定契約與持久化**：
-  - `src/preload/index.ts`: 在 `WorkbenchSettings` 新增 `language?: 'en' | 'zh-TW'`。
-  - `src/main/ipc/settings.ts`: 在 `loadSettings()` 與 `settings:set` 讀寫 `language` 欄位並儲存於 `.workbench/settings.json`。
-  - `src/main/ipc/dashboard.ts`: Token 分類常數統一為英文（`Context & System Prompt`、`Tool Execution & Files`、`Thinking & Generation`），杜絕後端硬編碼中文。
-- **全域狀態與即時同步**：
-  - `src/renderer/src/store.ts`: `WorkbenchState` 支援 `language`，初始自動載入 `localStorage ('wb-language')` 或瀏覽器語系，提供 `setLanguage()` 同步更新狀態、`localStorage` 與後端設定檔，免重啟即時切換。
-- **Settings Modal 語言切換介面**：
-  - `src/renderer/src/components/SettingsModal.tsx`: 在 Appearance 頁籤最上方新增 Apple HIG 風格雙卡片選擇器（`English` 與 `繁體中文`），點擊即刻生效。
-  - `src/renderer/src/components/settingsModal.css`: 實作 `.macos-lang-cards` 等現代化選單樣式。
-- **全域面板對接 i18n**：
-  - `App.tsx`、`DashboardPanel.tsx`、`FileTreePanel.tsx`、`EditorPanel.tsx`、`GitPanel.tsx` 全面接軌 `t()`。
+- **Token 正確性分析與計算法修復**：
+  - **Claude 專案 Token**：底層讀取 Anthropic API 的真實 usage 標頭（`input_tokens`, `output_tokens`, `cache_read_input_tokens`, `cache_creation_input_tokens`）。修復 `dashboard.ts` 中 `toolTokens += estimateTokens(len.toString())` 之嚴重 bug（原將字元長度轉為字串如 `"20000"` 計為 5 字元 = 2 tokens），改為 `Math.ceil(len / 3.5)` 正確計算工具 payload。
+  - **Antigravity Token**：日誌由 Gemini IDE 產生，因 transcript 僅記錄完整文字對話而無底層 API usage 標頭，採業界通用之字元數比率（`Math.ceil(charCount / 3.5)`）進行 BPE token 估算。
+- **解決「明明還在 active 卻顯示 completed」之根本原因**：
+  - **根因 1（工作區正規化與 Regex 逃逸字元 Bug）**：`extractAntigravityWorkspace` 於匹配工具調用之 `Cwd` 時，因未處理跳脫引號 `\"`，導致路徑擷取為 `"\\"`。在 Windows 下 `fs.existsSync("\\")` 為 true（磁碟根目錄），導致工作區路徑錯設為 `"\\"`，進而使 `workspace.root` 比對永遠失敗，會話狀態始終困在預設值 `completed`。已修正將當前 `workspace.root` 優先級移至第一位，並修復 `cwd` 引號清理與路徑比對長度防禦。
+  - **根因 2（即時日誌活躍度偵測）**：歷史會話掃描不再一律標記為 `completed`，改依 `lastActiveTime` 即時判定（5 分鐘內有磁碟寫入更新者判定為 `active`，20 分鐘內為 `idle`，超過則為 `completed`）。
+  - **根因 3（PTY 終端行程與 Agent Session ID 鏈結）**：`src/preload/index.ts` 之 `PtySpawnOptions` 與 `src/main/ipc/pty.ts` 之 `ActiveSessionMeta` 增設 `sessionId` 與 `cwd`；`TerminalPanel.tsx` 於啟動終端時精確傳遞 `associatedSessionId`，讓後端可直接 100% 精準將活躍 PTY 映射至 Session 卡片，杜絕重複產生 0 token 的 standalone 假卡片。
 
 ## Tests
 - `npm run typecheck` → pass（TS 零錯誤）。
