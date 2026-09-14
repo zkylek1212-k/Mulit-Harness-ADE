@@ -1,6 +1,6 @@
 # Project State
 
-- Milestone: v0.1.1 — 多 CLI 遙測、Codex 整合與雙語系增強版（完成）
+- Milestone: v0.1.2 — 極速冷啟動優化與 Dashboard CLI 動態連動版（完成）
 - Status: Stable
 - Last updated: 2026-09-14
 
@@ -28,6 +28,7 @@
 - [x] Dashboard 會話摺疊分組與遙測精準校準：消除幽靈會話、精準校準 Active/Completed 狀態與真實 Token 計算
 - [x] 終端 Launchpad 頂部滾動卡住修復與 Mobile Dispatch 完整架構規劃完稿
 - [x] v0.1.1 正式發布：整合外部 PR #2 (Codex 擴充掃描與真實會話 Token 統計)、雙語系 i18n 完整實作、資料夾分組與一鍵工作區切換連動、遙測精準校準與終端滾動修正
+- [x] v0.1.2 正式發布：開機效能優化（mtime 磁碟持久化快取、面板按需掛載 Mount-on-Demand、冷開機 42 倍加速）、Dashboard 與 Settings CLI 啟用/停用動態連動（即時過濾遙測卡片、會話與資料夾群組，全停用導引橫幅）
 
 ## Long-term Tasks
 - P1: 真的需要硬體分析時再包 MCP。判準：**只包 LLM 做不到或容易做錯的事**
