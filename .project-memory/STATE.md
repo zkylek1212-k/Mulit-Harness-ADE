@@ -1,8 +1,8 @@
 # Project State
 
-- Milestone: M1 — Workbench 可用骨幹（完成）
+- Milestone: v0.1.1 — 多 CLI 遙測、Codex 整合與雙語系增強版（完成）
 - Status: Stable
-- Last updated: 2026-09-10
+- Last updated: 2026-09-14
 
 ## Macro Progress
 - [x] Phase 0 專案骨架：Electron + Vite + React + Monaco 三欄殼
@@ -27,6 +27,7 @@
 - [x] 檔案樹即時自動監聽與工作區切換連動：後端 fs.watch 廣播、點擊 Session 卡片資料夾無縫切換根目錄
 - [x] Dashboard 會話摺疊分組與遙測精準校準：消除幽靈會話、精準校準 Active/Completed 狀態與真實 Token 計算
 - [x] 終端 Launchpad 頂部滾動卡住修復與 Mobile Dispatch 完整架構規劃完稿
+- [x] v0.1.1 正式發布：整合外部 PR #2 (Codex 擴充掃描與真實會話 Token 統計)、雙語系 i18n 完整實作、資料夾分組與一鍵工作區切換連動、遙測精準校準與終端滾動修正
 
 ## Long-term Tasks
 - P1: 真的需要硬體分析時再包 MCP。判準：**只包 LLM 做不到或容易做錯的事**

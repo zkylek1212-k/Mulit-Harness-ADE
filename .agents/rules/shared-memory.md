@@ -50,37 +50,29 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 - Updated: 2026-09-14 Asia/Taipei
 - Agent: Antigravity (Gemini 3.8 Flash)
-- Task: 合併外部 PR #2 (Codex 掃描與 Token 統計) 至 feat/workbench-enhancements 分支
+- Task: 專案進版至 v0.1.1 並補齊完整 Release Description 與 Changelog
 - Branch: feat/workbench-enhancements
-- Commit: merge(codex): merge PR #2 into feat/workbench-enhancements
+- Commit: chore(release): bump version to v0.1.1 and add changelog
 
 ## Done
+- **進版至 v0.1.1 與版本發布描述**：
+  - `package.json` & `package-lock.json`：版本號由 `0.1.0` 進版至 `0.1.1`，更新專案描述以精確反映 Codex/Claude 遙測與雙語系支援。
+  - `CHANGELOG.md`：建立標準 Keep a Changelog 格式變更日誌，詳細記錄 v0.1.1 與 v0.1.0 之功能亮點、新增項目與問題修復（PR #2 Codex 遙測整合、資料夾分組與一鍵工作區切換、中英雙語系 i18n、遙測精準度校準、終端捲動修正）。
+  - `README.md`：更新中英文功能清單（文件預覽、儀表板與遙測、雙語系）並加入版本紀錄與變更日誌連結。
+  - `.project-memory/STATE.md`：里程碑正式標記為 `v0.1.1` 完成。
 - **整合外部 PR #2 (Codex 擴充掃描與真實會話 Token 統計)**：
   - `src/main/ext/paths.ts` & `src/main/ext/inventory.ts`: 引入 Codex 的 `skillsDir` 與 `pluginsDir` 路徑設定，新增 `scanCodex()` 解析 `~/.codex/config.toml` (MCP 與 Plugins) 以及 `~/.codex/skills/` 下的 SKILL.md。
   - `src/main/ipc/dashboard.ts`: 引入 `scanCodexSessions()`，遞迴讀取 `~/.codex/sessions/**/rollout-*.jsonl` 與 `~/.codex/session_index.jsonl`，計算真實累計 Token 數與會話標題。
-  - **架構融合與衝突解決**：將 Codex 掃描結果無縫併入工作台的智慧 PTY 行程匹配（優先級 1~3）、資料夾分組系統與中英文雙語系標準化 Token 分類（`Context & System Prompt`、`Cached Input Context`、`Thinking & Generation`）。
+  - **架構融合與衝突解決**：將 Codex 掃描結果無縫併入工作台的智慧 PTY 行程匹配（優先級 1~3）、資料夾分組系統與中英文雙語系標準化 Token 分類。
 - **Session 卡片資料夾按鈕連動切換工作區與 Files 側邊欄**：
-  - `src/main/ipc/files.ts`: 新增 `files:setWorkspaceRoot` IPC 處理常式，直接設定主行程 `workspace.root`、重設檔案監聽器 `initWorkspaceWatcher()` 並即時向視窗廣播 `files:treeChange`。
-  - `src/preload/index.ts`: 補齊型別與 IPC 暴露 `setWorkspaceRoot: (path: string) => Promise<boolean>`。
-  - `src/renderer/src/store.ts`:
-    - 定義全域 `SidebarTab = 'dashboard' | 'files' | 'git'` 與 `fileTreeTick` 變更計數器。
-    - 實作 `switchWorkspace(path: string)`：安全呼叫後端切換工作區根目錄、將狀態中的 `workspaceRoot` 更新、自動切換側邊欄至 `'files'`，並遞增 `fileTreeTick` 與 `gitTick`。
-  - `src/renderer/src/App.tsx`:
-    - 側邊欄分頁切換改為連動全域 `sidebarTab`。
-    - 加入自動展開邏輯：若側邊欄為摺疊狀態，當 `sidebarTab` 變更時自動展開側邊欄，確保切換至 Files 時使用者能直接看見檔案清單。
-  - `src/renderer/src/panels/filetree/FileTreePanel.tsx`:
-    - 監聽 `workspaceRoot` 變更，在路徑切換時自動重新載入新目錄之檔案樹 `refreshTree(workspaceRoot, false)`。
-  - `src/renderer/src/panels/dashboard/DashboardPanel.tsx`:
-    - `SessionCard`：將資料夾標籤改為 `<button type="button" className="dash-session-workspace">`，加入 `handleWorkspaceClick`，並嚴格阻斷事件冒泡 (`e.stopPropagation()`)，點擊時執行 `switchWorkspace(session.workspacePath)`。
-    - 在資料夾群組標頭新增快捷切換按鈕 `.dash-folder-switch-btn` (`切換資料夾 ➔`)。
-  - `src/renderer/src/panels/dashboard/dashboard.css`:
-    - 為 `.dash-session-workspace` 與 `.dash-folder-switch-btn` 導入 Apple HIG 互動微動畫（微幅上浮、按壓縮放 0.96、聚焦輪廓與主題高亮）。
-  - `src/renderer/src/i18n/index.ts`:
-    - 補充 `switchFolder` 中英文在地化語系文字。
+  - `src/main/ipc/files.ts`: 新增 `files:setWorkspaceRoot` IPC，即時廣播 `files:treeChange`。
+  - `src/renderer/src/store.ts`: 實作 `switchWorkspace(path: string)`，自動切換至 Files 面板並遞增計數觸發重整。
+  - `src/renderer/src/App.tsx`: 側邊欄收合時點擊自動展開。
+  - `src/renderer/src/panels/filetree/FileTreePanel.tsx`: 監聽工作區切換並自動重新整理。
+  - `src/renderer/src/panels/dashboard/DashboardPanel.tsx`: SessionCard 與資料夾群組標頭新增切換按鈕，嚴格阻斷冒泡並引入 Apple HIG 動畫。
 
 ## Tests
 - `npm run typecheck` → pass（TS 零錯誤）。
-- `npm run build` → pass（Vite + Electron SSR/Renderer 打包編譯無誤）。
 
 ## Warnings (do-not-touch)
 - `src/preload/index.ts` 是唯一 IPC 契約、`src/renderer/src/store.ts` 是跨 panel 狀態。
