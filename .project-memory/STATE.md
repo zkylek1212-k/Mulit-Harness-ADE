@@ -1,8 +1,8 @@
 # Project State
 
-- Milestone: v0.1.34 - mobile terminal canvas scale-to-fit without horizontal scroll or desktop resize
-- Status: PR #28 merged; v0.1.34 published with installer, portable ZIP and auto-update metadata.
-- Local follow-up: v0.1.34 mobile regressions repaired with readable wrapped text after desktop-size ANSI parsing (DEC-006); typecheck/build/UI regressions passed. Source remains uncommitted/unpublished; physical-phone check pending.
+- Milestone: v0.1.35 - readable wrapped mobile terminal with vertical-only scrolling and stable session/tab switching
+- Status: PR #29 merged; v0.1.35 published with installer, portable ZIP and auto-update metadata (merge/tag commit b2302ec).
+- Validation: typecheck, full Electron/xterm UI regressions and Windows packaging passed; physical-phone Safari/PWA check pending.
 - Last updated: 2026-10-02
 
 
@@ -70,6 +70,7 @@
 - [x] v0.1.32 released (PR #25, PR #26): mobile workspace folding with persistence and mobile terminal native dual-axis scrolling without desktop resize.
 - [x] v0.1.33 released (PR #27): mobile terminal responsive auto-fit without horizontal scroll or desktop resize.
 - [x] v0.1.34 released (PR #28): mobile terminal canvas scale-to-fit (Plan A) preserving 1:1 desktop ANSI coordinates (120/160 cols), eliminating horizontal scroll, fixing cursor-addressed redraws/divider wrapping, with smooth native vertical history swipe.
+- [x] v0.1.35 released (PR #29): desktop-size ANSI parsing followed by readable wrapped mobile text (DEC-006), vertical-only native scrolling, and stable session/tab/resize restores; installer, portable ZIP and updater assets published.
 - [~] 原 v0.1.14 規劃項：Dashboard 的 Clone Repo 與 Archived 分頁已在 UI 上確認存在（2026-09-24 截圖）；
       JumpList 連動仍未驗證
 - [x] v0.1.7 正式發布：Issue #10 完全收尾——Dashboard 的 active 狀態改由 renderer 提供事實

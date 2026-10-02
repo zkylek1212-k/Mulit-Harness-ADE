@@ -53,36 +53,35 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 - Agent: Codex
 - Updated: 2026-10-02 Asia/Taipei
-- Branch: master; source base 013c1e2 (published v0.1.34).
-- User request: repair mobile regressions in `phone view_bug1.png` and `phone view_bug2.png`, including switching away from a terminal and returning.
-- User requirement: 「一定不要左右滑動，我只接受上下滑動」. Preserve readable text; do not restore dual-axis scrolling or shrink the desktop screen into microscopic text.
+- User authorization: create the PR, merge it, and release the new version; completed.
+- PR #29: https://github.com/zkylek1212-k/Mulit-Harness-ADE/pull/29 (MERGED).
+- Source commit: 277dfeaaf0bbc5d8d14031e452924c26fba89a11, branch fix/mobile-readable-terminal-v0.1.35.
+- Merge/tag/origin-master commit: b2302eca3060d3db530bc6a26870b1cc90f9350b.
+- Release: https://github.com/zkylek1212-k/Mulit-Harness-ADE/releases/tag/v0.1.35 (public, latest, published 2026-10-02T08:32:43Z).
 
 ## Done
-- Replaced mobile canvas scale-to-fit with readable, styled native text lines after xterm parses ANSI using desktop cols/rows (DEC-006 supersedes DEC-005).
-- Long text wraps at 13px; desktop soft-wraps join before mobile wrapping, including CJK/emoji boundary padding. ANSI palette/truecolor, bold/dim/italic/underline/inverse/invisible styles and cursor visibility are retained; plain separator lines stay one line.
-- Kept desktop PTY resize ownership unchanged. State dimension broadcasts no longer dispose/recreate the mobile parser; snapshot/resized messages update its geometry.
-- Removed DOM measurement/opening/scaling lifecycle and sticky virtual scrolling. Native vertical scrolling follows output at the bottom, preserves history during updates/clear-screen, and survives hidden tabs, keyboard/rotation and session remounts.
-- Reset pending refresh timers when switching sessions; stale session messages do not populate the reopened session.
-- Expanded the existing Electron/xterm regression script; fixed its fixture's missing UTF-8 charset (production remote.html already declares UTF-8).
-- Prior release handoff archived verbatim at `archive/2026-10-02-v0.1.34-antigravity.md`. PR #28 and published v0.1.34 remain the latest release; no new source commit, push, PR or release performed.
+- Published the readable mobile terminal repair described in DEC-006. Preserve the user's requirement: vertical scrolling only, readable text, no desktop-canvas scaling or phone resizing of the shared PTY.
+- PR contains exactly six files: TerminalView.tsx, remote.css, check-terminal-ui.cjs, package.json, package-lock.json and CHANGELOG.md; 231 insertions / 190 deletions. Local memory and screenshots were excluded.
+- Prepared v0.1.35 from origin/master in an isolated worktree, committed/pushed the source branch, created PR #29, merged it and pushed annotated tag v0.1.35 at the merge commit.
+- Verified the merged tree is identical to the validated source tree before publication.
+- Built Windows installer and native PTY package, then published with scripts/release.ps1 -SkipBuild after validated packaging.
+- All four assets uploaded: Agent-Workbench-0.1.35-setup.exe, Agent-Workbench-0.1.35-portable.zip, latest.yml and setup blockmap. GitHub asset sizes and SHA-256 digests match local files.
+- Auto-update metadata version, installer name/size and SHA-512 verified. Portable ZIP executable present; its app.asar SHA-256 matches the verified installed package.
+- Prior repair handoff preserved at archive/2026-10-02-mobile-repair-pre-release.md; prior v0.1.34 release handoff remains in its archive.
 
 ## Validation
-- `npm run typecheck`: passed (0 errors).
-- `npm run build`: passed.
-- `npx electron scripts/check-terminal-ui.cjs`: passed completely, including actual desktop resize, session changes/reopening, hidden Status/File/Preview restores, alternate-screen enter/exit, relative ANSI redraw, CJK/emoji/long URLs, styles/cursor, HTML-as-text, one-line dividers, keyboard clipping, native swipe/history/follow behavior, and existing IME/workspace/file/version checks.
-- 320/390/768px at device scale 1/2/3: readable 13px font, desktop ANSI dimensions retained, no horizontal overflow.
-- Visual check: generated `wrapped-terminal.png` confirms readable native text, single-line divider and cursor. Latest test artifacts: `C:/Users/milan.chang/AppData/Local/Temp/workbench-terminal-check-3Hf08z/`.
+- npm run typecheck: passed for v0.1.35.
+- npx electron scripts/check-terminal-ui.cjs: entire suite passed, including session reopening, hidden tabs, alternate screen, ANSI redraw/styles/cursor, CJK/emoji/long text, vertical history/follow behavior, 320/390/768px at device scales 1/2/3 and existing IME/file/workspace/version checks.
+- npm run dist -- --publish never: passed (Electron 33.4.11, x64 NSIS).
+- Packaged app.asar version 0.1.35, native PTY unpacking and wrapped-mobile JS/CSS assets verified.
+- Release worktree is clean and detached at b2302ec: C:/Users/milan.chang/AppData/Local/Temp/agent-workbench-release-v0.1.35/.
+- Test screenshot artifacts: C:/Users/milan.chang/AppData/Local/Temp/workbench-terminal-check-J6jXyh/.
 
-## Not done / limits
-- Source changes remain uncommitted in `TerminalView.tsx`, `remote.css` and `scripts/check-terminal-ui.cjs`; built output is local only. The installed/published v0.1.34 has not been updated.
-- Physical iPhone Safari/PWA verification still needed; no claim of real-device validation.
-- Rendering scans the existing bounded 5000-line buffer at most every 120ms; incremental rendering only if profiling shows a need.
-- Mobile wraps parsed text; full-screen TUI box/table geometry may differ visually from desktop. The raw server snapshot still has its existing 256KiB tail limit.
-- User screenshots and pre-existing temp/worktrees remain untouched.
-
-## Next agent should
-- Preserve the user's vertical-only/readable-text requirement and desktop PTY dimensions; do not reintroduce CSS canvas scale or fit the ANSI parser to phone columns.
-- Review the local source diff, verify on a physical phone, then follow the user's instructions for source commit/PR/packaging/release.
-- Shared memory is committed separately and not pushed with MEM_AUTOPUSH=0.
+## Limits / local state
+- Physical iPhone Safari/PWA validation remains pending. After updating the desktop app, mobile Settings > Reload mobile interface loads the new UI.
+- Native text wraps full-screen TUI layouts; fixed-grid visual geometry may differ from desktop. Existing 5000-line/120ms rendering and raw-server 256KiB snapshot-tail limits remain.
+- Main workspace is still on local master with its memory commit and the three original uncommitted repair files, matching the published repair. Its package version/build remains 0.1.34. No local master sync or source overwrite was performed.
+- User screenshots and previous temp files remain untouched. Release worktree and artifacts are retained.
+- Shared memory is committed locally only; not pushed (MEM_AUTOPUSH=0). Do not push local master with memory commits into the public source history; future source branches should start at origin/master b2302ec.
 
 <!-- END AUTO-MEMORY -->
