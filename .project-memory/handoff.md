@@ -1,34 +1,40 @@
 # Latest Handoff
 
-- Agent: Codex
-- Updated: 2026-10-02 Asia/Taipei
-- User authorization: create the PR, merge it, and release the new version; completed.
-- PR #29: https://github.com/zkylek1212-k/Mulit-Harness-ADE/pull/29 (MERGED).
-- Source commit: 277dfeaaf0bbc5d8d14031e452924c26fba89a11, branch fix/mobile-readable-terminal-v0.1.35.
-- Merge/tag/origin-master commit: b2302eca3060d3db530bc6a26870b1cc90f9350b.
-- Release: https://github.com/zkylek1212-k/Mulit-Harness-ADE/releases/tag/v0.1.35 (public, latest, published 2026-10-02T08:32:43Z).
+- Agent: Antigravity
+- Updated: 2026-10-05 Asia/Taipei
+- User request: 解決手機端只有 Antigravity 可以往上滑看之前的 session，而 Claude Code 只能顯示電腦端畫面問題；執行第一步（Codex 支援 `--no-alt-screen`）與第二步（Claude Code 清螢幕轉歷史捲動緩衝區＋分隔線），確保手機端送 prompt 與快捷鍵依然正常。
 
 ## Done
-- Published the readable mobile terminal repair described in DEC-006. Preserve the user's requirement: vertical scrolling only, readable text, no desktop-canvas scaling or phone resizing of the shared PTY.
-- PR contains exactly six files: TerminalView.tsx, remote.css, check-terminal-ui.cjs, package.json, package-lock.json and CHANGELOG.md; 231 insertions / 190 deletions. Local memory and screenshots were excluded.
-- Prepared v0.1.35 from origin/master in an isolated worktree, committed/pushed the source branch, created PR #29, merged it and pushed annotated tag v0.1.35 at the merge commit.
-- Verified the merged tree is identical to the validated source tree before publication.
-- Built Windows installer and native PTY package, then published with scripts/release.ps1 -SkipBuild after validated packaging.
-- All four assets uploaded: Agent-Workbench-0.1.35-setup.exe, Agent-Workbench-0.1.35-portable.zip, latest.yml and setup blockmap. GitHub asset sizes and SHA-256 digests match local files.
-- Auto-update metadata version, installer name/size and SHA-512 verified. Portable ZIP executable present; its app.asar SHA-256 matches the verified installed package.
-- Prior repair handoff preserved at archive/2026-10-02-mobile-repair-pre-release.md; prior v0.1.34 release handoff remains in its archive.
+- **Diagnosis**:
+  - Antigravity 採用標準 `stdout` + 換行串流輸出，行自然推入 xterm scrollback。
+  - Codex 預設使用 Alternate Screen Mode (`\x1b[?1049h`)，終端規範下 scrollback 為 0 行。
+  - Claude Code 使用 React Ink TUI，在每回合交談與重繪時會輸出 `\x1b[2J\x1b[m\x1b[H` 清螢幕並游標回頂，抹除可視區文字而未推入 scrollback。
+- **Step 1 (Codex & Antigravity)**:
+  - 在 [src/main/ipc/pty.ts](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade-3/src/main/ipc/pty.ts) 實作 `applyAgentDefaultArgs`：若為 Codex CLI 啟動（不論桌面自訂、resume 或手機新開），自動注入 `--no-alt-screen`，切換為 inline 串流模式，保有完整 scrollback 歷史。
+  - 驗證 Antigravity 本身預設即為串流模式，無須額外改動。
+- **Step 2 (Claude Code `ClaudeHistoryStream`)**:
+  - 在 [src/renderer/remote/TerminalView.tsx](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade-3/src/renderer/remote/TerminalView.tsx) 實作 `ClaudeHistoryStream`：
+    - 攔截 Claude Code 產生的清螢幕序列 `\x1b[2J\x1b[m\x1b[H`。
+    - 遇到清螢幕且前面已有內容時，將其轉換為向滾動緩衝區推進足夠行數之換行，並補上一條橫向淡色分隔線（`─`.repeat(cols)）與 `\x1b[H`，使前幾回合的交談與工具產出平滑推入 xterm scrollback，而非在當前頁面被原地抹去。
+    - 抑制會話剛啟動時的開頭清螢幕，避免頂部出現無意義空白行。
+    - 正確處理串流 chunk 跨逃逸字元邊界的狀態切片。
+  - 手機端 upstream prompt 輸入（`writePty`、`conn.send`、快捷鍵按鈕、審批核可）走完全獨立之資料管道，未受任何改動，100% 保持正常操作。
+- **Decisions & Memory**:
+  - 在 [.project-memory/DECISIONS.md](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade-3/.project-memory/DECISIONS.md) 記錄 **DEC-007**。
+  - 更新 [.project-memory/STATE.md](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade-3/.project-memory/STATE.md) 標記進度。
 
 ## Validation
-- npm run typecheck: passed for v0.1.35.
-- npx electron scripts/check-terminal-ui.cjs: entire suite passed, including session reopening, hidden tabs, alternate screen, ANSI redraw/styles/cursor, CJK/emoji/long text, vertical history/follow behavior, 320/390/768px at device scales 1/2/3 and existing IME/file/workspace/version checks.
-- npm run dist -- --publish never: passed (Electron 33.4.11, x64 NSIS).
-- Packaged app.asar version 0.1.35, native PTY unpacking and wrapped-mobile JS/CSS assets verified.
-- Release worktree is clean and detached at b2302ec: C:/Users/milan.chang/AppData/Local/Temp/agent-workbench-release-v0.1.35/.
-- Test screenshot artifacts: C:/Users/milan.chang/AppData/Local/Temp/workbench-terminal-check-J6jXyh/.
+- `npm run typecheck`: 通過（0 錯誤）。
+- `npx electron scripts/check-terminal-ui.cjs`: 完整測試套件全數通過，包含：
+  - `codex --no-alt-screen default inline mode: passed`
+  - `Claude Code multi-turn history preservation across clear-screen: passed` (snapshot 與 live data 跨 clear-screen 均完整保留多回合歷史)
+  - `legacy mobile resize blocked / remote input: passed`
+  - `native IME / passthrough / Enter / paste: passed`
+  - `mobile wrapped CJK / long text / ANSI styles / relative redraw / cursor: passed`
+  - `mobile 320/390/768px @1x/2x/3x: passed`
+  - `mobile reconnect / desktop resize: passed`
+  - `mobile native touch scroll / mouse mode / history during output: passed`
 
-## Limits / local state
-- Physical iPhone Safari/PWA validation remains pending. After updating the desktop app, mobile Settings > Reload mobile interface loads the new UI.
-- Native text wraps full-screen TUI layouts; fixed-grid visual geometry may differ from desktop. Existing 5000-line/120ms rendering and raw-server 256KiB snapshot-tail limits remain.
-- Main workspace is still on local master with its memory commit and the three original uncommitted repair files, matching the published repair. Its package version/build remains 0.1.34. No local master sync or source overwrite was performed.
-- User screenshots and previous temp files remain untouched. Release worktree and artifacts are retained.
-- Shared memory is committed locally only; not pushed (MEM_AUTOPUSH=0). Do not push local master with memory commits into the public source history; future source branches should start at origin/master b2302ec.
+## Limits / Local State
+- 程式碼修改僅在本地 working tree（`src/main/ipc/pty.ts`、`src/renderer/remote/TerminalView.tsx`、`scripts/check-terminal-ui.cjs`、`.project-memory/*`），尚未 commit 原始碼。
+- 專案記憶體遵循本機優先原則。

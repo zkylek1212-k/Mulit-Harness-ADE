@@ -9,6 +9,7 @@
 | DEC-004 | 桌面擁有共用 PTY 尺寸，手機以原生捲動讀取 | 2026-10-02 | Accepted | - |
 | DEC-005 | 手機端終端 Canvas Scale-to-Fit 消除水平捲動並保留 1:1 ANSI 座標 | 2026-10-02 | Accepted | 補充 DEC-004 |
 | DEC-006 | 桌面座標解析 ANSI，手機文字以可讀字級換行 | 2026-10-02 | Accepted | DEC-005 |
+| DEC-007 | 終端跨 Agent 歷史回溯 —— Codex 注入 `--no-alt-screen`，Claude Code 轉換清螢幕保留卷軸 | 2026-10-05 | Accepted | 補充 DEC-006 |
 
 ---
 
@@ -75,3 +76,12 @@
 - Decision: 使用現有 xterm 解析器保留桌面欄／列座標，不掛載或縮放 xterm DOM；從解析後的 buffer 產生原生文字行，保留 ANSI 色彩、文字樣式及游標，以 13px 字級依手機寬度換行。手機只提供原生垂直捲動。
 - Reason: 使用者回報 `phone view_bug1.png` 的字被縮到無法閱讀，以及切換後 `phone view_bug2.png` 的殘缺畫面，並明確要求「一定不要左右滑動，我只接受上下滑動」。改變解析器欄數仍會破壞 ANSI 相對座標，因此只對解析後的顯示文字換行。
 - Consequence: 桌面 soft-wrap 在手機顯示前合併；純分隔線限制為一行；文字由 React 安全轉義，無 HTML 注入。桌面尺寸更新不再重建解析器，snapshot/resized 訊息負責更新尺寸。保留 5000 行上限及每 120ms 合併刷新；若實測效能不足再做增量更新。這是可讀文字呈現，不保證完整 TUI 的像素／表格排版與桌面一致。
+
+## DEC-007: 終端跨 Agent 歷史回溯 —— Codex 注入 `--no-alt-screen`，Claude Code 轉換清螢幕保留卷軸
+- Date: 2026-10-05
+- Status: Accepted（補充 DEC-006）
+- Decision:
+  1. **Codex CLI**：在 `pty.ts` 中由 `applyAgentDefaultArgs` 自動注入 `--no-alt-screen`，關閉備用螢幕緩衝區，改為 inline 串流輸出模式，完整保留 xterm scrollback 歷史。
+  2. **Claude Code CLI**：在手機端 `TerminalView.tsx` 透過 `ClaudeHistoryStream` 攔截 `\x1b[2J\x1b[H`（清螢幕＋游標回頂端），將其轉換為推進換行與回合分隔線（`─`），使前幾回合的內容自動推入 scrollback 緩衝區而非被擦除抹滅。手機端輸入管道（`send('\r')` / `writePty`）完全不受影響。
+- Reason: 使用者回報在手機端只有 Antigravity 可以向上滑動查看歷史交談，而 Claude Code 只能顯示電腦端目前的一頁，且 Codex 預設亦無 scrollback。這是因為 Codex 預設進備用螢幕、Claude 頻繁呼叫 `\x1b[2J` 擦除螢幕。
+- Consequence: 三大 Agent（Antigravity, Codex, Claude Code）在手機端與桌面端終端均具備完整的縱向歷史滾動能力，隨時可向上滑動回顧多回合交談紀錄與工具產出。

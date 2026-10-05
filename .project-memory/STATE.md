@@ -71,6 +71,7 @@
 - [x] v0.1.33 released (PR #27): mobile terminal responsive auto-fit without horizontal scroll or desktop resize.
 - [x] v0.1.34 released (PR #28): mobile terminal canvas scale-to-fit (Plan A) preserving 1:1 desktop ANSI coordinates (120/160 cols), eliminating horizontal scroll, fixing cursor-addressed redraws/divider wrapping, with smooth native vertical history swipe.
 - [x] v0.1.35 released (PR #29): desktop-size ANSI parsing followed by readable wrapped mobile text (DEC-006), vertical-only native scrolling, and stable session/tab/resize restores; installer, portable ZIP and updater assets published.
+- [x] 終端跨 Agent 歷史回溯強化（DEC-007）：Codex CLI 自動注入 `--no-alt-screen` 保留縱向 scrollback 串流；手機端 Claude Code 透過 `ClaudeHistoryStream` 攔截轉換清螢幕代碼為換行與回合分隔線，完整保留多回合歷史縱向查閱能力且不干擾手機端 prompt 送出與審批。
 - [~] 原 v0.1.14 規劃項：Dashboard 的 Clone Repo 與 Archived 分頁已在 UI 上確認存在（2026-09-24 截圖）；
       JumpList 連動仍未驗證
 - [x] v0.1.7 正式發布：Issue #10 完全收尾——Dashboard 的 active 狀態改由 renderer 提供事實
