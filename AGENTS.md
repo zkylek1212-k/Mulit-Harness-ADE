@@ -53,7 +53,9 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 - Agent: Antigravity
 - Updated: 2026-10-05 Asia/Taipei
-- User request: 解決手機端只有 Antigravity 可以往上滑看之前的 session，而 Claude Code 只能顯示電腦端畫面問題；執行第一步（Codex 支援 `--no-alt-screen`）與第二步（Claude Code 清螢幕轉歷史捲動緩衝區＋分隔線），確保手機端送 prompt 與快捷鍵依然正常。
+- User request: create PR and push; completed.
+- PR #30: https://github.com/zkylek1212-k/Mulit-Harness-ADE/pull/30 (OPEN).
+- Source commit: bedd79db8a36690b3447db72e0a3712a6d120c75, branch `feat/terminal-cross-agent-scrollback-v0.1.36`.
 
 ## Done
 - **Diagnosis**:
