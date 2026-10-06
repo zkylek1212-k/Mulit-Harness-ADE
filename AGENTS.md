@@ -52,44 +52,37 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 # Latest Handoff
 
 - Agent: Antigravity
-- Updated: 2026-10-05 Asia/Taipei
-- User request: create PR and push; completed.
-- PR #30: https://github.com/zkylek1212-k/Mulit-Harness-ADE/pull/30 (OPEN).
+- Updated: 2026-10-06 Asia/Taipei
+- User authorization: merge and release new version; completed.
+- PR #30: https://github.com/zkylek1212-k/Mulit-Harness-ADE/pull/30 (MERGED).
 - Source commit: bedd79db8a36690b3447db72e0a3712a6d120c75, branch `feat/terminal-cross-agent-scrollback-v0.1.36`.
+- Merge/tag/origin-master commit: 952b6364d53fb9beddc8061b3eda075cd7904b39.
+- Release: https://github.com/zkylek1212-k/Mulit-Harness-ADE/releases/tag/v0.1.36 (public, latest, published 2026-10-06T05:54:42Z).
 
 ## Done
-- **Diagnosis**:
-  - Antigravity 採用標準 `stdout` + 換行串流輸出，行自然推入 xterm scrollback。
-  - Codex 預設使用 Alternate Screen Mode (`\x1b[?1049h`)，終端規範下 scrollback 為 0 行。
-  - Claude Code 使用 React Ink TUI，在每回合交談與重繪時會輸出 `\x1b[2J\x1b[m\x1b[H` 清螢幕並游標回頂，抹除可視區文字而未推入 scrollback。
-- **Step 1 (Codex & Antigravity)**:
-  - 在 [src/main/ipc/pty.ts](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade-3/src/main/ipc/pty.ts) 實作 `applyAgentDefaultArgs`：若為 Codex CLI 啟動（不論桌面自訂、resume 或手機新開），自動注入 `--no-alt-screen`，切換為 inline 串流模式，保有完整 scrollback 歷史。
-  - 驗證 Antigravity 本身預設即為串流模式，無須額外改動。
-- **Step 2 (Claude Code `ClaudeHistoryStream`)**:
-  - 在 [src/renderer/remote/TerminalView.tsx](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade-3/src/renderer/remote/TerminalView.tsx) 實作 `ClaudeHistoryStream`：
-    - 攔截 Claude Code 產生的清螢幕序列 `\x1b[2J\x1b[m\x1b[H`。
-    - 遇到清螢幕且前面已有內容時，將其轉換為向滾動緩衝區推進足夠行數之換行，並補上一條橫向淡色分隔線（`─`.repeat(cols)）與 `\x1b[H`，使前幾回合的交談與工具產出平滑推入 xterm scrollback，而非在當前頁面被原地抹去。
-    - 抑制會話剛啟動時的開頭清螢幕，避免頂部出現無意義空白行。
-    - 正確處理串流 chunk 跨逃逸字元邊界的狀態切片。
-  - 手機端 upstream prompt 輸入（`writePty`、`conn.send`、快捷鍵按鈕、審批核可）走完全獨立之資料管道，未受任何改動，100% 保持正常操作。
-- **Decisions & Memory**:
-  - 在 [.project-memory/DECISIONS.md](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade-3/.project-memory/DECISIONS.md) 記錄 **DEC-007**。
-  - 更新 [.project-memory/STATE.md](file:///d:/Cloud/OneDrive/AI%20workspace/Claude%20Agent%20-%20Personal/Vibe%20copy/IDE-remade-3/.project-memory/STATE.md) 標記進度。
+- **PR #30 Merged**:
+  - Merged PR #30 into `master` using `gh pr merge 30 --merge`.
+  - Annotated tag `v0.1.36` created and pushed at merge commit `952b636`.
+- **v0.1.36 Released & Published**:
+  - Built Windows installer, packaged native PTY bindings, created portable ZIP, and published via `scripts/release.ps1`.
+  - All four assets uploaded to GitHub Releases:
+    - `Agent-Workbench-0.1.36-setup.exe` (123.98 MB)
+    - `Agent-Workbench-0.1.36-portable.zip` (169.62 MB)
+    - `latest.yml` (auto-update metadata)
+    - `Agent-Workbench-0.1.36-setup.exe.blockmap` (0.13 MB)
+- **Features in v0.1.36**:
+  - **Codex CLI**: 自動注入 `--no-alt-screen`，關閉 Alternate Screen Mode，改為 inline 串流輸出，完整保留 xterm scrollback 歷史。
+  - **Claude Code CLI**: 手機端實作 `ClaudeHistoryStream`，攔截 React Ink 清螢幕指令（`\x1b[2J\x1b[H`），轉化為向 scrollback 推進換行並補上淡色橫向回合分隔線（`─`），使前幾回合交談自然留在卷軸緩衝區中，隨時可向上滑動回溯。
+  - **手機端輸入管道**: upstream prompt 輸入框、快捷鍵按鈕與審批核可完全不受影響，100% 保持正常操作。
+  - **架構決策**: DEC-007 記入 `.project-memory/DECISIONS.md`。
 
 ## Validation
 - `npm run typecheck`: 通過（0 錯誤）。
-- `npx electron scripts/check-terminal-ui.cjs`: 完整測試套件全數通過，包含：
-  - `codex --no-alt-screen default inline mode: passed`
-  - `Claude Code multi-turn history preservation across clear-screen: passed` (snapshot 與 live data 跨 clear-screen 均完整保留多回合歷史)
-  - `legacy mobile resize blocked / remote input: passed`
-  - `native IME / passthrough / Enter / paste: passed`
-  - `mobile wrapped CJK / long text / ANSI styles / relative redraw / cursor: passed`
-  - `mobile 320/390/768px @1x/2x/3x: passed`
-  - `mobile reconnect / desktop resize: passed`
-  - `mobile native touch scroll / mouse mode / history during output: passed`
+- `npx electron scripts/check-terminal-ui.cjs`: 完整測試套件全數通過，包含 Codex `--no-alt-screen`、Claude 多回合歷史保留、CJK 換行、原生滾動與各尺寸/縮放驗證。
+- Electron 打包與 Windows NSIS 安裝程式建置成功，portable ZIP 與 auto-updater metadata 驗證通過。
 
 ## Limits / Local State
-- 程式碼修改僅在本地 working tree（`src/main/ipc/pty.ts`、`src/renderer/remote/TerminalView.tsx`、`scripts/check-terminal-ui.cjs`、`.project-memory/*`），尚未 commit 原始碼。
-- 專案記憶體遵循本機優先原則。
+- 實體 iPhone Safari / PWA 驗證待使用者測試。更新桌面端後，在手機端 Settings 點擊「Reload mobile interface」即可載入新版 UI。
+- 本地專案記憶遵循本機優先原則。
 
 <!-- END AUTO-MEMORY -->

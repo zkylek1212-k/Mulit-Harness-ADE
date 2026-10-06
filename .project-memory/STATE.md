@@ -1,9 +1,9 @@
 # Project State
 
-- Milestone: v0.1.35 - readable wrapped mobile terminal with vertical-only scrolling and stable session/tab switching
-- Status: PR #29 merged; v0.1.35 published with installer, portable ZIP and auto-update metadata (merge/tag commit b2302ec).
-- Validation: typecheck, full Electron/xterm UI regressions and Windows packaging passed; physical-phone Safari/PWA check pending.
-- Last updated: 2026-10-02
+- Milestone: v0.1.36 - terminal cross-agent scrollback enhancement (Codex --no-alt-screen + Claude Code ClaudeHistoryStream)
+- Status: PR #30 merged; v0.1.36 published with installer, portable ZIP and auto-update metadata (merge/tag commit 952b636).
+- Validation: typecheck, full Electron/xterm UI regressions, and Windows packaging passed; Physical iPhone Safari/PWA check pending.
+- Last updated: 2026-10-06
 
 
 ## Macro Progress
