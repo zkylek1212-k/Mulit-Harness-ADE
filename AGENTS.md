@@ -51,6 +51,26 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 # Latest Handoff
 
+- Agent: Claude Code
+- Updated: 2026-10-07 Asia/Taipei
+- User authorization: branch + PR + merge + release; completed.
+- PR #31 (fix, MERGED, merge 3ddfdf4, tag v0.1.37 annotated at 3ddfdf4): https://github.com/zkylek1212-k/Mulit-Harness-ADE/pull/31
+- PR #32 (CHANGELOG entry missed in #31 due to CRLF, MERGED d7e83cf): https://github.com/zkylek1212-k/Mulit-Harness-ADE/pull/32
+- Release: https://github.com/zkylek1212-k/Mulit-Harness-ADE/releases/tag/v0.1.37 (public, latest; setup.exe, portable.zip, latest.yml, blockmap).
+- Local `master` still DIVERGED from origin: has local-only memory commits (.project-memory is not tracked on origin), lacks origin code commits. Not merged/reset - user decision.
+
+## Mobile Claude Code fix (v0.1.37)
+- Root cause (verified by recording real Claude Code 2.1.280 ConPTY streams): user's `~/.claude/settings.json` has `"tui": "fullscreen"` -> Claude enters alt-screen + mouse mode, no scrollback, cursor parked on spinner row above prompts.
+- `pty.ts` spawnPty: Claude sessions get `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1` (Claude analog of Codex `--no-alt-screen`; launcher env overrides).
+- `TerminalView.tsx` screenText: approval parsing reads up to last drawn row, not cursor row (fixed "only 1/2/3 buttons").
+- Removed v0.1.36 `ClaudeHistoryStream` (turned each clear into rule + rows of blank lines -> duplicated frames on phone).
+- check-terminal-ui: replaced Claude clear-screen test with "approval options below parked TUI cursor". typecheck + full suite pass.
+- Open: one screenshot showed PTY at ~10 cols (desktop pane narrow?) - not root-caused. Unnumbered select lists (trust dialog) still fall back to 1/2/3.
+
+---
+
+# Previous Handoff
+
 - Agent: Antigravity
 - Updated: 2026-10-06 Asia/Taipei
 - User authorization: merge and release new version; completed.
