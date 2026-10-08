@@ -1,55 +1,55 @@
 # Latest Handoff
 
-- Agent: Claude Code
-- Updated: 2026-10-07 Asia/Taipei
-- User authorization: branch + PR + merge + release; completed.
-- PR #31 (fix, MERGED, merge 3ddfdf4, tag v0.1.37 annotated at 3ddfdf4): https://github.com/zkylek1212-k/Mulit-Harness-ADE/pull/31
-- PR #32 (CHANGELOG entry missed in #31 due to CRLF, MERGED d7e83cf): https://github.com/zkylek1212-k/Mulit-Harness-ADE/pull/32
-- Release: https://github.com/zkylek1212-k/Mulit-Harness-ADE/releases/tag/v0.1.37 (public, latest; setup.exe, portable.zip, latest.yml, blockmap).
-- Local `master` still DIVERGED from origin: has local-only memory commits (.project-memory is not tracked on origin), lacks origin code commits. Not merged/reset - user decision.
+- Agent: Claude Code -> handing off to Codex
+- Updated: 2026-10-08 Asia/Taipei
+- Main repo: branch `master` @ 67550bd (local-only memory commits; diverged from origin, see Warnings)
+- Test branch: `test/pr-35-36-37` @ d0ee494 (LOCAL ONLY, not pushed), worktree `%LOCALAPPDATA%\Temp\agent-workbench-test-pr35-37`
+- PR #36 branch: `feat/cowork-p1` @ 9b8cca7 (pushed), worktree `%LOCALAPPDATA%\Temp\agent-workbench-cowork-ui`
+- User authorization this session: local merge of #35/#36/#37 for testing; push of the Cowork UI commit to PR #36. NOT authorized: merging any PR on GitHub, releasing.
 
-## Mobile Claude Code fix (v0.1.37)
-- Root cause (verified by recording real Claude Code 2.1.280 ConPTY streams): user's `~/.claude/settings.json` has `"tui": "fullscreen"` -> Claude enters alt-screen + mouse mode, no scrollback, cursor parked on spinner row above prompts.
-- `pty.ts` spawnPty: Claude sessions get `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1` (Claude analog of Codex `--no-alt-screen`; launcher env overrides).
-- `TerminalView.tsx` screenText: approval parsing reads up to last drawn row, not cursor row (fixed "only 1/2/3 buttons").
-- Removed v0.1.36 `ClaudeHistoryStream` (turned each clear into rule + rows of blank lines -> duplicated frames on phone).
-- check-terminal-ui: replaced Claude clear-screen test with "approval options below parked TUI cursor". typecheck + full suite pass.
-- Open: one screenshot showed PTY at ~10 cols (desktop pane narrow?) - not root-caused. Unnumbered select lists (trust dialog) still fall back to 1/2/3.
+## Done
+- Open PRs (all OPEN on GitHub, none merged): #35 `feat/dev-mode-collapsible-center`, #36 `feat/cowork-p1`, #37 `fix/mobile-question-options`.
+- Built `test/pr-35-36-37` = origin/master (v0.1.38, b6c7841) + #35 + #37 + #36, plus later updates: 9b8cca7 (#36) and b028245 (#37). No conflicts (#36 and #37 both touch TerminalPanel.tsx, merged cleanly).
+- PR #36 Cowork UI restyle, commit 9b8cca7 pushed to `feat/cowork-p1` (user asked for Apple HIG consistency, theme-mapped colors, aligned rules, minimal content):
+  - One button family `.cw-btn` (default / `.primary` / `.danger` / `.sm` / `.icon`; 26px and 22px only) replaces term-btn-*, cw-mini-btn, cw-chair-toggle, ghost, pill picker.
+  - Theme tokens only in `cowork.css` (removed hard-coded agent colors #e05d26/#6366f1/#10b981 and #fff; fixed white-on-light check/chair in dark-morandi). Agents identified by AgentMark.
+  - Layout: `--cw-gutter` 12px everywhere; roster and board header share `--cw-bar-h` 40px (bottom borders align, measured y=74 both); board collapse toggle at end.
+  - Removed: topbar icon+title, "your turn" badge, per-agent model/role chips in roster (now tooltip), "can plan read-only" filler (i18n key `cowork.eligible` deleted; `eligibleSlow` shortened), execManualHint/execReviewHint display. Stop moved to top bar with confirm. Budget shows 2 numbers, rest in tooltip. Single-row composers. `approveDesc` (en + zh-TW) rewritten (old text said dispatch is manual only).
+- Reviewed PR #37 update b028245 (author not this agent): approval detection now reads the parsed current xterm screen (`readApprovalScreen`) instead of raw output text; clears automatically when the prompt disappears; no clear-on-input. Logic looks sound.
+
+## Not done
+- User has not finished hands-on testing of the merged build (`npm run dev` in the test worktree).
+- PR #37 possible missed detections (found with synthetic strings, NOT confirmed on real CLIs):
+  1. Claude permission menu followed by a non-indented line (e.g. custom statusline `Opus 4 | ctx 34%`) -> `looksLikeApprovalPrompt` returns false (rule: lines after the last option must be blank, a FOOTER, or indented).
+  2. Unnumbered menus (e.g. `> Allow once / Allow always / Deny`) -> false. Old rule caught `allow ... ?`. Real Antigravity approval format unknown.
+- Unused i18n keys still present: `cowork.execManualHint`, `cowork.execReviewHint`, `cowork.turnTitle` (harmless).
+- PRs not merged; no release.
+
+## Next agent should
+1. Ask the user for test results of the merged build. If they report a bug, fix it on the owning PR branch (#35 / #36 / #37), not on `test/pr-35-36-37`, then `git -C <test worktree> merge <branch>` to refresh the test build.
+2. For PR #37: capture a real Claude Code and Antigravity approval screen (e.g. run a command needing approval in `npm run dev`, read the screen). If either case above is missed, extend `src/shared/approvalDetect.ts` and add the case to `scripts/check-approval.cjs`; ask the user before pushing to `fix/mobile-question-options`.
+3. Only after the user says OK: merge on GitHub in order #35 -> #37 -> #36 (ask first), then version bump/release per previous release flow.
+4. After merging: remove the temporary worktrees (`git worktree remove` for agent-workbench-test-pr35-37, agent-workbench-cowork-ui, and the older agent-workbench-ime-fix / agent-workbench-release-v0.1.35) and delete local branch `test/pr-35-36-37`.
+
+## Tests (run 2026-10-08 in the test worktree, after merging b028245)
+- `npm run typecheck` -> exit 0
+- `node scripts/check-approval.cjs` -> passed (Claude + Codex)
+- `node --experimental-strip-types scripts/check-remote.mts` -> remote ok
+- `node --experimental-strip-types scripts/check-cowork.mts` -> cowork ok
+- `node_modules/.bin/electron scripts/check-terminal-ui.cjs` -> all sections passed, exit 0
+- Cowork UI visually verified with an ad-hoc Electron screenshot harness (esbuild + mocked window.api; 5 states x 4 themes). Harness lives only in the Claude scratchpad, not in the repo.
+
+## Warnings
+- Run the test build: `cd $env:LOCALAPPDATA\Temp\agent-workbench-test-pr35-37; npm run dev`. Dev uses separate userData (`...-dev`), so it can run beside the installed app, but both default to remote port 47600 - stop the installed app's remote when testing #37. Phone must use Settings > "Reload mobile interface".
+- `node_modules`: the test worktree has its OWN real node_modules (copied from main + `npm install --no-save --ignore-scripts @xterm/headless @xterm/addon-serialize`). The cowork-ui worktree's node_modules is a junction to it. The MAIN repo's node_modules is stale (lacks @xterm/headless + @xterm/addon-serialize required since v0.1.38) and was never modified.
+- Local `master` is diverged from origin (ahead: local-only `.project-memory` commits; behind: 14+ origin commits). Not pulled/reset - user decision. `.project-memory` is not tracked on origin.
+- Windows PowerShell 5.1 `Get-Content -Raw` reads UTF-8 files without BOM as ANSI and corrupts Chinese text; use `[IO.File]::ReadAllText` or the Edit tool. Native `git commit -F -` with a piped here-string fails; use a message file.
+- Untracked user files in main repo: `phone view bug.png`, `phone view_bug1.png`, `phone view_bug2.png` (user's screenshots; leave them).
 
 ---
 
-# Previous Handoff
-
-- Agent: Antigravity
-- Updated: 2026-10-06 Asia/Taipei
-- User authorization: merge and release new version; completed.
-- PR #30: https://github.com/zkylek1212-k/Mulit-Harness-ADE/pull/30 (MERGED).
-- Source commit: bedd79db8a36690b3447db72e0a3712a6d120c75, branch `feat/terminal-cross-agent-scrollback-v0.1.36`.
-- Merge/tag/origin-master commit: 952b6364d53fb9beddc8061b3eda075cd7904b39.
-- Release: https://github.com/zkylek1212-k/Mulit-Harness-ADE/releases/tag/v0.1.36 (public, latest, published 2026-10-06T05:54:42Z).
-
-## Done
-- **PR #30 Merged**:
-  - Merged PR #30 into `master` using `gh pr merge 30 --merge`.
-  - Annotated tag `v0.1.36` created and pushed at merge commit `952b636`.
-- **v0.1.36 Released & Published**:
-  - Built Windows installer, packaged native PTY bindings, created portable ZIP, and published via `scripts/release.ps1`.
-  - All four assets uploaded to GitHub Releases:
-    - `Agent-Workbench-0.1.36-setup.exe` (123.98 MB)
-    - `Agent-Workbench-0.1.36-portable.zip` (169.62 MB)
-    - `latest.yml` (auto-update metadata)
-    - `Agent-Workbench-0.1.36-setup.exe.blockmap` (0.13 MB)
-- **Features in v0.1.36**:
-  - **Codex CLI**: 自動注入 `--no-alt-screen`，關閉 Alternate Screen Mode，改為 inline 串流輸出，完整保留 xterm scrollback 歷史。
-  - **Claude Code CLI**: 手機端實作 `ClaudeHistoryStream`，攔截 React Ink 清螢幕指令（`\x1b[2J\x1b[H`），轉化為向 scrollback 推進換行並補上淡色橫向回合分隔線（`─`），使前幾回合交談自然留在卷軸緩衝區中，隨時可向上滑動回溯。
-  - **手機端輸入管道**: upstream prompt 輸入框、快捷鍵按鈕與審批核可完全不受影響，100% 保持正常操作。
-  - **架構決策**: DEC-007 記入 `.project-memory/DECISIONS.md`。
-
-## Validation
-- `npm run typecheck`: 通過（0 錯誤）。
-- `npx electron scripts/check-terminal-ui.cjs`: 完整測試套件全數通過，包含 Codex `--no-alt-screen`、Claude 多回合歷史保留、CJK 換行、原生滾動與各尺寸/縮放驗證。
-- Electron 打包與 Windows NSIS 安裝程式建置成功，portable ZIP 與 auto-updater metadata 驗證通過。
-
-## Limits / Local State
-- 實體 iPhone Safari / PWA 驗證待使用者測試。更新桌面端後，在手機端 Settings 點擊「Reload mobile interface」即可載入新版 UI。
-- 本地專案記憶遵循本機優先原則。
+# Previous Handoff (2026-10-07, Claude Code) - v0.1.37 / v0.1.38 released
+- v0.1.38 (PR #33 IME + mobile TUI mirror, PR #34 bump) released: https://github.com/zkylek1212-k/Mulit-Harness-ADE/releases/tag/v0.1.38
+- v0.1.37 (PR #31 + #32): Claude sessions get `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1` in `pty.ts`; mobile approval parsing reads to last drawn row.
+- Main keeps an @xterm/headless mirror per PTY (serialize addon = mobile snapshot); output/resize delivered in mirror order.
+- Open from then: one screenshot showed PTY at ~10 cols (not root-caused).
