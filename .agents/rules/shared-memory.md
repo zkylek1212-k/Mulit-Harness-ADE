@@ -50,28 +50,30 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 - Agent: Codex
 - Updated: 2026-10-08 Asia/Taipei
-- Released: v0.1.39; origin/master and tag at a292b22.
-- User explicitly approved commit/push, merging PR #35/#36/#37, releasing a new version, and updating README with Cowork architecture. All completed.
+- Released: v0.1.39 tag at a292b22; origin/master now 51e8d99 after the rendered architecture correction (PR #39).
+- User approved commit/push, PR merges and release; then requested removing the README diagram and rendering Cowork architecture in architecture.html. All completed.
 - Release: https://github.com/zkylek1212-k/Mulit-Harness-ADE/releases/tag/v0.1.39
 
 ## Done
 - Committed Cowork follow-up source/test changes (20 files, +1609/-206) as bb66670 on feat/cowork-p1 and pushed; updated PR #36 title/body.
 - Merged GitHub PRs #35 -> #37 -> #36: fe3d2f3, 4365b0d, e721d4b. All are MERGED.
-- Created and merged PR #38 (release/v0.1.39 @ ba8f0c1) with package/lock version bump, changelog, bilingual README usage/budgets/concurrency, and docs/cowork-architecture.md. Docs include 3 Mermaid diagrams and module/storage/isolation/recovery boundaries.
+- Created and merged PR #38 (release/v0.1.39 @ ba8f0c1) with package/lock version bump, changelog, bilingual README usage/budgets/concurrency, and docs/cowork-architecture.md. The rendered diagrams now live in architecture.html; the Markdown file retains implementation/storage/isolation/recovery notes.
 - Built from a clean release worktree using npm ci; published installer, portable ZIP, blockmap and latest.yml. Public release is latest, not draft/prerelease. Uploaded asset sizes and SHA-256 digests match local files; updater SHA-512/filename/version verified.
 - Cowork now includes Discussion/Project modes, sequential public turns/follow-ups, retry/skip, multiple independent tabs and concurrent meetings, configurable recorder/cumulative summaries, chair conclusion and editable conversion to Project, explicit approval before worktree execution, budget controls and stage-based effort.
 - Four screenshot fixes and latest Settings layout/model changes are included: + menu/New Terminal card entry, Claude Windows launch, themed alerts, complete model versions, aligned cards, responsive bilingual Settings, no Custom model input. Existing unknown saved models remain visible as disabled entries.
 
+- Follow-up PR #39: docs/cowork-architecture @ cfe05ff pushed and merged (51e8d99); native themed SVG component and meeting/approval flow diagrams added to docs/architecture.html. README/notes Mermaid blocks removed and links redirected to the rendered HTML. Release notes updated; binaries/tag unchanged.
+
 ## Validation
 - Previously tested integrated source matches ALL src/scripts files on merged master (version/docs added afterward). User said the interface looks good.
 - Integrated typecheck/build, full fake-CLI check-cowork.mts, Electron check-terminal-ui.cjs and check-cowork-tabs.cjs passed; tabs/settings tests also passed on the owning branch. Layout matrix: 1200/720 px x en/zh-TW x 4 themes.
-- Release worktree: clean npm ci, npm run typecheck, npm run dist -- --publish never passed. Three documentation diagrams rendered in Electron.
+- Release worktree: clean npm ci, npm run typecheck, npm run dist -- --publish never passed. Initial Markdown diagrams rendered; replaced HTML diagrams then passed 12 actual-Electron states (1200/720/390 px x zh/en x light/dark), box/text containment and page-overflow checks. Desktop screenshots visually reviewed.
 - Actual packaged app launched with isolated userData, rendered UI and exposed Cowork IPC; packaged version/headless-xterm dependencies verified. Portable ZIP contains executable and app.asar (98 entries).
 - New Discussion/summary end-to-end checks use fake CLIs. No new paid real-provider discussion/summary run was performed; response quality/latency still needs live use.
 
 ## Worktrees and source state
-- Main remains local master @ 6daaada before this memory commit; divergent from origin/master (ahead 14 memory commits / behind 34 before this commit). Its source is OLD; do not run/build from main or auto sync/reset it.
-- Release worktree: %LOCALAPPDATA%/Temp/agent-workbench-release-v0.1.39; release/v0.1.39 @ ba8f0c1, clean, with real npm-ci node_modules and release assets.
+- Main remains local master @ a5c1dd8 before this memory commit; divergent from origin/master (ahead 15 memory commits / behind 36 before this commit). Its source is OLD; do not run/build from main or auto sync/reset it.
+- Release worktree: %LOCALAPPDATA%/Temp/agent-workbench-release-v0.1.39; currently docs/cowork-architecture @ cfe05ff, clean, with real npm-ci node_modules and release assets. Local release/v0.1.39 remains ba8f0c1. Open docs/architecture.html#cowork here for the new rendered diagrams.
 - Owning worktree: %LOCALAPPDATA%/Temp/agent-workbench-cowork-ui; feat/cowork-p1 @ bb66670, clean; node_modules junction still points to the test worktree.
 - Test worktree: %LOCALAPPDATA%/Temp/agent-workbench-test-pr35-37; test/pr-35-36-37 @ d0ee494 with uncommitted integrated follow-up changes (now published through owner), intentionally retained for the user's open test environment. Code matches release source; version still 0.1.38.
 - Older ime-fix / release-v0.1.35 worktrees and remote feature branches retained; no forced cleanup of user's running/dirty test workspace.
@@ -86,6 +88,8 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 - Windows UTF-8 reads must use explicit UTF8; PowerShell ASCII pipeline can corrupt Chinese when piping code into Node. Use apply_patch or explicit UTF8 output encoding.
 
 ## Detailed history
+- Rendered screenshots: %TEMP%/workbench-architecture-render-0opujF/cowork-<width>-<lang>-<theme>.png. Ad-hoc renderer harness is %TEMP%/render-workbench-architecture.cjs (not committed).
+- Before HTML correction: archive/handoff-2026-10-08-before-rendered-cowork-architecture.md.
 - Pre-release handoff: archive/handoff-2026-10-08-cowork-before-v0.1.39-release.md.
 - Recorder and UI implementation details: archive/handoff-2026-10-08-cowork-before-settings-layout.md and earlier archives referenced there.
 

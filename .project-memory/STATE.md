@@ -1,8 +1,8 @@
 # Project State
 
 - Milestone: v0.1.39 released with Cowork discussions, multi-tabs, recorder, chair decisions, approved Project execution, and bilingual usage/architecture documentation.
-- Status: PR #35/#37/#36 and version/docs PR #38 merged; origin/master and v0.1.39 tag at a292b22. Installer, portable ZIP and updater assets published. Main local master remains divergent; retained test worktree has the previously integrated uncommitted replica.
-- Validation: planner/discussion/executor and Electron regressions passed; user approved UI. Clean release install/typecheck/dist, packaged app startup/Cowork IPC, 3 documentation diagrams and published asset hashes verified. New real-provider discussion/summary quality and latency remain to be exercised.
+- Status: PR #35/#37/#36, version/docs #38 and rendered architecture #39 merged; v0.1.39 tag at a292b22, origin/master at 51e8d99. Installer, portable ZIP and updater assets published. Main local master remains divergent; retained test worktree has the previously integrated uncommitted replica.
+- Validation: planner/discussion/executor and Electron regressions passed; user approved UI. Clean release install/typecheck/dist, packaged startup/Cowork IPC and published hashes verified. Cowork architecture now uses native SVG in architecture.html (12 Electron layout/language/theme states checked); README Mermaid removed. Real-provider discussion/summary quality and latency remain to be exercised.
 - Last updated: 2026-10-08
 
 
