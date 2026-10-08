@@ -48,34 +48,35 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 # Latest Handoff
 
-- Agent: Codex
-- Updated: 2026-10-08 Asia/Taipei
-- Workspace: feat/linux-independent-app; Windows v0.1.39 unchanged; independent Linux v0.1.0 implemented, not released.
-- User authorized source commit and new PR for Issue #40; source commit 404fbd5 pushed to origin/feat/linux-independent-app.
-- PR #41 OPEN against master: https://github.com/zkylek1212-k/Mulit-Harness-ADE/pull/41 (Closes #40 on merge).
+- Agent: Claude Code
+- Updated: 2026-10-09 Asia/Taipei
+- Two open lines of work. User paused Linux to prioritise phone Cowork (separate PR).
 - Architecture: DEC-011, two independent apps in one repo; no shared runtime imports or npm workspace. Windows users take priority.
 
-## Completed
-- Committed 141 source/config/doc files (61,966 insertions): apps/linux fork, apps/README.md, isolated Linux workflow and .gitignore addition. Existing Windows source/package/build files untouched.
-- Linux owns appId, userData and .workbench-linux settings; native main/detached window frames, system/default shells, Linux protected/symlink paths and case-sensitive checks.
-- Credential storage rejects unavailable encryption/basic_text; manual Linux updater uses linux-v* prereleases and Linux x64 assets, never Windows latest/update metadata.
-- Separate Ubuntu CI builds AppImage/deb/tar.gz; Linux tagged publication requires matching package version, prerelease and latest=false. No tag or release created.
-- Local release packages remain ignored under apps/linux/release; Temp/ and three phone screenshots remain untracked and untouched.
+## A. Phone Cowork — PR #42 OPEN (priority)
+- PR: https://github.com/zkylek1212-k/Mulit-Harness-ADE/pull/42 ; branch feat/mobile-cowork @ bfef6f3 (from origin/master 153c1fc).
+- Worktree: C:/Users/milan.chang/AppData/Local/Temp/agent-workbench-mobile-cowork (node_modules is a junction to the main workspace's node_modules; remove the junction before deleting the worktree).
+- Phone gets a Cowork tile per workspace: list, new meeting (mode/participants/chair; models from saved settings), timeline, per-phase actions mirroring desktop. Board editing and model picking stay desktop-only.
+- main/ipc/cowork.ts: one `ops` table registers all 27 cowork:* IPC handlers and serves Remote Bridge (`invokeCowork`); `coworkEvents` 'update' feeds `coworkRun` pushes (context stripped). Workspace comes from windowId, never from the phone.
+- Validation: typecheck, check-cowork.mts, check-remote.mts, build passed; new `electron scripts/check-remote-cowork.cjs` (built phone bundle + fake socket) passed 3/3 after `npm run build`.
+- Not done: real iPhone ↔ desktop E2E; the list does not show a meeting started on desktop until reload/reconnect; not ported to apps/linux (DEC-011 manual port).
 
-## Validation
-- Prior implementation: root Windows typecheck passed; all 134 tracked Windows source/scripts/package/build files unchanged. Linux relative imports stay within apps/linux.
-- Ubuntu 26.04 x64 WSL: independent npm ci, typecheck, Linux guard/default shell checks, Node 24 native PTY and production build passed.
-- Real Electron main/detached-window startup, System Shell spawn/kill and isolated userData passed; packaged Electron native PTY passed.
-- All three packages built; tar contents and Debian package identity/ALSA runtime dependency metadata verified. publish:null produces no updater metadata.
-- Before source commit: check:linux passed again; staged whitespace and root Windows tracked-path diff checks passed; pre-commit hook passed.
-- PR CI first run queued: https://github.com/zkylek1212-k/Mulit-Harness-ADE/actions/runs/37798530660 . GitHub CI has not yet passed; later memory push may start a new run.
+## B. Linux independent app — PR #41 OPEN, CI failing
+- PR: https://github.com/zkylek1212-k/Mulit-Harness-ADE/pull/41 (Closes #40); branch feat/linux-independent-app, source commit 404fbd5, memory ef876eb.
+- CI runs 37798530660 and 37798723248 failed at "Verify main and terminal windows": Electron FATAL, chrome-sandbox must be root-owned mode 4755 on GitHub Ubuntu runners. typecheck/check:linux/check:pty/dist steps passed.
+- UNCOMMITTED fix in main workspace: .github/workflows/linux-app.yml adds "Enable Electron SUID sandbox" step (sudo chown root:root + chmod 4755 on node_modules/electron/dist/chrome-sandbox) before the window check. Not pushed; user has not yet authorised commit/push.
+- Linux owns appId, userData and .workbench-linux settings; native frames, system/default shells, Linux protected/symlink paths and case-sensitive checks.
+- Credential storage rejects unavailable encryption/basic_text; manual updater uses linux-v* prereleases and Linux x64 assets only.
+- Separate Ubuntu CI builds AppImage/deb/tar.gz; tagged publication requires matching version, prerelease and latest=false. No tag or release created.
+- Local validation (WSL Ubuntu 26.04 x64): npm ci, typecheck, guards, Node 24 PTY, build, Electron startup, System Shell, packaged PTY, all three packages verified. Root Windows typecheck passed and Windows files untouched.
 
 ## Next / limits
-- Review PR #41 and its latest-head CI before merging. No merge or release authorized/performed.
-- Other Linux distributions, ARM64, actual deb installation and complete agent-provider/phone remote E2E remain unverified.
-- Duplicate apps require manual porting of common fixes. Any shared source/dependency proposal must revisit DEC-011 and Windows impact.
-- Linux updater currently checks the newest 100 releases (ponytail limit); expand pagination when release volume warrants it.
-- WSL verification cache: /home/milanchang/.cache/agent-workbench-linux-verification (Node 24, app, local runtime libs); /tmp does not persist reliably across WSL shutdown.
-- Detailed implementation/package verification preserved in archive/handoff-2026-10-08-linux-local-verification-before-pr.md; earlier plan and Windows sync histories remain archived.
+- A: review PR #42, then real-phone test; optionally refetch the list when an unknown run id arrives.
+- B: commit/push the CI fix when authorised, wait for green CI, then review. No merge or release authorised/performed for either PR.
+- Other Linux distributions, ARM64, real deb install and complete agent-provider/phone remote E2E remain unverified.
+- Linux updater checks the newest 100 releases (ponytail limit).
+- WSL verification cache: /home/milanchang/.cache/agent-workbench-linux-verification; /tmp does not persist across WSL shutdown.
+- Temp/ and three phone screenshots remain untracked and untouched in the main workspace.
+- Detailed Linux verification: archive/handoff-2026-10-08-linux-local-verification-before-pr.md; earlier histories archived.
 
 <!-- END AUTO-MEMORY -->
