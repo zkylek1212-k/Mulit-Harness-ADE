@@ -51,58 +51,46 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 # Latest Handoff
 
-- Agent: Claude Code -> handing off to Codex
+- Agent: Codex
 - Updated: 2026-10-08 Asia/Taipei
-- Main repo: branch `master` @ 67550bd (local-only memory commits; diverged from origin, see Warnings)
-- Test branch: `test/pr-35-36-37` @ d0ee494 (LOCAL ONLY, not pushed), worktree `%LOCALAPPDATA%\Temp\agent-workbench-test-pr35-37`
-- PR #36 branch: `feat/cowork-p1` @ 9b8cca7 (pushed), worktree `%LOCALAPPDATA%\Temp\agent-workbench-cowork-ui`
-- User authorization this session: local merge of #35/#36/#37 for testing; push of the Cowork UI commit to PR #36. NOT authorized: merging any PR on GitHub, releasing.
+- Main repo: `master` @ ed40be7 before this memory commit; 8 ahead / 14 behind origin at startup. No pull/reset.
+- PR #36 worktree: `C:/Users/milan.chang/AppData/Local/Temp/agent-workbench-cowork-ui`, branch `feat/cowork-p1` @ 9b8cca7, with UNCOMMITTED fixes in 13 files.
+- Test worktree: `C:/Users/milan.chang/AppData/Local/Temp/agent-workbench-test-pr35-37`, branch `test/pr-35-36-37` @ d0ee494, with the same UNCOMMITTED fixes. Test script additions were ported while preserving PR #37 changes.
+- Source was NOT committed or pushed. The earlier pushed PR #36 commit remains 9b8cca7. PRs #35/#36/#37 remain unmerged per prior handoff; GitHub status not re-queried this turn.
+- Authorization: user clarified the four screenshots and fixes were implemented locally. GitHub merges and releases remain unauthorized. Memory commit is local only unless MEM_AUTOPUSH=1.
 
-## Done
-- Open PRs (all OPEN on GitHub, none merged): #35 `feat/dev-mode-collapsible-center`, #36 `feat/cowork-p1`, #37 `fix/mobile-question-options`.
-- Built `test/pr-35-36-37` = origin/master (v0.1.38, b6c7841) + #35 + #37 + #36, plus later updates: 9b8cca7 (#36) and b028245 (#37). No conflicts (#36 and #37 both touch TerminalPanel.tsx, merged cleanly).
-- PR #36 Cowork UI restyle, commit 9b8cca7 pushed to `feat/cowork-p1` (user asked for Apple HIG consistency, theme-mapped colors, aligned rules, minimal content):
-  - One button family `.cw-btn` (default / `.primary` / `.danger` / `.sm` / `.icon`; 26px and 22px only) replaces term-btn-*, cw-mini-btn, cw-chair-toggle, ghost, pill picker.
-  - Theme tokens only in `cowork.css` (removed hard-coded agent colors #e05d26/#6366f1/#10b981 and #fff; fixed white-on-light check/chair in dark-morandi). Agents identified by AgentMark.
-  - Layout: `--cw-gutter` 12px everywhere; roster and board header share `--cw-bar-h` 40px (bottom borders align, measured y=74 both); board collapse toggle at end.
-  - Removed: topbar icon+title, "your turn" badge, per-agent model/role chips in roster (now tooltip), "can plan read-only" filler (i18n key `cowork.eligible` deleted; `eligibleSlow` shortened), execManualHint/execReviewHint display. Stop moved to top bar with confirm. Budget shows 2 numbers, rest in tooltip. Single-row composers. `approveDesc` (en + zh-TW) rewritten (old text said dispatch is manual only).
-- Reviewed PR #37 update b028245 (author not this agent): approval detection now reads the parsed current xterm screen (`readApprovalScreen`) instead of raw output text; clears automatically when the prompt disappears; no clear-on-input. Logic looks sound.
+## User intent (confirmed)
+- bug-1: remove the standalone toolbar Cowork action, integrate it into the + dropdown; fix Claude meeting startup.
+- bug-2: Cancel meeting confirmation must use the current app UI design.
+- bug-3: show model names WITH versions (e.g. Opus 5.5); align Antigravity card controls with adjacent cards.
+- bug-4: add a Cowork card in New Terminal Session.
 
-## Not done
-- User has not finished hands-on testing of the merged build (`npm run dev` in the test worktree).
-- PR #37 possible missed detections (found with synthetic strings, NOT confirmed on real CLIs):
-  1. Claude permission menu followed by a non-indented line (e.g. custom statusline `Opus 4 | ctx 34%`) -> `looksLikeApprovalPrompt` returns false (rule: lines after the last option must be blank, a FOOTER, or indented).
-  2. Unnumbered menus (e.g. `> Allow once / Allow always / Deny`) -> false. Old rule caught `allow ... ?`. Real Antigravity approval format unknown.
-- Unused i18n keys still present: `cowork.execManualHint`, `cowork.execReviewHint`, `cowork.turnTitle` (harmless).
-- PRs not merged; no release.
+## Done this turn
+- Both Cowork entry points now open the existing Cowork tab; removed the standalone toolbar button. New launcher card uses existing agent marks and theme styles.
+- `launchPlan` recognizes npm shims forwarding to a native exe or Node entrypoint and launches that target directly. JSON/TOML/metacharacter arguments avoid cmd.exe; unrecognized/missing-target scripts retain the original safety guard. Fixed shared planning, execution, and capability/catalog launch paths together.
+- Claude model catalog now reads its stream-json initialize control response, without sending a user prompt or making a model call. Actual local CLI returned Opus 5.5 / Sonnet 5 / Fable 5.1 / Haiku 4.5. Parser checks added to check-cowork.mts.
+- ModelPicker shows catalog labels including versions, omits redundant technical IDs, and uses concise Default (<model>) labels. Wider cards; vertically stacked model/effort selectors. Antigravity's slow note moved to tooltip so selected card headers/controls align.
+- Replaced all Cowork native confirms/alert with AppleAlertDialog or inline errors (cancel/stop, delete, execution cleanup). Cancel confirmation labels are Keep meeting / Cancel meeting, localized.
+- AppleAlertDialog now focuses its safe action, traps Tab, respects focused buttons for Enter, supports Escape, and restores focus. Added real Electron keyboard regression checks to check-terminal-ui.cjs.
+- Changes copied as a patch into the existing test worktree without committing source or overwriting PR #37 checks; no branch merge needed.
 
-## Next agent should
-1. Ask the user for test results of the merged build. If they report a bug, fix it on the owning PR branch (#35 / #36 / #37), not on `test/pr-35-36-37`, then `git -C <test worktree> merge <branch>` to refresh the test build.
-2. For PR #37: capture a real Claude Code and Antigravity approval screen (e.g. run a command needing approval in `npm run dev`, read the screen). If either case above is missed, extend `src/shared/approvalDetect.ts` and add the case to `scripts/check-approval.cjs`; ask the user before pushing to `fix/mobile-question-options`.
-3. Only after the user says OK: merge on GitHub in order #35 -> #37 -> #36 (ask first), then version bump/release per previous release flow.
-4. After merging: remove the temporary worktrees (`git worktree remove` for agent-workbench-test-pr35-37, agent-workbench-cowork-ui, and the older agent-workbench-ime-fix / agent-workbench-release-v0.1.35) and delete local branch `test/pr-35-36-37`.
+## Validation
+- Owning PR #36 worktree: typecheck passed; check-cowork.mts passed (pure parsing, JS/native npm shims with JSON/%/newlines, all fake-CLI meeting/execution scenarios); check-terminal-ui.cjs passed including new dialog keyboard checks.
+- Actual installed Claude: model initialize request exited 0 with versioned catalog; planning arguments including inline JSON reached the executable with --help, exit 0. No paid model request/full real meeting was run.
+- Electron UI harness passed: + menu and card open Cowork, toolbar button absent, all three selected agent selectors align, Default (Opus 5.5) visible, keep/cancel flows work, delete failure appears inline. Form screenshots checked in light and dark-morandi; screenshots also generated for dark/light-morandi.
+- Test worktree: typecheck, build, check-approval.cjs, and check-terminal-ui.cjs all passed; git diff --check clean. Diff: 13 files, 293 insertions / 58 deletions.
+- Ad-hoc UI harness: `C:/Users/milan.chang/AppData/Local/Temp/cowork-qa.cjs`; screenshots: `C:/Users/milan.chang/AppData/Local/Temp/cowork-visual-ldqYnz`. Scratch artifacts are outside the repository.
 
-## Tests (run 2026-10-08 in the test worktree, after merging b028245)
-- `npm run typecheck` -> exit 0
-- `node scripts/check-approval.cjs` -> passed (Claude + Codex)
-- `node --experimental-strip-types scripts/check-remote.mts` -> remote ok
-- `node --experimental-strip-types scripts/check-cowork.mts` -> cowork ok
-- `node_modules/.bin/electron scripts/check-terminal-ui.cjs` -> all sections passed, exit 0
-- Cowork UI visually verified with an ad-hoc Electron screenshot harness (esbuild + mocked window.api; 5 states x 4 themes). Harness lives only in the Claude scratchpad, not in the repo.
+## Remaining / next
+1. User hands-on test of the refreshed test worktree, especially a real Claude-chaired meeting. Run `npm run dev` there; restart an already-running dev app to pick up main-process changes.
+2. After user review, source commits/pushes need explicit authorization. Both worktrees currently contain the same source fixes; commit on the owning PR branch first, then refresh the test branch carefully (do not blindly overwrite its dirty copy).
+3. PR #37 synthetic possible misses remain unverified on real CLIs: non-indented statusline after numbered options; unnumbered Allow once / Allow always / Deny. Capture real Claude/Antigravity approval screens before changing detection; ask before pushing #37.
+4. After user OK: GitHub merge order #35 -> #37 -> #36, then version/release. Cleanup temporary worktrees/test branch only after merging.
 
-## Warnings
-- Run the test build: `cd $env:LOCALAPPDATA\Temp\agent-workbench-test-pr35-37; npm run dev`. Dev uses separate userData (`...-dev`), so it can run beside the installed app, but both default to remote port 47600 - stop the installed app's remote when testing #37. Phone must use Settings > "Reload mobile interface".
-- `node_modules`: the test worktree has its OWN real node_modules (copied from main + `npm install --no-save --ignore-scripts @xterm/headless @xterm/addon-serialize`). The cowork-ui worktree's node_modules is a junction to it. The MAIN repo's node_modules is stale (lacks @xterm/headless + @xterm/addon-serialize required since v0.1.38) and was never modified.
-- Local `master` is diverged from origin (ahead: local-only `.project-memory` commits; behind: 14+ origin commits). Not pulled/reset - user decision. `.project-memory` is not tracked on origin.
-- Windows PowerShell 5.1 `Get-Content -Raw` reads UTF-8 files without BOM as ANSI and corrupts Chinese text; use `[IO.File]::ReadAllText` or the Edit tool. Native `git commit -F -` with a piped here-string fails; use a message file.
-- Untracked user files in main repo: `phone view bug.png`, `phone view_bug1.png`, `phone view_bug2.png` (user's screenshots; leave them).
-
----
-
-# Previous Handoff (2026-10-07, Claude Code) - v0.1.37 / v0.1.38 released
-- v0.1.38 (PR #33 IME + mobile TUI mirror, PR #34 bump) released: https://github.com/zkylek1212-k/Mulit-Harness-ADE/releases/tag/v0.1.38
-- v0.1.37 (PR #31 + #32): Claude sessions get `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1` in `pty.ts`; mobile approval parsing reads to last drawn row.
-- Main keeps an @xterm/headless mirror per PTY (serialize addon = mobile snapshot); output/resize delivered in mirror order.
-- Open from then: one screenshot showed PTY at ~10 cols (not root-caused).
+## Environment / preservation
+- Test worktree has real node_modules; Cowork worktree uses its junction. Main node_modules remains stale (missing xterm headless/serialize). Main branch remains divergent; do not auto-sync.
+- Dev and installed app default to remote port 47600. Stop installed remote for mobile tests; phone Settings > Reload mobile interface.
+- User screenshots and temp files remain untracked in main: Temp/cowork bug-1..4.png, phone view bug*.png. Leave them alone; do not commit. The memory sync script consumed its pre-existing AGENTS.md.spmtmp scratch file.
+- Previous detailed handoff (prior UI restyle/release history) preserved in `archive/handoff-2026-10-08-claude-cowork-feedback.md`.
 
 <!-- END AUTO-MEMORY -->
