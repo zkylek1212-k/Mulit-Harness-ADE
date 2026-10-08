@@ -1,6 +1,6 @@
 # Project State
 
-- Milestone: Cowork Discussion / Project flows ready for local hands-on testing; released baseline v0.1.38.
+- Milestone: Cowork multi-tabs, configurable recorder, cumulative meeting records and chair-to-user approval flow ready for local hands-on testing; released baseline v0.1.38.
 - Status: PR #35/#36/#37 integrated locally; Cowork follow-up changes uncommitted in owning/test worktrees. No GitHub merge or new release.
 - Validation: planner/discussion/executor checks, Electron UI regressions, integrated typecheck/build, approval and remote checks passed; real conversation speed and hands-on testing pending.
 - Last updated: 2026-10-08

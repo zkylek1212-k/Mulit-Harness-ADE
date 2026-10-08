@@ -12,6 +12,7 @@
 | DEC-007 | 終端跨 Agent 歷史回溯 —— Codex 注入 `--no-alt-screen`，Claude Code 轉換清螢幕保留卷軸 | 2026-10-05 | Accepted | 補充 DEC-006 |
 | DEC-008 | Cowork separates public discussion from project planning | 2026-10-08 | Accepted | - |
 | DEC-009 | Cowork multi-tabs allow concurrent planning with exclusive execution | 2026-10-08 | Accepted | supplements DEC-008 |
+| DEC-010 | Cowork persists cumulative recorder checkpoints before chair conclusion | 2026-10-08 | Accepted | supplements DEC-008 |
 
 ---
 
@@ -101,3 +102,10 @@
 - Decision: Each terminal-region Cowork tab owns an independent mounted panel; closing a view does not cancel a meeting. Allow concurrent discussions and Project plans in one repo. Keep actual execution exclusive per repo until merge/cleanup, including an atomic reservation during worktree setup.
 - Reason: A singleton renderer panel and a global active-meeting guard prevented multiple meetings. Read-only planning has independent snapshots; execution still shares repo integration state.
 - Consequence: New tabs are fresh, background status and drafts stay per view, meetings can reopen from refreshed history. Open tabs remain session-only; the existing run store retains meeting records.
+
+## DEC-010: Cowork persists cumulative recorder checkpoints before chair conclusion
+- Date: 2026-10-08
+- Status: Accepted (user requested a designated summary agent and chair conclusion before user approval)
+- Decision: Recorder is a selected participant. Persist cumulative records with a covered-message prefix; feed the preceding record plus every uncovered chunk oldest-first. Trigger on demand/before context fills by default, optionally each round. Summary and chair calls share the planning budget and runner validation/recovery.
+- Reason: A newest-message-only context silently forgot older discussion. User wants a compact durable record of agreements, disagreements and needed decisions, followed by the chair recommendation.
+- Consequence: Original messages remain available; only successful summaries advance coverage. Finalization covers all remaining messages before the chair speaks, and new discussion invalidates the current conclusion for conversion. Conversion opens the existing Project form for code-aware review and explicit approval; records do not authorize execution. No new dependencies, separate memory service or persistent CLI introduced.
