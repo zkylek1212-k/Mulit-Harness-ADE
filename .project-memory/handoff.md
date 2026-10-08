@@ -2,48 +2,32 @@
 
 - Agent: Codex
 - Updated: 2026-10-08 Asia/Taipei
-- Main repo: `master` @ ed40be7 before this memory commit; 8 ahead / 14 behind origin at startup. No pull/reset.
-- PR #36 worktree: `C:/Users/milan.chang/AppData/Local/Temp/agent-workbench-cowork-ui`, branch `feat/cowork-p1` @ 9b8cca7, with UNCOMMITTED fixes in 13 files.
-- Test worktree: `C:/Users/milan.chang/AppData/Local/Temp/agent-workbench-test-pr35-37`, branch `test/pr-35-36-37` @ d0ee494, with the same UNCOMMITTED fixes. Test script additions were ported while preserving PR #37 changes.
-- Source was NOT committed or pushed. The earlier pushed PR #36 commit remains 9b8cca7. PRs #35/#36/#37 remain unmerged per prior handoff; GitHub status not re-queried this turn.
-- Authorization: user clarified the four screenshots and fixes were implemented locally. GitHub merges and releases remain unauthorized. Memory commit is local only unless MEM_AUTOPUSH=1.
+- Main: master @ 29e155a before this memory commit; still diverged from origin. Source changes live ONLY in the two temporary worktrees.
+- Owning PR #36: feat/cowork-p1 @ 9b8cca7, %LOCALAPPDATA%/Temp/agent-workbench-cowork-ui.
+- Integrated test: test/pr-35-36-37 @ d0ee494, %LOCALAPPDATA%/Temp/agent-workbench-test-pr35-37.
+- User authorized implementation and local testing. No new source commit, push, GitHub merge or release authorized/performed. Memory commits remain local/unpushed.
 
-## User intent (confirmed)
-- bug-1: remove the standalone toolbar Cowork action, integrate it into the + dropdown; fix Claude meeting startup.
-- bug-2: Cancel meeting confirmation must use the current app UI design.
-- bug-3: show model names WITH versions (e.g. Opus 5.5); align Antigravity card controls with adjacent cards.
-- bug-4: add a Cowork card in New Terminal Session.
-
-## Done this turn
-- Both Cowork entry points now open the existing Cowork tab; removed the standalone toolbar button. New launcher card uses existing agent marks and theme styles.
-- `launchPlan` recognizes npm shims forwarding to a native exe or Node entrypoint and launches that target directly. JSON/TOML/metacharacter arguments avoid cmd.exe; unrecognized/missing-target scripts retain the original safety guard. Fixed shared planning, execution, and capability/catalog launch paths together.
-- Claude model catalog now reads its stream-json initialize control response, without sending a user prompt or making a model call. Actual local CLI returned Opus 5.5 / Sonnet 5 / Fable 5.1 / Haiku 4.5. Parser checks added to check-cowork.mts.
-- ModelPicker shows catalog labels including versions, omits redundant technical IDs, and uses concise Default (<model>) labels. Wider cards; vertically stacked model/effort selectors. Antigravity's slow note moved to tooltip so selected card headers/controls align.
-- Replaced all Cowork native confirms/alert with AppleAlertDialog or inline errors (cancel/stop, delete, execution cleanup). Cancel confirmation labels are Keep meeting / Cancel meeting, localized.
-- AppleAlertDialog now focuses its safe action, traps Tab, respects focused buttons for Enter, supports Escape, and restores focus. Added real Electron keyboard regression checks to check-terminal-ui.cjs.
-- Changes copied as a patch into the existing test worktree without committing source or overwriting PR #37 checks; no branch merge needed.
+## Ready for hands-on testing
+- Implemented Discussion / Project mode selector (Discussion default); historical runs remain Project with original CLI effort defaults.
+- Discussion: chair then participants speak sequentially with preceding public transcript; replies link to the actual referenced message. User can start another round. Failure shows actual error, retry resumes that speaker without replaying previous replies; explicit skip excludes the speaker from later rounds, including a failed chair.
+- Discussion creates no Git snapshot and loads no project instructions or selected skills. CLI runs in an isolated per-run conversation directory; Claude tools disabled, Codex read-only/skip-git-repo-check, existing Antigravity isolation/sandbox retained. Ordinary folders supported.
+- Project: opening proposal, independent parallel reviews, then chair integration. Reviewer and chair schema now include public message text, validated and displayed alongside structured results. Existing approval/executor reused.
+- Explicit convert action opens an editable Project form containing plain-language conversation and original topic; skipped speakers are excluded where possible, with >=2 eligible participants required. No automatic execution.
+- Automatic effort: discussion low, opening/revision medium, review/arbitration high; manual per-agent effort overrides win, checkbox off restores CLI defaults. Cached actual model efforts constrain automatic values; unknown explicit Antigravity model IDs are not rewritten. Haiku avoids unsupported effort. Catalogue requires no paid user prompt.
+- Real timings: meeting preparation, process spawn, first CLI output and total call duration. First CLI output can be lifecycle/stderr data; it is NOT first public text or private reasoning. Public messages appear when each reply finishes.
+- Dropped reviewers no longer receive tasks. Shared task validator requires transitive dependencies for overlapping file/directory scopes; executor serializes exclusive resources even across separate agent worktrees. Independent work remains parallel.
+- Prior four screenshot fixes remain: + dropdown and launchpad Cowork, native npm-shim Claude launch, themed dialogs, full model version labels, aligned agent cards. Details archived in archive/handoff-2026-10-08-cowork-before-discussion.md.
+- Incremental sync copied 12 changed files to test worktree, using a three-way merge for i18n to preserve PR #35 keys. PR #37 terminal and regression additions retained. Total uncommitted owning diff: 17 files, approximately 800 added / 110 removed lines, including prior fixes.
 
 ## Validation
-- Owning PR #36 worktree: typecheck passed; check-cowork.mts passed (pure parsing, JS/native npm shims with JSON/%/newlines, all fake-CLI meeting/execution scenarios); check-terminal-ui.cjs passed including new dialog keyboard checks.
-- Actual installed Claude: model initialize request exited 0 with versioned catalog; planning arguments including inline JSON reached the executable with --help, exit 0. No paid model request/full real meeting was run.
-- Electron UI harness passed: + menu and card open Cowork, toolbar button absent, all three selected agent selectors align, Default (Opus 5.5) visible, keep/cancel flows work, delete failure appears inline. Form screenshots checked in light and dark-morandi; screenshots also generated for dark/light-morandi.
-- Test worktree: typecheck, build, check-approval.cjs, and check-terminal-ui.cjs all passed; git diff --check clean. Diff: 13 files, 293 insertions / 58 deletions.
-- Ad-hoc UI harness: `C:/Users/milan.chang/AppData/Local/Temp/cowork-qa.cjs`; screenshots: `C:/Users/milan.chang/AppData/Local/Temp/cowork-visual-ldqYnz`. Scratch artifacts are outside the repository.
+- Owning: typecheck; full check-cowork.mts (legacy planner, schema repair, budget/cancel/restart, all three fake CLIs, sequential/parallel execution; new discussion context/timing/retry/skip/follow-up/recovery/budget; exclusive resource serialization); Electron terminal UI regression all passed.
+- Integrated test: typecheck + production build; check-approval.cjs; check-remote.mts; Electron terminal UI regression including PR #37 passed. Latest resolver adjustment revalidated with typecheck/build.
+- Real Electron visual harness with mocked API exercised new discussion replies/anchors, disabled composer while working, CLI-wait status, quota skip, follow-up IPC, conversion form, entry points, model alignment, themes and dialogs. Scratch harness: %LOCALAPPDATA%/Temp/cowork-discussion-qa.cjs; screenshots: cowork-visual-M9NlQu.
+- No new paid live multi-agent conversation was run; actual model responsiveness / latency still needs the user's hands-on test. Existing real run rmuyxen80d28f confirmed Claude quota exhaustion, not launch failure (see archive for observed timings).
 
-## Remaining / next
-1. User hands-on test of the refreshed test worktree, especially a real Claude-chaired meeting. Run `npm run dev` there; restart an already-running dev app to pick up main-process changes.
-2. After user review, source commits/pushes need explicit authorization. Both worktrees currently contain the same source fixes; commit on the owning PR branch first, then refresh the test branch carefully (do not blindly overwrite its dirty copy).
-3. PR #37 synthetic possible misses remain unverified on real CLIs: non-indented statusline after numbered options; unnumbered Allow once / Allow always / Deny. Capture real Claude/Antigravity approval screens before changing detection; ask before pushing #37.
-4. After user OK: GitHub merge order #35 -> #37 -> #36, then version/release. Cleanup temporary worktrees/test branch only after merging.
-
-## Environment / preservation
-- Test worktree has real node_modules; Cowork worktree uses its junction. Main node_modules remains stale (missing xterm headless/serialize). Main branch remains divergent; do not auto-sync.
-- Dev and installed app default to remote port 47600. Stop installed remote for mobile tests; phone Settings > Reload mobile interface.
-- User screenshots and temp files remain untracked in main: Temp/cowork bug-1..4.png, phone view bug*.png. Leave them alone; do not commit. The memory sync script consumed its pre-existing AGENTS.md.spmtmp scratch file.
-- Previous detailed handoff (prior UI restyle/release history) preserved in `archive/handoff-2026-10-08-claude-cowork-feedback.md`.
-
-## User-approved next direction (not implemented)
-- User agreed to separate Discussion and Project flows in one Cowork UI, with actual public agent statements and visible interaction. Discussion should answer conversational requests directly and allow later conversion to a project plan; Project should retain parallel independent review, targeted follow-up on disagreements, scoped execution and acceptance checks.
-- User also asks to reduce chair startup latency. Latest observed real run rmuyxen80d28f (last updated 2026-10-08 10:39:47 Asia/Taipei): Codex chair, three participants, request was one-sentence introductions; phase awaiting-approval, no execution. Codex opening CLI call 27.420s, high effort, 20,041 reported input tokens; call began 0.927s after run.createdAt. These timings do NOT isolate CLI startup from model processing, and pre-createdAt capability/context preparation is not timed.
-- Real Claude now launches and reports session quota exceeded (its response said reset 11:30am Asia/Taipei). Antigravity agreed with all three introduction tasks and claimed its own task (68.824s); Claude review was dropped; Codex finalized the three-task board (18.291s). Claude introduction remains assigned, although its review was dropped. This shows current planning flow misfits simple conversational requests.
-- Suggested performance priorities: lightweight Discussion context/schema, configurable lower effort for simple openings, immediate truthful progress/public-output display, and phase timing before considering persistent CLI/prewarming. Preserve required project rules and explicit user model/effort choices; no speed benchmark or implementation yet.
+## Next
+1. Restart npm run dev in the integrated test worktree (main/preload changed; renderer reload alone is insufficient). Choose a NEW Discussion, choose automatic low effort, test introductions then response to another speaker. Claude quota failure can be explicitly skipped.
+2. Try conversion to a Project plan; verify public reviewer responses and chair reply, then approve/execute only if desired. Existing older meetings do not retroactively gain discussion messages or automatic effort.
+3. Discussion context ceiling: most recent 24 messages / 24000 characters. Converted form capped at 20000 chars; original topic retained, latest conversation excerpt uses remaining room. No persistent/prewarmed CLIs or extra targeted dispute round in this first version.
+4. Source changes are UNCOMMITTED in BOTH worktrees. Continue fixing on owning PR worktree and sync incremental changes into test. Do not blindly overwrite i18n or TerminalPanel/test scripts from the owning branch.
+5. PRs #35/#36/#37 remain unmerged, no release. GitHub merge, source commit/push still requires user instruction. Preserve main screenshot files, stale main node_modules and existing worktrees. Remote testing still needs installed app remote stopped (port 47600); phone Reload mobile interface.

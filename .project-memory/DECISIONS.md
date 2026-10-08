@@ -10,6 +10,7 @@
 | DEC-005 | 手機端終端 Canvas Scale-to-Fit 消除水平捲動並保留 1:1 ANSI 座標 | 2026-10-02 | Accepted | 補充 DEC-004 |
 | DEC-006 | 桌面座標解析 ANSI，手機文字以可讀字級換行 | 2026-10-02 | Accepted | DEC-005 |
 | DEC-007 | 終端跨 Agent 歷史回溯 —— Codex 注入 `--no-alt-screen`，Claude Code 轉換清螢幕保留卷軸 | 2026-10-05 | Accepted | 補充 DEC-006 |
+| DEC-008 | Cowork separates public discussion from project planning | 2026-10-08 | Accepted | - |
 
 ---
 
@@ -85,3 +86,10 @@
   2. **Claude Code CLI**：在手機端 `TerminalView.tsx` 透過 `ClaudeHistoryStream` 攔截 `\x1b[2J\x1b[H`（清螢幕＋游標回頂端），將其轉換為推進換行與回合分隔線（`─`），使前幾回合的內容自動推入 scrollback 緩衝區而非被擦除抹滅。手機端輸入管道（`send('\r')` / `writePty`）完全不受影響。
 - Reason: 使用者回報在手機端只有 Antigravity 可以向上滑動查看歷史交談，而 Claude Code 只能顯示電腦端目前的一頁，且 Codex 預設亦無 scrollback。這是因為 Codex 預設進備用螢幕、Claude 頻繁呼叫 `\x1b[2J` 擦除螢幕。
 - Consequence: 三大 Agent（Antigravity, Codex, Claude Code）在手機端與桌面端終端均具備完整的縱向歷史滾動能力，隨時可向上滑動回顧多回合交談紀錄與工具產出。
+
+## DEC-008: Cowork separates public discussion from project planning
+- Date: 2026-10-08
+- Status: Accepted (user authorized implementation)
+- Decision: Discussion uses sequential public replies with preceding transcript, no project context/worktree/task board. Explicit conversion opens a Project form. Project keeps independent parallel review followed by a public chair response, approval and existing execution.
+- Reason: A simple introduction previously produced a task plan instead of conversation, and a high-effort chair read unnecessary project context. User wants visible interaction and fast, accurate project execution.
+- Consequence: Auto effort follows stage (low / medium / high) unless manually overridden; process-spawn and first-CLI-output timings are recorded separately. Overlapping scopes require dependencies and shared resources serialize. Completed replies are public; raw private reasoning is never shown. Keep historical runs compatible; defer persistent/prewarmed CLIs until measurements justify complexity.

@@ -1,9 +1,9 @@
 # Project State
 
-- Milestone: v0.1.36 - terminal cross-agent scrollback enhancement (Codex --no-alt-screen + Claude Code ClaudeHistoryStream)
-- Status: PR #30 merged; v0.1.36 published with installer, portable ZIP and auto-update metadata (merge/tag commit 952b636).
-- Validation: typecheck, full Electron/xterm UI regressions, and Windows packaging passed; Physical iPhone Safari/PWA check pending.
-- Last updated: 2026-10-06
+- Milestone: Cowork Discussion / Project flows ready for local hands-on testing; released baseline v0.1.38.
+- Status: PR #35/#36/#37 integrated locally; Cowork follow-up changes uncommitted in owning/test worktrees. No GitHub merge or new release.
+- Validation: planner/discussion/executor checks, Electron UI regressions, integrated typecheck/build, approval and remote checks passed; real conversation speed and hands-on testing pending.
+- Last updated: 2026-10-08
 
 
 ## Macro Progress
