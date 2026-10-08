@@ -1,31 +1,29 @@
 # Latest Handoff
 
 - Agent: Codex; updated 2026-10-08 Asia/Taipei.
-- Main master @ e60c1e1 before this memory commit; ahead 12 / behind 14 origin commits at startup. No automatic sync. User screenshots/Temp remain untouched.
+- Main master @ 79a3676 before this memory commit; ahead 13 / behind 14 origin at startup. No automatic sync. User screenshots and Temp untouched.
 - Owning PR #36: %LOCALAPPDATA%/Temp/agent-workbench-cowork-ui, feat/cowork-p1 @ 9b8cca7.
 - Integrated test: %LOCALAPPDATA%/Temp/agent-workbench-test-pr35-37, test/pr-35-36-37 @ d0ee494.
-- User authorized adjustable meeting budgets and a designated recorder -> chair conclusion -> user approval workflow. Source UNCOMMITTED in both worktrees; no source commit/push, GitHub merge or release. Memory local/unpushed.
+- User authorized fixing Settings text/layout and removing custom model choices. All source remains UNCOMMITTED in both worktrees; no source commit/push, GitHub merge or release. Memory local/unpushed.
 
-## Ready for testing: meeting recorder and chair conclusion
-- Existing Settings > Cowork budget controls retained and verified: new meetings use 3-30 planning calls, 1-120 planning minutes, 1-600 execution minutes. New wording explicitly counts discussion, summary and chair conclusion; settings changes apply only to new meetings.
-- Settings and Discussion start form select a recorder (default follows chair; must be a participant) and summary timing. Default on demand / before context fills; optional after every round. Asked user for frequency preference asynchronously, no reply at completion; both choices are available.
-- Discussion view can change recorder while idle/blocked/paused, generate a record on demand, or ask the chair to conclude. Records show summary, agreements, attributed disagreements and decisions needed from user, with recorder and covered message count. Original messages and summary checkpoints persist in run.json; earlier records can be collapsed.
-- Each model gets the latest cumulative record plus uncovered messages. Before the raw context reaches 20 messages / 18000 serialized chars, recorder processes oldest uncovered chunks, folding in the preceding record. Manual/final summary covers ALL remaining chunks; coverage advances only on success. Summary JSON capped at 6000 chars / 20 items per array.
-- Summary and conclusion use existing runner, read-only/no-tool discussion invocation, schema validation, one repair attempt, timings, call/time budgets and generation cancellation. Automatic effort: summary medium, chair conclusion high; explicit model/effort overrides retained.
-- Ask chair to conclude first completes/reuses the cumulative record, then calls only the chair for a public recommendation and remaining user decisions. No approval or execution is granted by this action. Failed summaries can switch recorder and retry; failed/restarted chair calls reuse finished records rather than repeat speakers.
-- Create plan appears only for a conclusion covering the current messages. New user follow-up makes the old conclusion visibly outdated. Conversion opens the existing editable Project form containing topic + record + chair recommendation; Project still runs code-aware proposal/review/finalization and requires explicit approval before execution.
-- Conversion no longer silently truncates a long record: over-20000-char forms show an error and require user editing before start. Discussion itself still does not inspect project files; records are model-generated and need user review.
-- This task changed 11 existing files, +492/-36 relative to its pre-task snapshot. Incrementally three-way synced all 11 to integrated test; PR #35 center translations and #37 rendered approval detection verified retained. Snapshot %TEMP%/cowork-before-summary, sync scratch %TEMP%/cowork-summary-sync-dpNGUc.
+## Ready for testing: Settings layout and catalog-only models
+- Cowork settings now has scoped responsive layout: explanatory text wraps, direct row info fills available space, budget hint uses normal row padding, and long title words cannot spill outside cards/rows.
+- Model rows use aligned label/control columns; model + effort selectors have consistent 28px heights and fixed effort width showing complete default values. Below 440px content width, model controls move below labels, chair cards use one column, and recorder/timing controls stack below explanations. Changes are scoped to Cowork settings; other Settings tabs retain existing styling.
+- Recorder/timing selects use the UI font instead of monospace, widths align, and the model default explanation was shortened in both languages.
+- Shared ModelPicker no longer offers Custom or a free-text input, in Settings AND meeting start forms. Removed unused custom CSS/i18n and changed catalog-error copy to reload/use CLI defaults.
+- Already saved models absent from the current catalog remain visible as a disabled existing-value option, including during catalog loading; no silent model replacement. Listed selections, CLI defaults, full model labels in menus/tooltips and per-model effort validation retained.
+- This task: 6 files, +106/-62 relative to pre-task snapshot. Incrementally three-way synced to integrated test, retaining PR #35 translations and #37 approval detection. Snapshot %TEMP%/cowork-before-settings-layout; sync scratch %TEMP%/cowork-settings-sync-M2cICn.
 
 ## Validation
-- Integrated npm run typecheck and npm run build exit 0.
-- Full scripts/check-cowork.mts exit 0: old planner/executor/discussion/concurrency checks plus designated recorder, per-round record, cumulative old-message retention, invalid record validation, budget/retry, recorder replacement, chair failure/restart recovery, cancellation, stale conclusion and approval boundary.
-- Extended real Electron scripts/check-cowork-tabs.cjs passed in owning and integrated worktrees: previous multi-tab checks plus recorder selector, structured records, conclusion, editable conversion/no automatic start, and actual CoworkSettings budget editing. Latest integrated screenshot %TEMP%/cowork-tabs-check-Wlumbw/tabs.png.
-- Integrated Electron scripts/check-terminal-ui.cjs passed: approval detection, IME, mobile rendering, native folding and Apple dialogs. git diff --check passed.
-- CLI conversations were simulated by the existing three fake CLIs; no paid live meeting was run. Actual summary fidelity, response speed, quotas and hands-on testing remain for user.
+- Integrated npm run typecheck and npm run build exit 0; git diff --check passed.
+- Extended real Electron scripts/check-cowork-tabs.cjs passed in owning and integrated worktrees. It now renders actual SettingsModal instead of a bare CoworkSettings fragment, mocks IPC, edits/saves a budget, checks removed custom inputs/options and preserved saved model, and validates unsupported effort resets when selecting a listed model.
+- Layout matrix: viewport widths 1200/720, en/zh-TW, light/dark/light-morandi/dark-morandi. Asserts no horizontal text overflow or overlapping row controls and full selected effort labels. Captures top/model/budget sections (48 screenshots).
+- Latest integrated screenshots %TEMP%/cowork-tabs-check-jyeIZM/settings-<width>-<language>-<theme>-<section>.png. Owning screenshots visually reviewed: %TEMP%/cowork-tabs-check-utjbON, including narrow zh-TW dark-morandi models, chair cards and budget layouts. Before-fix screenshot evidence %TEMP%/cowork-tabs-check-ewyWPf/settings-top.png and settings-bottom.png.
+- Existing tabs/records/conclusion/editable conversion checks still pass in the same harness. Backend untouched this task; full CLI planner/discussion/executor and terminal/mobile/alert checks last passed in previous summary task, documented in the archived handoff.
+- Models in the renderer check are fixture data; no paid live meeting was run. Hands-on testing, actual model catalog labels and generated summary quality remain for user.
 
 ## Previous work and next
-1. Restart npm run dev in integrated test (main/preload changed); Settings > Cowork choose budgets/default recorder, open new Discussion, complete round, summarize, ask chair to conclude, then create/edit Project plan and explicitly approve execution.
-2. Multi-tabs/concurrent planning retained; actual execution exclusive per repo until merge/cleanup. Closing tab only closes view. Tabs session-only; meetings persist. Earlier detailed handoff archived in archive/handoff-2026-10-08-cowork-before-summary.md, with previous archives referenced there.
-3. Continue on owning PR worktree and sync incremental diffs; source remains uncommitted. No merge/release/push without user instruction. No persistent/prewarmed CLI or extra targeted dispute round added.
-4. Main node_modules stale; use test modules. Installed/test mobile remote ports can clash (47600); stop installed remote and Reload mobile interface when testing phone. PR #35/#36/#37 remain unmerged.
+1. Refresh the integrated dev renderer, then reopen Settings > Cowork to verify wrapping/controls, change a budget, save, and check meeting model dropdowns. This task is renderer-only; a main restart is needed only if the dev process predates the previous summary/preload changes.
+2. Multi-tabs, concurrent discussion/Project planning, selected recorder, cumulative records and chair conclusion retained. Original messages persist; new discussion marks an earlier conclusion outdated. Create plan opens the editable Project form and actual execution still requires explicit user approval. Summary/conclusion share planning budgets.
+3. Actual execution exclusive per repo until merge/cleanup. Closing tab only removes view; meetings persist, tabs session-only. Detailed summary flow/test evidence archived in archive/handoff-2026-10-08-cowork-before-settings-layout.md; earlier archives referenced there.
+4. Continue on owning PR worktree and sync incremental diffs; no source commit/push or merge/release without user instruction. Main modules stale; test modules current. Remote phone test ports can clash (47600). PR #35/#36/#37 remain unmerged.
