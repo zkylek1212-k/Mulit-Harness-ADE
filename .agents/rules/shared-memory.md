@@ -48,36 +48,36 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 # Latest Handoff
 
-- Agent: Codex
-- Updated: 2026-10-08 Asia/Taipei
-- Main: master @ 29e155a before this memory commit; still diverged from origin. Source changes live ONLY in the two temporary worktrees.
-- Owning PR #36: feat/cowork-p1 @ 9b8cca7, %LOCALAPPDATA%/Temp/agent-workbench-cowork-ui.
-- Integrated test: test/pr-35-36-37 @ d0ee494, %LOCALAPPDATA%/Temp/agent-workbench-test-pr35-37.
-- User authorized implementation and local testing. No new source commit, push, GitHub merge or release authorized/performed. Memory commits remain local/unpushed.
+- Agent: Codex; updated 2026-10-08 Asia/Taipei.
+- Main master @ 8830f06 before this memory commit; ahead 11 / behind 14 origin commits at startup. No automatic sync. Main has only memory changes and user screenshots.
+- Owning PR #36 worktree: %LOCALAPPDATA%/Temp/agent-workbench-cowork-ui, feat/cowork-p1 @ 9b8cca7.
+- Integrated test: %LOCALAPPDATA%/Temp/agent-workbench-test-pr35-37, test/pr-35-36-37 @ d0ee494.
+- User authorized Cowork multi-tabs, implementation and local tests. Source remains UNCOMMITTED in both worktrees; no new source commit/push, GitHub merge or release. Memory commit local/unpushed.
 
-## Ready for hands-on testing
-- Implemented Discussion / Project mode selector (Discussion default); historical runs remain Project with original CLI effort defaults.
-- Discussion: chair then participants speak sequentially with preceding public transcript; replies link to the actual referenced message. User can start another round. Failure shows actual error, retry resumes that speaker without replaying previous replies; explicit skip excludes the speaker from later rounds, including a failed chair.
-- Discussion creates no Git snapshot and loads no project instructions or selected skills. CLI runs in an isolated per-run conversation directory; Claude tools disabled, Codex read-only/skip-git-repo-check, existing Antigravity isolation/sandbox retained. Ordinary folders supported.
-- Project: opening proposal, independent parallel reviews, then chair integration. Reviewer and chair schema now include public message text, validated and displayed alongside structured results. Existing approval/executor reused.
-- Explicit convert action opens an editable Project form containing plain-language conversation and original topic; skipped speakers are excluded where possible, with >=2 eligible participants required. No automatic execution.
-- Automatic effort: discussion low, opening/revision medium, review/arbitration high; manual per-agent effort overrides win, checkbox off restores CLI defaults. Cached actual model efforts constrain automatic values; unknown explicit Antigravity model IDs are not rewritten. Haiku avoids unsupported effort. Catalogue requires no paid user prompt.
-- Real timings: meeting preparation, process spawn, first CLI output and total call duration. First CLI output can be lifecycle/stderr data; it is NOT first public text or private reasoning. Public messages appear when each reply finishes.
-- Dropped reviewers no longer receive tasks. Shared task validator requires transitive dependencies for overlapping file/directory scopes; executor serializes exclusive resources even across separate agent worktrees. Independent work remains parallel.
-- Prior four screenshot fixes remain: + dropdown and launchpad Cowork, native npm-shim Claude launch, themed dialogs, full model version labels, aligned agent cards. Details archived in archive/handoff-2026-10-08-cowork-before-discussion.md.
-- Incremental sync copied 12 changed files to test worktree, using a three-way merge for i18n to preserve PR #35 keys. PR #37 terminal and regression additions retained. Total uncommitted owning diff: 17 files, approximately 800 added / 110 removed lines, including prior fixes.
+## Ready for testing: multiple Cowork tabs
+- Every + menu > Cowork or launchpad action creates a fresh independent tab (Cowork 1/2/etc); starting/selecting a meeting changes that tab's title to the topic and updates its own phase dot.
+- Each CoworkPanel remains mounted while hidden, preserving its draft, chosen run, view state and background updates. New tabs do not auto-select another active meeting. Opening history refreshes the run list so meetings created in other tabs appear.
+- Closing a tab removes only that view/subscription, not the persisted meeting or running CLI. Close active tab selects its neighbor, or falls back to terminal/launchpad; close inactive tab keeps current selection. Closed meeting can be reopened from history.
+- New/selected terminal clears active Cowork and only one tab is highlighted. Hidden Cowork does not restart a terminal. Tabs themselves are session-only, like the current terminal tab list; persisted meetings remain available after app restart.
+- Backend allows multiple discussions and Project planning runs in one repo; follow-up in one discussion is allowed while others run. Context, snapshots, cancellation, retries and budgets stay per run.
+- Actual execution remains exclusive per repo until its execution worktrees are merged/cleaned. A synchronous per-repo starting reservation prevents simultaneous execute clicks racing during asynchronous worktree setup. Other meetings/planning do not block execution.
+- Changed 5 existing source/test files plus new scripts/check-cowork-tabs.cjs. Synced incrementally to integrated test; TerminalPanel was three-way merged to retain PR #37 approval changes. No PR #35 translations overwritten.
+
+## Previous work retained
+- Discussion vs Project UI, real sequential public replies/reply links, skip/retry/next round, explicit conversion to editable plain-language Project form, public reviewer/chair responses, stage-aware effort with manual overrides and model capability checks, real CLI spawn/first-output timings.
+- Planning validator rejects unordered overlapping scopes, dropped reviewers not assignable, executor serializes exclusive resources; existing approval/execution paths retained.
+- Four screenshot fixes: Cowork in + menu/launchpad; npm shim Claude launch; themed dialogs; full model versions/aligned agent cards. Detailed evidence is preserved in archive/handoff-2026-10-08-cowork-before-tabs.md and earlier archives.
 
 ## Validation
-- Owning: typecheck; full check-cowork.mts (legacy planner, schema repair, budget/cancel/restart, all three fake CLIs, sequential/parallel execution; new discussion context/timing/retry/skip/follow-up/recovery/budget; exclusive resource serialization); Electron terminal UI regression all passed.
-- Integrated test: typecheck + production build; check-approval.cjs; check-remote.mts; Electron terminal UI regression including PR #37 passed. Latest resolver adjustment revalidated with typecheck/build.
-- Real Electron visual harness with mocked API exercised new discussion replies/anchors, disabled composer while working, CLI-wait status, quota skip, follow-up IPC, conversion form, entry points, model alignment, themes and dialogs. Scratch harness: %LOCALAPPDATA%/Temp/cowork-discussion-qa.cjs; screenshots: cowork-visual-M9NlQu.
-- No new paid live multi-agent conversation was run; actual model responsiveness / latency still needs the user's hands-on test. Existing real run rmuyxen80d28f confirmed Claude quota exhaustion, not launch failure (see archive for observed timings).
+- Owning full scripts/check-cowork.mts passed: planner/executor/three fake CLIs, discussion/follow-up/retry/skip/recovery/budget, parallel discussions and Project plans, isolated context/cancellation, execution-start reservation and existing execution exclusion.
+- New real Electron renderer check scripts/check-cowork-tabs.cjs passed in BOTH owning and integrated worktrees: independent drafts and meetings, background phase updates, new-tab freshness, close/fallback/no cancellation, terminal switching, history reopening, no renderer errors. Screenshot: %LOCALAPPDATA%/Temp/cowork-tabs-check-cknvaU/tabs.png.
+- Integrated npm run typecheck and npm run build passed. Integrated Electron scripts/check-terminal-ui.cjs passed, including PR #37 rendered approval detection, IME, mobile rendering and Apple dialogs.
+- No paid live multi-agent discussion was run; user's real model responsiveness, quota behavior and hands-on multi-tab testing still pending.
 
 ## Next
-1. Restart npm run dev in the integrated test worktree (main/preload changed; renderer reload alone is insufficient). Choose a NEW Discussion, choose automatic low effort, test introductions then response to another speaker. Claude quota failure can be explicitly skipped.
-2. Try conversion to a Project plan; verify public reviewer responses and chair reply, then approve/execute only if desired. Existing older meetings do not retroactively gain discussion messages or automatic effort.
-3. Discussion context ceiling: most recent 24 messages / 24000 characters. Converted form capped at 20000 chars; original topic retained, latest conversation excerpt uses remaining room. No persistent/prewarmed CLIs or extra targeted dispute round in this first version.
-4. Source changes are UNCOMMITTED in BOTH worktrees. Continue fixing on owning PR worktree and sync incremental changes into test. Do not blindly overwrite i18n or TerminalPanel/test scripts from the owning branch.
-5. PRs #35/#36/#37 remain unmerged, no release. GitHub merge, source commit/push still requires user instruction. Preserve main screenshot files, stale main node_modules and existing worktrees. Remote testing still needs installed app remote stopped (port 47600); phone Reload mobile interface.
+1. Restart npm run dev in integrated test worktree (main changed); renderer reload alone is insufficient. Open + > Cowork twice, enter different topics, start both, switch, close/reopen via history; stop one and verify the other continues.
+2. Continue fixes on owning PR worktree and synchronize only incremental diffs; use three-way merge for TerminalPanel/i18n differences in integrated test. Do not commit/push source or merge/release without user instruction.
+3. All older follow-up caveats remain: newest 24 discussion messages / 24000 chars; conversion form capped at 20000; no persistent/prewarmed CLI or targeted extra dispute round in first version. Historical meetings do not retroactively gain public messages/auto effort.
+4. Preserve screenshots and existing worktrees. Main node_modules stale; use test worktree's real modules. Mobile remote shares port 47600 with installed app; stop installed remote and Reload mobile interface for phone tests. PRs #35/#36/#37 remain unmerged.
 
 <!-- END AUTO-MEMORY -->

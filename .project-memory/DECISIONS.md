@@ -11,6 +11,7 @@
 | DEC-006 | 桌面座標解析 ANSI，手機文字以可讀字級換行 | 2026-10-02 | Accepted | DEC-005 |
 | DEC-007 | 終端跨 Agent 歷史回溯 —— Codex 注入 `--no-alt-screen`，Claude Code 轉換清螢幕保留卷軸 | 2026-10-05 | Accepted | 補充 DEC-006 |
 | DEC-008 | Cowork separates public discussion from project planning | 2026-10-08 | Accepted | - |
+| DEC-009 | Cowork multi-tabs allow concurrent planning with exclusive execution | 2026-10-08 | Accepted | supplements DEC-008 |
 
 ---
 
@@ -93,3 +94,10 @@
 - Decision: Discussion uses sequential public replies with preceding transcript, no project context/worktree/task board. Explicit conversion opens a Project form. Project keeps independent parallel review followed by a public chair response, approval and existing execution.
 - Reason: A simple introduction previously produced a task plan instead of conversation, and a high-effort chair read unnecessary project context. User wants visible interaction and fast, accurate project execution.
 - Consequence: Auto effort follows stage (low / medium / high) unless manually overridden; process-spawn and first-CLI-output timings are recorded separately. Overlapping scopes require dependencies and shared resources serialize. Completed replies are public; raw private reasoning is never shown. Keep historical runs compatible; defer persistent/prewarmed CLIs until measurements justify complexity.
+
+## DEC-009: Cowork multi-tabs allow concurrent planning with exclusive execution
+- Date: 2026-10-08
+- Status: Accepted (user requested multiple meeting tabs)
+- Decision: Each terminal-region Cowork tab owns an independent mounted panel; closing a view does not cancel a meeting. Allow concurrent discussions and Project plans in one repo. Keep actual execution exclusive per repo until merge/cleanup, including an atomic reservation during worktree setup.
+- Reason: A singleton renderer panel and a global active-meeting guard prevented multiple meetings. Read-only planning has independent snapshots; execution still shares repo integration state.
+- Consequence: New tabs are fresh, background status and drafts stay per view, meetings can reopen from refreshed history. Open tabs remain session-only; the existing run store retains meeting records.
