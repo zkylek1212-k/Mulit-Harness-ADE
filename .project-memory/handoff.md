@@ -18,6 +18,12 @@
 - Reviewed PR #37 update b028245 (author not this agent): approval detection now reads the parsed current xterm screen (`readApprovalScreen`) instead of raw output text; clears automatically when the prompt disappears; no clear-on-input. Logic looks sound.
 
 ## Not done
+- USER TEST FEEDBACK (2026-10-08 09:26-09:29): screenshots `Temp/cowork bug-1..4.png` in the main repo (untracked; the user left no text, so readings below are this agent's interpretation - confirm with the user):
+  1. bug-1 (2) BLOCKER, PR #36: meeting fails at "Round 1 - chair opens": `Could not start claude: refusing to pass an argument containing quotes, % or newlines to cmd.exe: {"type":"object",...}`. Cause (verified in code): `src/main/cowork/runner.ts` `launchPlan()` routes `.cmd/.bat` through cmd.exe and rejects args matching `CMD_UNSAFE = /["%\r\n]/`; on this machine `claude` resolves to an npm `.cmd` shim, and the Claude planner invocation passes the JSON schema inline as an argument (`plannerInvocation` in orchestrator.ts ~line 586 gets both `schema` and `schemaFile`). Fix direction: for Claude, don't pass inline JSON through cmd.exe (resolve the npm shim to `node <cli.js>` / native exe and spawn directly, or use a file-based schema if the CLI supports it). Add a check-cowork case with a `.cmd` CLI path.
+  2. bug-1 (1): circled the terminal toolbar "Prompt" and "Cowork" buttons - probably the two adjacent buttons look alike or inconsistent (meaning unclear; ask).
+  3. bug-2: "Cancel meeting" uses native `window.confirm` (OS dialog titled "agent-workbench", buttons 確定/取消 while UI is English) - not HIG. Replace all Cowork `window.confirm`/`window.alert` (CoworkPanel.tsx: deleteRun, stopRun, TurnCard cancel; ExecView.tsx cleanup) with the app's `src/renderer/src/components/AppleAlertDialog.tsx`.
+  4. bug-3: start-form agent cards - (1) Claude card model/effort selects truncate ("Same as your Claude Code…"), (2) Antigravity card's subtitle pushes its chair button + selects lower than the other cards, so rows don't line up across cards. Fix: fixed-height subtitle slot (or move the "slower" note to a tooltip) so all cards align; let select text fit (wider cards / shorter fallback labels in ModelPicker `fallbackLabel`).
+  5. bug-4: "New Terminal Session" launcher grid - Command Prompt card sits alone on a second row with an empty area circled. Unclear: layout balance (5 cards -> one row / centered) or a request to add a Cowork launch card there. Ask the user.
 - User has not finished hands-on testing of the merged build (`npm run dev` in the test worktree).
 - PR #37 possible missed detections (found with synthetic strings, NOT confirmed on real CLIs):
   1. Claude permission menu followed by a non-indented line (e.g. custom statusline `Opus 4 | ctx 34%`) -> `looksLikeApprovalPrompt` returns false (rule: lines after the last option must be blank, a FOOTER, or indented).
@@ -26,6 +32,7 @@
 - PRs not merged; no release.
 
 ## Next agent should
+0. Look at `Temp/cowork bug-1..4.png` (main repo) and confirm the interpretations above with the user. Fix bug-1 (cmd.exe / inline JSON schema) first - Cowork cannot run a meeting with Claude as chair on this machine until it is fixed. Work on `feat/cowork-p1` (worktree `%LOCALAPPDATA%\Temp\agent-workbench-cowork-ui`), then merge into the test branch.
 1. Ask the user for test results of the merged build. If they report a bug, fix it on the owning PR branch (#35 / #36 / #37), not on `test/pr-35-36-37`, then `git -C <test worktree> merge <branch>` to refresh the test build.
 2. For PR #37: capture a real Claude Code and Antigravity approval screen (e.g. run a command needing approval in `npm run dev`, read the screen). If either case above is missed, extend `src/shared/approvalDetect.ts` and add the case to `scripts/check-approval.cjs`; ask the user before pushing to `fix/mobile-question-options`.
 3. Only after the user says OK: merge on GitHub in order #35 -> #37 -> #36 (ask first), then version bump/release per previous release flow.
@@ -44,7 +51,7 @@
 - `node_modules`: the test worktree has its OWN real node_modules (copied from main + `npm install --no-save --ignore-scripts @xterm/headless @xterm/addon-serialize`). The cowork-ui worktree's node_modules is a junction to it. The MAIN repo's node_modules is stale (lacks @xterm/headless + @xterm/addon-serialize required since v0.1.38) and was never modified.
 - Local `master` is diverged from origin (ahead: local-only `.project-memory` commits; behind: 14+ origin commits). Not pulled/reset - user decision. `.project-memory` is not tracked on origin.
 - Windows PowerShell 5.1 `Get-Content -Raw` reads UTF-8 files without BOM as ANSI and corrupts Chinese text; use `[IO.File]::ReadAllText` or the Edit tool. Native `git commit -F -` with a piped here-string fails; use a message file.
-- Untracked user files in main repo: `phone view bug.png`, `phone view_bug1.png`, `phone view_bug2.png` (user's screenshots; leave them).
+- Untracked user files in main repo: `phone view bug.png`, `phone view_bug1.png`, `phone view_bug2.png`, `Temp/cowork bug-1..4.png` (user screenshots; leave them, do not commit).
 
 ---
 
