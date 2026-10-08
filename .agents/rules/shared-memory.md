@@ -72,7 +72,8 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 - New Discussion/summary end-to-end checks use fake CLIs. No new paid real-provider discussion/summary run was performed; response quality/latency still needs live use.
 
 ## Worktrees and source state
-- Main remains local master @ a5c1dd8 before this memory commit; divergent from origin/master (ahead 15 memory commits / behind 36 before this commit). Its source is OLD; do not run/build from main or auto sync/reset it.
+- User requested copying delivered files into the CURRENT main workspace. Copied README.md, docs/architecture.html and docs/cowork-architecture.md from the published docs worktree, plus docs/cowork-architecture-preview.png (1200 px, Chinese/light screenshot). All four copies verified by SHA-256; tracked docs pass diff --check. These main-workspace docs are intentionally uncommitted; no branch sync or source commit. Other main source remains OLD.
+- Main remains local master @ d343607 before this memory commit; divergent from origin/master (ahead 16 memory commits / behind 36 before this commit). Its source is OLD; do not run/build from main or auto sync/reset it.
 - Release worktree: %LOCALAPPDATA%/Temp/agent-workbench-release-v0.1.39; currently docs/cowork-architecture @ cfe05ff, clean, with real npm-ci node_modules and release assets. Local release/v0.1.39 remains ba8f0c1. Open docs/architecture.html#cowork here for the new rendered diagrams.
 - Owning worktree: %LOCALAPPDATA%/Temp/agent-workbench-cowork-ui; feat/cowork-p1 @ bb66670, clean; node_modules junction still points to the test worktree.
 - Test worktree: %LOCALAPPDATA%/Temp/agent-workbench-test-pr35-37; test/pr-35-36-37 @ d0ee494 with uncommitted integrated follow-up changes (now published through owner), intentionally retained for the user's open test environment. Code matches release source; version still 0.1.38.
