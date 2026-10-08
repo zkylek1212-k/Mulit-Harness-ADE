@@ -61,10 +61,10 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 - Validation: typecheck, check-cowork.mts, check-remote.mts, build passed; new `electron scripts/check-remote-cowork.cjs` (built phone bundle + fake socket) passed 3/3 after `npm run build`.
 - Not done: real iPhone ↔ desktop E2E; the list does not show a meeting started on desktop until reload/reconnect; not ported to apps/linux (DEC-011 manual port).
 
-## B. Linux independent app — PR #41 OPEN, CI failing
+## B. Linux independent app — PR #41 OPEN, CI green
 - PR: https://github.com/zkylek1212-k/Mulit-Harness-ADE/pull/41 (Closes #40); branch feat/linux-independent-app, source commit 404fbd5, memory ef876eb.
 - CI runs 37798530660 and 37798723248 failed at "Verify main and terminal windows": Electron FATAL, chrome-sandbox must be root-owned mode 4755 on GitHub Ubuntu runners. typecheck/check:linux/check:pty/dist steps passed.
-- UNCOMMITTED fix in main workspace: .github/workflows/linux-app.yml adds "Enable Electron SUID sandbox" step (sudo chown root:root + chmod 4755 on node_modules/electron/dist/chrome-sandbox) before the window check. Not pushed; user has not yet authorised commit/push.
+- Fixed by 3469c9e (pushed, user-authorised): .github/workflows/linux-app.yml adds "Enable Electron SUID sandbox" (sudo chown root:root + chmod 4755 on node_modules/electron/dist/chrome-sandbox) before the window check. CI run 37816334970 on 3469c9e: every step passed, including window check, packaged PTY and artifact upload.
 - Linux owns appId, userData and .workbench-linux settings; native frames, system/default shells, Linux protected/symlink paths and case-sensitive checks.
 - Credential storage rejects unavailable encryption/basic_text; manual updater uses linux-v* prereleases and Linux x64 assets only.
 - Separate Ubuntu CI builds AppImage/deb/tar.gz; tagged publication requires matching version, prerelease and latest=false. No tag or release created.
@@ -72,7 +72,7 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 ## Next / limits
 - A: review PR #42, then real-phone test; optionally refetch the list when an unknown run id arrives.
-- B: commit/push the CI fix when authorised, wait for green CI, then review. No merge or release authorised/performed for either PR.
+- B: review PR #41 (CI green). No merge or release authorised/performed for either PR.
 - Other Linux distributions, ARM64, real deb install and complete agent-provider/phone remote E2E remain unverified.
 - Linux updater checks the newest 100 releases (ponytail limit).
 - WSL verification cache: /home/milanchang/.cache/agent-workbench-linux-verification; /tmp does not persist across WSL shutdown.
