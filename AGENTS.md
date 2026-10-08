@@ -61,7 +61,7 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 - Source/docs PRs #35, #37, #36, release/docs #38 and HTML architecture #39 are merged; installer, portable ZIP, blockmap and latest.yml published and hash-verified.
 - Copied the delivered documentation into this workspace, then committed README.md, docs/architecture.html, docs/cowork-architecture.md and docs/cowork-architecture-preview.png as f40e67b (4 files, +307/-20, PNG 128189 bytes).
 - Main source, scripts, package/lock and docs now match published origin/master; the additional source-controlled artifact is the architecture preview PNG. Main is no longer the old v0.1.34 source.
-- Existing local shared-memory history preserved in the merge. User authorized publishing this history and the updated handoff via a normal push to origin/master; the completion protocol runs with MEM_AUTOPUSH=1 for this invocation only. Verify HEAD/origin equality on startup; no permanent auto-push setting changed.
+- Existing local shared-memory history preserved in the merge. User authorized publishing this history and the updated handoff via a normal push to origin/master; memory was committed with the pathspec-limited helper and pushed with Windows git. Main now reaches origin/master. No permanent auto-push setting changed.
 - Fresh npm ci --no-audit --no-fund completed in MAIN; headless/serialize xterm dependencies now exist. npm run typecheck passed, packaged version is 0.1.39 and both xterm modules load. package.json/lock unchanged by installation.
 
 ## Cowork / documentation
@@ -86,7 +86,7 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 - %LOCALAPPDATA%/Temp/agent-workbench-test-pr35-37: test/pr-35-36-37 @ d0ee494, with published follow-up changes still uncommitted as an integrated replica. Code matches released source; version remains 0.1.38. User's test environment retained.
 - Older ime-fix/release-v0.1.35 worktrees and remote branches retained. No forced cleanup.
 - Dev and installed remote both default to port 47600; stop installed remote for mobile testing and use Reload mobile interface.
-- Windows UTF-8: explicit UTF8 reads; use apply_patch or explicit UTF8 output encoding when piping non-ASCII code into Node.
+- Windows UTF-8: explicit UTF8 reads; use apply_patch or explicit UTF8 output encoding for non-ASCII Node input. In this shell, PowerShell MEM_AUTOPUSH did not reach the Bash helper, and Bash git push stalled; explicit authorized Windows git push worked.
 
 ## Detailed history
 - Pre-sync full handoff: archive/handoff-2026-10-08-before-main-sync.md.
