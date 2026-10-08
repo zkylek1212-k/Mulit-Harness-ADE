@@ -50,48 +50,43 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 
 - Agent: Codex
 - Updated: 2026-10-08 Asia/Taipei
-- Released: v0.1.39 tag at a292b22; origin/master now 51e8d99 after the rendered architecture correction (PR #39).
-- User approved commit/push, PR merges and release; then requested removing the README diagram and rendering Cowork architecture in architecture.html. All completed.
-- Release: https://github.com/zkylek1212-k/Mulit-Harness-ADE/releases/tag/v0.1.39
+- User explicitly authorized: commit, handoff, push and sync CURRENT main workspace.
+- Current workspace: main master, synchronized by merging origin/master at 51e8d99 into local history (a740224). No conflicts, resets, rebases or force-push.
+- Release remains v0.1.39, tag a292b22: https://github.com/zkylek1212-k/Mulit-Harness-ADE/releases/tag/v0.1.39
 
-## Done
-- Committed Cowork follow-up source/test changes (20 files, +1609/-206) as bb66670 on feat/cowork-p1 and pushed; updated PR #36 title/body.
-- Merged GitHub PRs #35 -> #37 -> #36: fe3d2f3, 4365b0d, e721d4b. All are MERGED.
-- Created and merged PR #38 (release/v0.1.39 @ ba8f0c1) with package/lock version bump, changelog, bilingual README usage/budgets/concurrency, and docs/cowork-architecture.md. The rendered diagrams now live in architecture.html; the Markdown file retains implementation/storage/isolation/recovery notes.
-- Built from a clean release worktree using npm ci; published installer, portable ZIP, blockmap and latest.yml. Public release is latest, not draft/prerelease. Uploaded asset sizes and SHA-256 digests match local files; updater SHA-512/filename/version verified.
-- Cowork now includes Discussion/Project modes, sequential public turns/follow-ups, retry/skip, multiple independent tabs and concurrent meetings, configurable recorder/cumulative summaries, chair conclusion and editable conversion to Project, explicit approval before worktree execution, budget controls and stage-based effort.
-- Four screenshot fixes and latest Settings layout/model changes are included: + menu/New Terminal card entry, Claude Windows launch, themed alerts, complete model versions, aligned cards, responsive bilingual Settings, no Custom model input. Existing unknown saved models remain visible as disabled entries.
+## Completed
+- Source/docs PRs #35, #37, #36, release/docs #38 and HTML architecture #39 are merged; installer, portable ZIP, blockmap and latest.yml published and hash-verified.
+- Copied the delivered documentation into this workspace, then committed README.md, docs/architecture.html, docs/cowork-architecture.md and docs/cowork-architecture-preview.png as f40e67b (4 files, +307/-20, PNG 128189 bytes).
+- Main source, scripts, package/lock and docs now match published origin/master; the additional source-controlled artifact is the architecture preview PNG. Main is no longer the old v0.1.34 source.
+- Existing local shared-memory history preserved in the merge. User authorized publishing this history and the updated handoff via a normal push to origin/master; the completion protocol runs with MEM_AUTOPUSH=1 for this invocation only. Verify HEAD/origin equality on startup; no permanent auto-push setting changed.
+- Fresh npm ci --no-audit --no-fund completed in MAIN; headless/serialize xterm dependencies now exist. npm run typecheck passed, packaged version is 0.1.39 and both xterm modules load. package.json/lock unchanged by installation.
 
-- Follow-up PR #39: docs/cowork-architecture @ cfe05ff pushed and merged (51e8d99); native themed SVG component and meeting/approval flow diagrams added to docs/architecture.html. README/notes Mermaid blocks removed and links redirected to the rendered HTML. Release notes updated; binaries/tag unchanged.
+## Cowork / documentation
+- Discussion/Project modes; sequential public replies, follow-ups, retry/skip; multiple independent tabs and concurrent meetings; configurable recorder/cumulative summaries; chair conclusion and editable conversion to Project; explicit approval before worktree execution.
+- Settings: full versioned model names, catalog-only selection (no Custom), responsive bilingual layout, configurable budgets and stage-based automatic effort with manual overrides.
+- Cowork architecture and meeting/approval flow are rendered native SVGs in docs/architecture.html#cowork, matching the existing theme and bilingual switching. README Mermaid removed; docs/cowork-architecture.md holds implementation notes. Open the HTML directly in a browser.
+- Main docs/cowork-architecture-preview.png is the 1200 px Chinese/light render. Other 12-state screenshots: %TEMP%/workbench-architecture-render-0opujF; ad-hoc renderer harness: %TEMP%/render-workbench-architecture.cjs.
 
-## Validation
-- Previously tested integrated source matches ALL src/scripts files on merged master (version/docs added afterward). User said the interface looks good.
-- Integrated typecheck/build, full fake-CLI check-cowork.mts, Electron check-terminal-ui.cjs and check-cowork-tabs.cjs passed; tabs/settings tests also passed on the owning branch. Layout matrix: 1200/720 px x en/zh-TW x 4 themes.
-- Release worktree: clean npm ci, npm run typecheck, npm run dist -- --publish never passed. Initial Markdown diagrams rendered; replaced HTML diagrams then passed 12 actual-Electron states (1200/720/390 px x zh/en x light/dark), box/text containment and page-overflow checks. Desktop screenshots visually reviewed.
-- Actual packaged app launched with isolated userData, rendered UI and exposed Cowork IPC; packaged version/headless-xterm dependencies verified. Portable ZIP contains executable and app.asar (98 entries).
-- New Discussion/summary end-to-end checks use fake CLIs. No new paid real-provider discussion/summary run was performed; response quality/latency still needs live use.
+## Validation / limits
+- Merge source/doc equality with published master verified; diff --check passed. No new application logic was introduced in this sync.
+- Prior full fake-CLI planner/discussion/summary/executor checks and Electron terminal/tabs regressions passed. HTML diagrams passed 1200/720/390 px x zh/en x light/dark containment/overflow checks and visual review. The v0.1.39 packaged app launched and exposed Cowork IPC; uploaded hashes and portable contents verified.
+- Before publishing local memory history, scanned 69 unique historical text blobs and current text docs for common private-key/token patterns: no hits. This is a pattern check, not a complete security audit.
+- No full functional suite or new paid real-provider discussion/summary was rerun during Git sync; real-provider quality/latency still needs live use.
+- Multiple meetings allowed in one repo; actual execution limited to one per repo until merge/cleanup (paused/review worktrees retain slot). Tabs/drafts are session-local; history persists.
+- Defaults: 6 calls / 20 planning minutes / 60 execution minutes. Settings ranges: 3-30 calls, 1-120 planning minutes, 1-600 execution minutes. Summaries/conclusions/repair count as calls; waiting for user input does not consume planning time. Service raise ceiling 60/240; Discussion button 30/120.
+- PR #37 synthetic approval edge cases remain unconfirmed on real CLIs: statusline after numbered options; unnumbered menus. Details in prior archives.
 
-## Worktrees and source state
-- User requested copying delivered files into the CURRENT main workspace. Copied README.md, docs/architecture.html and docs/cowork-architecture.md from the published docs worktree, plus docs/cowork-architecture-preview.png (1200 px, Chinese/light screenshot). All four copies verified by SHA-256; tracked docs pass diff --check. These main-workspace docs are intentionally uncommitted; no branch sync or source commit. Other main source remains OLD.
-- Main remains local master @ d343607 before this memory commit; divergent from origin/master (ahead 16 memory commits / behind 36 before this commit). Its source is OLD; do not run/build from main or auto sync/reset it.
-- Release worktree: %LOCALAPPDATA%/Temp/agent-workbench-release-v0.1.39; currently docs/cowork-architecture @ cfe05ff, clean, with real npm-ci node_modules and release assets. Local release/v0.1.39 remains ba8f0c1. Open docs/architecture.html#cowork here for the new rendered diagrams.
-- Owning worktree: %LOCALAPPDATA%/Temp/agent-workbench-cowork-ui; feat/cowork-p1 @ bb66670, clean; node_modules junction still points to the test worktree.
-- Test worktree: %LOCALAPPDATA%/Temp/agent-workbench-test-pr35-37; test/pr-35-36-37 @ d0ee494 with uncommitted integrated follow-up changes (now published through owner), intentionally retained for the user's open test environment. Code matches release source; version still 0.1.38.
-- Older ime-fix / release-v0.1.35 worktrees and remote feature branches retained; no forced cleanup of user's running/dirty test workspace.
-- Main untracked Temp/ and phone screenshots left untouched; main node_modules remains stale (no headless/serialize addons).
-
-## Next / limits
-- Use release installer/portable for current version, or npm run dev in the retained test worktree. Dev and installed remote ports both default to 47600; stop the installed remote when testing mobile and use Reload mobile interface.
-- Concurrent Discussion/Project planning allowed in the same repo; actual execution stays one per repo until merged/cleaned, including paused/review worktrees. Tabs/drafts are session-local; history persists.
-- Budgets default 6 calls/20 planning minutes/60 execution minutes; settings ranges 3-30 calls, 1-120 planning minutes, 1-600 execution minutes. Summaries/conclusions/repair consume calls. Service raise ceiling 60/240; Discussion increase button 30/120.
-- Known PR #37 synthetic edge cases remain unconfirmed on real CLIs (statusline after numbered options; unnumbered approval menus). Prior details preserved in archived handoffs.
-- Canonical shared memory is local-only (MEM_AUTOPUSH=0); source, docs, version, tag and release ARE pushed/published. No push of divergent main.
-- Windows UTF-8 reads must use explicit UTF8; PowerShell ASCII pipeline can corrupt Chinese when piping code into Node. Use apply_patch or explicit UTF8 output encoding.
+## Worktrees / preserved files
+- Main is now ready for npm run dev, with real npm-ci dependencies. Main untracked Temp/ and three phone screenshots preserved and excluded from commits.
+- %LOCALAPPDATA%/Temp/agent-workbench-release-v0.1.39: docs/cowork-architecture @ cfe05ff, clean; real node_modules and release assets. Local release/v0.1.39 branch stays ba8f0c1.
+- %LOCALAPPDATA%/Temp/agent-workbench-cowork-ui: feat/cowork-p1 @ bb66670, clean; node_modules junction points to retained test worktree.
+- %LOCALAPPDATA%/Temp/agent-workbench-test-pr35-37: test/pr-35-36-37 @ d0ee494, with published follow-up changes still uncommitted as an integrated replica. Code matches released source; version remains 0.1.38. User's test environment retained.
+- Older ime-fix/release-v0.1.35 worktrees and remote branches retained. No forced cleanup.
+- Dev and installed remote both default to port 47600; stop installed remote for mobile testing and use Reload mobile interface.
+- Windows UTF-8: explicit UTF8 reads; use apply_patch or explicit UTF8 output encoding when piping non-ASCII code into Node.
 
 ## Detailed history
-- Rendered screenshots: %TEMP%/workbench-architecture-render-0opujF/cowork-<width>-<lang>-<theme>.png. Ad-hoc renderer harness is %TEMP%/render-workbench-architecture.cjs (not committed).
-- Before HTML correction: archive/handoff-2026-10-08-before-rendered-cowork-architecture.md.
-- Pre-release handoff: archive/handoff-2026-10-08-cowork-before-v0.1.39-release.md.
-- Recorder and UI implementation details: archive/handoff-2026-10-08-cowork-before-settings-layout.md and earlier archives referenced there.
+- Pre-sync full handoff: archive/handoff-2026-10-08-before-main-sync.md.
+- Prior release/HTML/copy history is preserved there and its linked archives; historical decisions were not rewritten.
 
 <!-- END AUTO-MEMORY -->

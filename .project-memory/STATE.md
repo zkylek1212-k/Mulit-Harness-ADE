@@ -1,8 +1,8 @@
 # Project State
 
 - Milestone: v0.1.39 released with Cowork discussions, multi-tabs, recorder, chair decisions, approved Project execution, and bilingual usage/architecture documentation.
-- Status: PR #35/#37/#36, version/docs #38 and rendered architecture #39 merged; v0.1.39 tag at a292b22, origin/master at 51e8d99. Installer, portable ZIP and updater assets published. Main local master remains divergent; retained test worktree has the previously integrated uncommitted replica.
-- Validation: planner/discussion/executor and Electron regressions passed; user approved UI. Clean release install/typecheck/dist, packaged startup/Cowork IPC and published hashes verified. Cowork architecture now uses native SVG in architecture.html (12 Electron layout/language/theme states checked); README Mermaid removed. Real-provider discussion/summary quality and latency remain to be exercised.
+- Status: PR #35/#37/#36, version/docs #38 and HTML architecture #39 merged; v0.1.39 tag a292b22 and release assets published. User authorized main workspace commit/push/sync: docs committed f40e67b, origin/master 51e8d99 merged without conflicts as a740224, local memory history preserved. Main now contains released source and rendered architecture; normal push publishes source/docs and handoff together.
+- Validation: prior planner/discussion/executor, Electron regressions, release build/startup, uploaded hashes and 12 HTML render states passed. Main sync source/doc equality verified; fresh npm ci and typecheck passed, version 0.1.39 and xterm headless/serialize imports verified. Main can run dev now. No full functional suite or new paid real-provider meeting was rerun for Git sync.
 - Last updated: 2026-10-08
 
 
