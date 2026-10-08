@@ -93,4 +93,10 @@ For the freshest copy plus a remote-drift check, run `bash .project-memory/statu
 - User screenshots and temp files remain untracked in main: Temp/cowork bug-1..4.png, phone view bug*.png. Leave them alone; do not commit. The memory sync script consumed its pre-existing AGENTS.md.spmtmp scratch file.
 - Previous detailed handoff (prior UI restyle/release history) preserved in `archive/handoff-2026-10-08-claude-cowork-feedback.md`.
 
+## User-approved next direction (not implemented)
+- User agreed to separate Discussion and Project flows in one Cowork UI, with actual public agent statements and visible interaction. Discussion should answer conversational requests directly and allow later conversion to a project plan; Project should retain parallel independent review, targeted follow-up on disagreements, scoped execution and acceptance checks.
+- User also asks to reduce chair startup latency. Latest observed real run rmuyxen80d28f (last updated 2026-10-08 10:39:47 Asia/Taipei): Codex chair, three participants, request was one-sentence introductions; phase awaiting-approval, no execution. Codex opening CLI call 27.420s, high effort, 20,041 reported input tokens; call began 0.927s after run.createdAt. These timings do NOT isolate CLI startup from model processing, and pre-createdAt capability/context preparation is not timed.
+- Real Claude now launches and reports session quota exceeded (its response said reset 11:30am Asia/Taipei). Antigravity agreed with all three introduction tasks and claimed its own task (68.824s); Claude review was dropped; Codex finalized the three-task board (18.291s). Claude introduction remains assigned, although its review was dropped. This shows current planning flow misfits simple conversational requests.
+- Suggested performance priorities: lightweight Discussion context/schema, configurable lower effort for simple openings, immediate truthful progress/public-output display, and phase timing before considering persistent CLI/prewarming. Preserve required project rules and explicit user model/effort choices; no speed benchmark or implementation yet.
+
 <!-- END AUTO-MEMORY -->
