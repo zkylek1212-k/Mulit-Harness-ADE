@@ -2,32 +2,30 @@
 
 - Agent: Codex
 - Updated: 2026-10-08 Asia/Taipei
-- Workspace: master; existing Windows app remains v0.1.39. Linux v0.1.0 is ready locally, not published.
-- User decision (DEC-011): maintain separate Windows and Linux apps in one repo, prioritizing existing Windows users. No shared runtime application code or npm workspace.
-- Source status: 140 new files under apps/ and .github/ plus one .gitignore rule remain uncommitted. Existing Temp/ and phone screenshots were untouched. Only memory is committed by the handoff script.
-- Tracking: Linux support Issue #40 remains open: https://github.com/zkylek1212-k/Mulit-Harness-ADE/issues/40.
+- Workspace: feat/linux-independent-app; Windows v0.1.39 unchanged; independent Linux v0.1.0 implemented, not released.
+- User authorized source commit and new PR for Issue #40; source commit 404fbd5 pushed to origin/feat/linux-independent-app.
+- PR #41 OPEN against master: https://github.com/zkylek1212-k/Mulit-Harness-ADE/pull/41 (Closes #40 on merge).
+- Architecture: DEC-011, two independent apps in one repo; no shared runtime imports or npm workspace. Windows users take priority.
 
 ## Completed
-- Copied tracked Windows v0.1.39 source/config/test fixtures into independent apps/linux; own package name, lockfile, app ID, product name and version 0.1.0.
-- Linux owns agent-workbench-linux userData (separate -dev data) and .workbench-linux workspace settings/credentials/manifest. No Windows settings migration.
-- Native title bars for both windows; System Shell uses $SHELL or /bin/bash, with explicit Bash/pwsh retained. Desktop and phone launchers use the Linux choices.
-- Linux system directory and symlink guards, case-sensitive main workspace/file checks, and refusal of safeStorage basic_text credential storage.
-- Linux-only AppImage/deb/tar.gz build config; publish:null and --publish never prevent inferred or automatic updater publishing. Debian dependencies explicitly include libasound2t64 | libasound2.
-- Dedicated Linux CI builds/tests this app; linux-vX.Y.Z tags publish prereleases with --latest=false. Manual Linux updates select only Linux prereleases with Linux assets, protecting Windows /releases/latest.
-- Docs: apps/README.md and apps/linux/README.md explain builds, isolation, release rules and manual fix porting.
+- Committed 141 source/config/doc files (61,966 insertions): apps/linux fork, apps/README.md, isolated Linux workflow and .gitignore addition. Existing Windows source/package/build files untouched.
+- Linux owns appId, userData and .workbench-linux settings; native main/detached window frames, system/default shells, Linux protected/symlink paths and case-sensitive checks.
+- Credential storage rejects unavailable encryption/basic_text; manual Linux updater uses linux-v* prereleases and Linux x64 assets, never Windows latest/update metadata.
+- Separate Ubuntu CI builds AppImage/deb/tar.gz; Linux tagged publication requires matching package version, prerelease and latest=false. No tag or release created.
+- Local release packages remain ignored under apps/linux/release; Temp/ and three phone screenshots remain untracked and untouched.
 
 ## Validation
-- Windows root typecheck passed; all 134 tracked source/scripts/package/build-config files match the pre-task baseline. Linux relative imports remain inside apps/linux.
-- Standalone Linux npm ci, typecheck, guard/shell/release/credential checks and production build passed in Ubuntu 26.04 WSL x64.
-- Real Electron main and detached-terminal windows rendered; System Shell spawned and was killed. Native PTY passed both Node and packaged Electron checks.
-- Three packages built; tar contents and Debian package identity/amd64/runtime dependencies checked. No latest-linux.yml or app-update.yml generated with publish:null.
-- Local artifacts: apps/linux/release/Agent-Workbench-Linux-0.1.0-x64.{AppImage,deb,tar.gz}; ignored by Git. Local tar compression used level 1 for verification; CI uses builder defaults.
-- Workflow YAML/publish restrictions and whitespace checks passed; GitHub Actions has not run remotely.
+- Prior implementation: root Windows typecheck passed; all 134 tracked Windows source/scripts/package/build files unchanged. Linux relative imports stay within apps/linux.
+- Ubuntu 26.04 x64 WSL: independent npm ci, typecheck, Linux guard/default shell checks, Node 24 native PTY and production build passed.
+- Real Electron main/detached-window startup, System Shell spawn/kill and isolated userData passed; packaged Electron native PTY passed.
+- All three packages built; tar contents and Debian package identity/ALSA runtime dependency metadata verified. publish:null produces no updater metadata.
+- Before source commit: check:linux passed again; staged whitespace and root Windows tracked-path diff checks passed; pre-commit hook passed.
+- PR CI first run queued: https://github.com/zkylek1212-k/Mulit-Harness-ADE/actions/runs/37798530660 . GitHub CI has not yet passed; later memory push may start a new run.
 
-## Next / Limits
-- Review and explicitly authorize a SOURCE commit/PR/push; none was done. Memory commit/push status is reported by commit-handoff.sh.
-- Do not convert Linux prereleases to stable/latest without revisiting Windows update isolation. Do not merge application sources or dependencies automatically.
-- Fixes must be ported between apps deliberately. Other distros, ARM64, actual package installation and complete agent-provider/remote-phone flows remain unverified.
-- Linux manual update lookup scans 100 releases (ponytail limit); paginate if Windows history hides Linux releases.
-- WSL /tmp vanished on distro stop; retained verification app/Node/libs live at /home/milanchang/.cache/agent-workbench-linux-verification. Runtime libs were unpacked there only; no system package installation.
-- Previous Linux plan archived at archive/handoff-2026-10-08-linux-plan-before-independent-app.md; earlier release/sync handoff remains archived.
+## Next / limits
+- Review PR #41 and its latest-head CI before merging. No merge or release authorized/performed.
+- Other Linux distributions, ARM64, actual deb installation and complete agent-provider/phone remote E2E remain unverified.
+- Duplicate apps require manual porting of common fixes. Any shared source/dependency proposal must revisit DEC-011 and Windows impact.
+- Linux updater currently checks the newest 100 releases (ponytail limit); expand pagination when release volume warrants it.
+- WSL verification cache: /home/milanchang/.cache/agent-workbench-linux-verification (Node 24, app, local runtime libs); /tmp does not persist reliably across WSL shutdown.
+- Detailed implementation/package verification preserved in archive/handoff-2026-10-08-linux-local-verification-before-pr.md; earlier plan and Windows sync histories remain archived.
