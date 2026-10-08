@@ -1,8 +1,8 @@
 # Project State
 
-- Milestone: Cowork multi-tabs, configurable recorder, cumulative meeting records and chair-to-user approval flow ready for local hands-on testing; released baseline v0.1.38.
-- Status: PR #35/#36/#37 integrated locally; Cowork follow-up changes uncommitted in owning/test worktrees. No GitHub merge or new release.
-- Validation: planner/discussion/executor checks, Electron UI regressions, integrated typecheck/build, approval and remote checks passed; real conversation speed and hands-on testing pending.
+- Milestone: v0.1.39 released with Cowork discussions, multi-tabs, recorder, chair decisions, approved Project execution, and bilingual usage/architecture documentation.
+- Status: PR #35/#37/#36 and version/docs PR #38 merged; origin/master and v0.1.39 tag at a292b22. Installer, portable ZIP and updater assets published. Main local master remains divergent; retained test worktree has the previously integrated uncommitted replica.
+- Validation: planner/discussion/executor and Electron regressions passed; user approved UI. Clean release install/typecheck/dist, packaged app startup/Cowork IPC, 3 documentation diagrams and published asset hashes verified. New real-provider discussion/summary quality and latency remain to be exercised.
 - Last updated: 2026-10-08
 
 

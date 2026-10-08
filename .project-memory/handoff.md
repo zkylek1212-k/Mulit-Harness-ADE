@@ -1,29 +1,42 @@
 # Latest Handoff
 
-- Agent: Codex; updated 2026-10-08 Asia/Taipei.
-- Main master @ 79a3676 before this memory commit; ahead 13 / behind 14 origin at startup. No automatic sync. User screenshots and Temp untouched.
-- Owning PR #36: %LOCALAPPDATA%/Temp/agent-workbench-cowork-ui, feat/cowork-p1 @ 9b8cca7.
-- Integrated test: %LOCALAPPDATA%/Temp/agent-workbench-test-pr35-37, test/pr-35-36-37 @ d0ee494.
-- User authorized fixing Settings text/layout and removing custom model choices. All source remains UNCOMMITTED in both worktrees; no source commit/push, GitHub merge or release. Memory local/unpushed.
+- Agent: Codex
+- Updated: 2026-10-08 Asia/Taipei
+- Released: v0.1.39; origin/master and tag at a292b22.
+- User explicitly approved commit/push, merging PR #35/#36/#37, releasing a new version, and updating README with Cowork architecture. All completed.
+- Release: https://github.com/zkylek1212-k/Mulit-Harness-ADE/releases/tag/v0.1.39
 
-## Ready for testing: Settings layout and catalog-only models
-- Cowork settings now has scoped responsive layout: explanatory text wraps, direct row info fills available space, budget hint uses normal row padding, and long title words cannot spill outside cards/rows.
-- Model rows use aligned label/control columns; model + effort selectors have consistent 28px heights and fixed effort width showing complete default values. Below 440px content width, model controls move below labels, chair cards use one column, and recorder/timing controls stack below explanations. Changes are scoped to Cowork settings; other Settings tabs retain existing styling.
-- Recorder/timing selects use the UI font instead of monospace, widths align, and the model default explanation was shortened in both languages.
-- Shared ModelPicker no longer offers Custom or a free-text input, in Settings AND meeting start forms. Removed unused custom CSS/i18n and changed catalog-error copy to reload/use CLI defaults.
-- Already saved models absent from the current catalog remain visible as a disabled existing-value option, including during catalog loading; no silent model replacement. Listed selections, CLI defaults, full model labels in menus/tooltips and per-model effort validation retained.
-- This task: 6 files, +106/-62 relative to pre-task snapshot. Incrementally three-way synced to integrated test, retaining PR #35 translations and #37 approval detection. Snapshot %TEMP%/cowork-before-settings-layout; sync scratch %TEMP%/cowork-settings-sync-M2cICn.
+## Done
+- Committed Cowork follow-up source/test changes (20 files, +1609/-206) as bb66670 on feat/cowork-p1 and pushed; updated PR #36 title/body.
+- Merged GitHub PRs #35 -> #37 -> #36: fe3d2f3, 4365b0d, e721d4b. All are MERGED.
+- Created and merged PR #38 (release/v0.1.39 @ ba8f0c1) with package/lock version bump, changelog, bilingual README usage/budgets/concurrency, and docs/cowork-architecture.md. Docs include 3 Mermaid diagrams and module/storage/isolation/recovery boundaries.
+- Built from a clean release worktree using npm ci; published installer, portable ZIP, blockmap and latest.yml. Public release is latest, not draft/prerelease. Uploaded asset sizes and SHA-256 digests match local files; updater SHA-512/filename/version verified.
+- Cowork now includes Discussion/Project modes, sequential public turns/follow-ups, retry/skip, multiple independent tabs and concurrent meetings, configurable recorder/cumulative summaries, chair conclusion and editable conversion to Project, explicit approval before worktree execution, budget controls and stage-based effort.
+- Four screenshot fixes and latest Settings layout/model changes are included: + menu/New Terminal card entry, Claude Windows launch, themed alerts, complete model versions, aligned cards, responsive bilingual Settings, no Custom model input. Existing unknown saved models remain visible as disabled entries.
 
 ## Validation
-- Integrated npm run typecheck and npm run build exit 0; git diff --check passed.
-- Extended real Electron scripts/check-cowork-tabs.cjs passed in owning and integrated worktrees. It now renders actual SettingsModal instead of a bare CoworkSettings fragment, mocks IPC, edits/saves a budget, checks removed custom inputs/options and preserved saved model, and validates unsupported effort resets when selecting a listed model.
-- Layout matrix: viewport widths 1200/720, en/zh-TW, light/dark/light-morandi/dark-morandi. Asserts no horizontal text overflow or overlapping row controls and full selected effort labels. Captures top/model/budget sections (48 screenshots).
-- Latest integrated screenshots %TEMP%/cowork-tabs-check-jyeIZM/settings-<width>-<language>-<theme>-<section>.png. Owning screenshots visually reviewed: %TEMP%/cowork-tabs-check-utjbON, including narrow zh-TW dark-morandi models, chair cards and budget layouts. Before-fix screenshot evidence %TEMP%/cowork-tabs-check-ewyWPf/settings-top.png and settings-bottom.png.
-- Existing tabs/records/conclusion/editable conversion checks still pass in the same harness. Backend untouched this task; full CLI planner/discussion/executor and terminal/mobile/alert checks last passed in previous summary task, documented in the archived handoff.
-- Models in the renderer check are fixture data; no paid live meeting was run. Hands-on testing, actual model catalog labels and generated summary quality remain for user.
+- Previously tested integrated source matches ALL src/scripts files on merged master (version/docs added afterward). User said the interface looks good.
+- Integrated typecheck/build, full fake-CLI check-cowork.mts, Electron check-terminal-ui.cjs and check-cowork-tabs.cjs passed; tabs/settings tests also passed on the owning branch. Layout matrix: 1200/720 px x en/zh-TW x 4 themes.
+- Release worktree: clean npm ci, npm run typecheck, npm run dist -- --publish never passed. Three documentation diagrams rendered in Electron.
+- Actual packaged app launched with isolated userData, rendered UI and exposed Cowork IPC; packaged version/headless-xterm dependencies verified. Portable ZIP contains executable and app.asar (98 entries).
+- New Discussion/summary end-to-end checks use fake CLIs. No new paid real-provider discussion/summary run was performed; response quality/latency still needs live use.
 
-## Previous work and next
-1. Refresh the integrated dev renderer, then reopen Settings > Cowork to verify wrapping/controls, change a budget, save, and check meeting model dropdowns. This task is renderer-only; a main restart is needed only if the dev process predates the previous summary/preload changes.
-2. Multi-tabs, concurrent discussion/Project planning, selected recorder, cumulative records and chair conclusion retained. Original messages persist; new discussion marks an earlier conclusion outdated. Create plan opens the editable Project form and actual execution still requires explicit user approval. Summary/conclusion share planning budgets.
-3. Actual execution exclusive per repo until merge/cleanup. Closing tab only removes view; meetings persist, tabs session-only. Detailed summary flow/test evidence archived in archive/handoff-2026-10-08-cowork-before-settings-layout.md; earlier archives referenced there.
-4. Continue on owning PR worktree and sync incremental diffs; no source commit/push or merge/release without user instruction. Main modules stale; test modules current. Remote phone test ports can clash (47600). PR #35/#36/#37 remain unmerged.
+## Worktrees and source state
+- Main remains local master @ 6daaada before this memory commit; divergent from origin/master (ahead 14 memory commits / behind 34 before this commit). Its source is OLD; do not run/build from main or auto sync/reset it.
+- Release worktree: %LOCALAPPDATA%/Temp/agent-workbench-release-v0.1.39; release/v0.1.39 @ ba8f0c1, clean, with real npm-ci node_modules and release assets.
+- Owning worktree: %LOCALAPPDATA%/Temp/agent-workbench-cowork-ui; feat/cowork-p1 @ bb66670, clean; node_modules junction still points to the test worktree.
+- Test worktree: %LOCALAPPDATA%/Temp/agent-workbench-test-pr35-37; test/pr-35-36-37 @ d0ee494 with uncommitted integrated follow-up changes (now published through owner), intentionally retained for the user's open test environment. Code matches release source; version still 0.1.38.
+- Older ime-fix / release-v0.1.35 worktrees and remote feature branches retained; no forced cleanup of user's running/dirty test workspace.
+- Main untracked Temp/ and phone screenshots left untouched; main node_modules remains stale (no headless/serialize addons).
+
+## Next / limits
+- Use release installer/portable for current version, or npm run dev in the retained test worktree. Dev and installed remote ports both default to 47600; stop the installed remote when testing mobile and use Reload mobile interface.
+- Concurrent Discussion/Project planning allowed in the same repo; actual execution stays one per repo until merged/cleaned, including paused/review worktrees. Tabs/drafts are session-local; history persists.
+- Budgets default 6 calls/20 planning minutes/60 execution minutes; settings ranges 3-30 calls, 1-120 planning minutes, 1-600 execution minutes. Summaries/conclusions/repair consume calls. Service raise ceiling 60/240; Discussion increase button 30/120.
+- Known PR #37 synthetic edge cases remain unconfirmed on real CLIs (statusline after numbered options; unnumbered approval menus). Prior details preserved in archived handoffs.
+- Canonical shared memory is local-only (MEM_AUTOPUSH=0); source, docs, version, tag and release ARE pushed/published. No push of divergent main.
+- Windows UTF-8 reads must use explicit UTF8; PowerShell ASCII pipeline can corrupt Chinese when piping code into Node. Use apply_patch or explicit UTF8 output encoding.
+
+## Detailed history
+- Pre-release handoff: archive/handoff-2026-10-08-cowork-before-v0.1.39-release.md.
+- Recorder and UI implementation details: archive/handoff-2026-10-08-cowork-before-settings-layout.md and earlier archives referenced there.
