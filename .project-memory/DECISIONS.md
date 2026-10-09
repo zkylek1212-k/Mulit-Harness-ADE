@@ -13,6 +13,7 @@
 | DEC-008 | Cowork separates public discussion from project planning | 2026-10-08 | Accepted | - |
 | DEC-009 | Cowork multi-tabs allow concurrent planning with exclusive execution | 2026-10-08 | Accepted | supplements DEC-008 |
 | DEC-010 | Cowork persists cumulative recorder checkpoints before chair conclusion | 2026-10-08 | Accepted | supplements DEC-008 |
+| DEC-011 | Windows and Linux apps evolve independently in one repository | 2026-10-08 | Accepted | - |
 
 ---
 
@@ -109,3 +110,10 @@
 - Decision: Recorder is a selected participant. Persist cumulative records with a covered-message prefix; feed the preceding record plus every uncovered chunk oldest-first. Trigger on demand/before context fills by default, optionally each round. Summary and chair calls share the planning budget and runner validation/recovery.
 - Reason: A newest-message-only context silently forgot older discussion. User wants a compact durable record of agreements, disagreements and needed decisions, followed by the chair recommendation.
 - Consequence: Original messages remain available; only successful summaries advance coverage. Finalization covers all remaining messages before the chair speaks, and new discussion invalidates the current conclusion for conversion. Conversion opens the existing Project form for code-aware review and explicit approval; records do not authorize execution. No new dependencies, separate memory service or persistent CLI introduced.
+
+## DEC-011: Windows and Linux apps evolve independently in one repository
+- Date: 2026-10-08
+- Status: Accepted (explicit user decision)
+- Decision: Keep the existing Windows project at the repository root; Linux owns apps/linux source, dependencies, settings, app identity and CI, initially copied from Windows v0.1.39. Do not share runtime application code or convert the root to an npm workspace.
+- Reason: Most current users run Windows; Linux development must not change their app or update feed.
+- Consequence: Linux starts at v0.1.0 with .workbench-linux workspace data and isolated userData. Publish only linux-vX.Y.Z prereleases with --latest=false; Linux initially uses manual release-page updates. Port common fixes explicitly. A later shared-code or stable Linux publishing change requires revisiting this decision.

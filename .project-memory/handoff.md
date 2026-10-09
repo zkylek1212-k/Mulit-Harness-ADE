@@ -1,42 +1,32 @@
 # Latest Handoff
 
-- Agent: Codex
-- Updated: 2026-10-08 Asia/Taipei
-- User explicitly authorized: commit, handoff, push and sync CURRENT main workspace.
-- Current workspace: main master, synchronized by merging origin/master at 51e8d99 into local history (a740224). No conflicts, resets, rebases or force-push.
-- Release remains v0.1.39, tag a292b22: https://github.com/zkylek1212-k/Mulit-Harness-ADE/releases/tag/v0.1.39
+- Agent: Claude Code
+- Updated: 2026-10-09 Asia/Taipei
+- Two open lines of work. User paused Linux to prioritise phone Cowork (separate PR).
+- Architecture: DEC-011, two independent apps in one repo; no shared runtime imports or npm workspace. Windows users take priority.
 
-## Completed
-- Source/docs PRs #35, #37, #36, release/docs #38 and HTML architecture #39 are merged; installer, portable ZIP, blockmap and latest.yml published and hash-verified.
-- Copied the delivered documentation into this workspace, then committed README.md, docs/architecture.html, docs/cowork-architecture.md and docs/cowork-architecture-preview.png as f40e67b (4 files, +307/-20, PNG 128189 bytes).
-- Main source, scripts, package/lock and docs now match published origin/master; the additional source-controlled artifact is the architecture preview PNG. Main is no longer the old v0.1.34 source.
-- Existing local shared-memory history preserved in the merge. User authorized publishing this history and the updated handoff via a normal push to origin/master; memory was committed with the pathspec-limited helper and pushed with Windows git. Main now reaches origin/master. No permanent auto-push setting changed.
-- Fresh npm ci --no-audit --no-fund completed in MAIN; headless/serialize xterm dependencies now exist. npm run typecheck passed, packaged version is 0.1.39 and both xterm modules load. package.json/lock unchanged by installation.
+## A. Phone Cowork — PR #42 OPEN (priority)
+- PR: https://github.com/zkylek1212-k/Mulit-Harness-ADE/pull/42 ; branch feat/mobile-cowork @ bfef6f3 (from origin/master 153c1fc).
+- Worktree: C:/Users/milan.chang/AppData/Local/Temp/agent-workbench-mobile-cowork (node_modules is a junction to the main workspace's node_modules; remove the junction before deleting the worktree).
+- Phone gets a Cowork tile per workspace: list, new meeting (mode/participants/chair; models from saved settings), timeline, per-phase actions mirroring desktop. Board editing and model picking stay desktop-only.
+- main/ipc/cowork.ts: one `ops` table registers all 27 cowork:* IPC handlers and serves Remote Bridge (`invokeCowork`); `coworkEvents` 'update' feeds `coworkRun` pushes (context stripped). Workspace comes from windowId, never from the phone.
+- Validation: typecheck, check-cowork.mts, check-remote.mts, build passed; new `electron scripts/check-remote-cowork.cjs` (built phone bundle + fake socket) passed 3/3 after `npm run build`.
+- Not done: real iPhone ↔ desktop E2E; the list does not show a meeting started on desktop until reload/reconnect; not ported to apps/linux (DEC-011 manual port).
 
-## Cowork / documentation
-- Discussion/Project modes; sequential public replies, follow-ups, retry/skip; multiple independent tabs and concurrent meetings; configurable recorder/cumulative summaries; chair conclusion and editable conversion to Project; explicit approval before worktree execution.
-- Settings: full versioned model names, catalog-only selection (no Custom), responsive bilingual layout, configurable budgets and stage-based automatic effort with manual overrides.
-- Cowork architecture and meeting/approval flow are rendered native SVGs in docs/architecture.html#cowork, matching the existing theme and bilingual switching. README Mermaid removed; docs/cowork-architecture.md holds implementation notes. Open the HTML directly in a browser.
-- Main docs/cowork-architecture-preview.png is the 1200 px Chinese/light render. Other 12-state screenshots: %TEMP%/workbench-architecture-render-0opujF; ad-hoc renderer harness: %TEMP%/render-workbench-architecture.cjs.
+## B. Linux independent app — PR #41 OPEN, CI green
+- PR: https://github.com/zkylek1212-k/Mulit-Harness-ADE/pull/41 (Closes #40); branch feat/linux-independent-app, source commit 404fbd5, memory ef876eb.
+- CI runs 37798530660 and 37798723248 failed at "Verify main and terminal windows": Electron FATAL, chrome-sandbox must be root-owned mode 4755 on GitHub Ubuntu runners. typecheck/check:linux/check:pty/dist steps passed.
+- Fixed by 3469c9e (pushed, user-authorised): .github/workflows/linux-app.yml adds "Enable Electron SUID sandbox" (sudo chown root:root + chmod 4755 on node_modules/electron/dist/chrome-sandbox) before the window check. CI run 37816334970 on 3469c9e: every step passed, including window check, packaged PTY and artifact upload.
+- Linux owns appId, userData and .workbench-linux settings; native frames, system/default shells, Linux protected/symlink paths and case-sensitive checks.
+- Credential storage rejects unavailable encryption/basic_text; manual updater uses linux-v* prereleases and Linux x64 assets only.
+- Separate Ubuntu CI builds AppImage/deb/tar.gz; tagged publication requires matching version, prerelease and latest=false. No tag or release created.
+- Local validation (WSL Ubuntu 26.04 x64): npm ci, typecheck, guards, Node 24 PTY, build, Electron startup, System Shell, packaged PTY, all three packages verified. Root Windows typecheck passed and Windows files untouched.
 
-## Validation / limits
-- Merge source/doc equality with published master verified; diff --check passed. No new application logic was introduced in this sync.
-- Prior full fake-CLI planner/discussion/summary/executor checks and Electron terminal/tabs regressions passed. HTML diagrams passed 1200/720/390 px x zh/en x light/dark containment/overflow checks and visual review. The v0.1.39 packaged app launched and exposed Cowork IPC; uploaded hashes and portable contents verified.
-- Before publishing local memory history, scanned 69 unique historical text blobs and current text docs for common private-key/token patterns: no hits. This is a pattern check, not a complete security audit.
-- No full functional suite or new paid real-provider discussion/summary was rerun during Git sync; real-provider quality/latency still needs live use.
-- Multiple meetings allowed in one repo; actual execution limited to one per repo until merge/cleanup (paused/review worktrees retain slot). Tabs/drafts are session-local; history persists.
-- Defaults: 6 calls / 20 planning minutes / 60 execution minutes. Settings ranges: 3-30 calls, 1-120 planning minutes, 1-600 execution minutes. Summaries/conclusions/repair count as calls; waiting for user input does not consume planning time. Service raise ceiling 60/240; Discussion button 30/120.
-- PR #37 synthetic approval edge cases remain unconfirmed on real CLIs: statusline after numbered options; unnumbered menus. Details in prior archives.
-
-## Worktrees / preserved files
-- Main is now ready for npm run dev, with real npm-ci dependencies. Main untracked Temp/ and three phone screenshots preserved and excluded from commits.
-- %LOCALAPPDATA%/Temp/agent-workbench-release-v0.1.39: docs/cowork-architecture @ cfe05ff, clean; real node_modules and release assets. Local release/v0.1.39 branch stays ba8f0c1.
-- %LOCALAPPDATA%/Temp/agent-workbench-cowork-ui: feat/cowork-p1 @ bb66670, clean; node_modules junction points to retained test worktree.
-- %LOCALAPPDATA%/Temp/agent-workbench-test-pr35-37: test/pr-35-36-37 @ d0ee494, with published follow-up changes still uncommitted as an integrated replica. Code matches released source; version remains 0.1.38. User's test environment retained.
-- Older ime-fix/release-v0.1.35 worktrees and remote branches retained. No forced cleanup.
-- Dev and installed remote both default to port 47600; stop installed remote for mobile testing and use Reload mobile interface.
-- Windows UTF-8: explicit UTF8 reads; use apply_patch or explicit UTF8 output encoding for non-ASCII Node input. In this shell, PowerShell MEM_AUTOPUSH did not reach the Bash helper, and Bash git push stalled; explicit authorized Windows git push worked.
-
-## Detailed history
-- Pre-sync full handoff: archive/handoff-2026-10-08-before-main-sync.md.
-- Prior release/HTML/copy history is preserved there and its linked archives; historical decisions were not rewritten.
+## Next / limits
+- A: review PR #42, then real-phone test; optionally refetch the list when an unknown run id arrives.
+- B: review PR #41 (CI green). No merge or release authorised/performed for either PR.
+- Other Linux distributions, ARM64, real deb install and complete agent-provider/phone remote E2E remain unverified.
+- Linux updater checks the newest 100 releases (ponytail limit).
+- WSL verification cache: /home/milanchang/.cache/agent-workbench-linux-verification; /tmp does not persist across WSL shutdown.
+- Temp/ and three phone screenshots remain untracked and untouched in the main workspace.
+- Detailed Linux verification: archive/handoff-2026-10-08-linux-local-verification-before-pr.md; earlier histories archived.
