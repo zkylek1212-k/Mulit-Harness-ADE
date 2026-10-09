@@ -13,7 +13,8 @@
 - Validation on merged master before release: typecheck, check-cowork.mts, check-remote.mts, build, `electron scripts/check-remote-cowork.cjs` all passed; release.ps1 typecheck + electron-builder passed.
 
 ## Next / limits
-- Linux: apps/linux v0.1.0 is merged but NOT published. Publishing = tag `linux-v0.1.0` (CI publish job, prerelease, latest=false); not done, needs user go-ahead.
+- Linux linux-v0.1.0 PUBLISHED (user-authorised): tag created via GitHub API on master b98dc0d (local git was hung); CI run 37874886216 build+publish green; prerelease with AppImage/deb/tar.gz x64; releases/latest still v0.1.40. Next Linux release: bump apps/linux/package.json, then tag linux-vX.Y.Z (must match).
+- Main workspace git: .git/index went OneDrive cloud-only and hung (~160 unkillable git status). Needs full OneDrive quit or reboot, then `git reset -q` to rebuild the index. Commits this session were made with a temporary GIT_INDEX_FILE outside OneDrive. `.git` has conflict copies from machine GG5275-NB — OneDrive syncs .git across machines; consider moving the repo out of OneDrive.
 - Phone Cowork: no real iPhone ↔ desktop E2E yet; a meeting started on desktop shows in the phone list only after reload/reconnect; not ported to apps/linux (DEC-011 manual port).
 - Old worktree C:/Users/milan.chang/AppData/Local/Temp/agent-workbench-mobile-cowork (branch merged) still exists; its node_modules is a junction to the main workspace — remove the junction before deleting the worktree. Remote branches feat/* and release/v0.1.40 not deleted.
 - Other Linux distributions, ARM64, real deb install and complete agent-provider/phone remote E2E remain unverified. Linux updater checks the newest 100 releases.

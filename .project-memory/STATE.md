@@ -1,6 +1,6 @@
 # Project State
 
-- Milestone: v0.1.40 released 2026-10-09 (tag 851b185, Latest): phone Cowork (PR #42) and independent Linux app source/CI (PR #41) merged, release PR #43. Linux linux-v0.1.0 prerelease not yet published.
+- Milestone: v0.1.40 released 2026-10-09 (tag 851b185, Latest): phone Cowork (PR #42) and independent Linux app source/CI (PR #41) merged, release PR #43. Linux linux-v0.1.0 prerelease published 2026-10-09 (CI run 37874886216; AppImage/deb/tar.gz; Latest stays v0.1.40).
 - Previous: v0.1.39 released with Cowork discussions, multi-tabs, recorder, chair decisions, approved Project execution, and bilingual usage/architecture documentation.
 - Status: PR #35/#37/#36, version/docs #38 and HTML architecture #39 merged; v0.1.39 tag a292b22 and release assets published. User authorized main workspace commit/push/sync: docs committed f40e67b, origin/master 51e8d99 merged without conflicts as a740224, local memory history preserved. Main now contains released source and rendered architecture; normal push publishes source/docs and handoff together.
 - Validation: prior planner/discussion/executor, Electron regressions, release build/startup, uploaded hashes and 12 HTML render states passed. Main sync source/doc equality verified; fresh npm ci and typecheck passed, version 0.1.39 and xterm headless/serialize imports verified. Main can run dev now. No full functional suite or new paid real-provider meeting was rerun for Git sync.
