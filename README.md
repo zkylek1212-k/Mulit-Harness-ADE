@@ -6,6 +6,18 @@ React + Vite.
 
 *English is the primary language of this README; a 繁體中文 version follows below.*
 
+> **This is ikenican's fork** of [zkylek1212-k/Mulit-Harness-ADE](https://github.com/zkylek1212-k/Mulit-Harness-ADE).
+> Work happens on the `improve/accuracy-handoff` branch (`master` mirrors upstream); fork builds
+> are published as `<upstream version>-fork.<n>` in this repository's
+> [Releases](https://github.com/ikenican/Mulit-Harness-ADE/releases). What the fork adds:
+>
+> - **Memory sync** — keep `.project-memory` (AI handoffs) in sync across computers through a private GitHub repository or a OneDrive / Google Drive folder, never in the public project repository. See [Memory sync](#memory-sync).
+> - **Layout** — drag the terminal / editor icons in the title bar to put the terminal left or right, and turn each pane on or off; the terminal can be widened past the editor.
+> - **Workspace switching** — switching workspace selects that project's most recent CLI tab, or resumes its latest session when it has no tab.
+> - **Open the project folder** — a button in the file tree opens the real folder in File Explorer.
+> - **Faster main process** — CLI detection, the Cowork capability probe and dashboard / usage scanning no longer block the main process (scans run in a worker thread): worst IPC round trips dropped from ~530 ms to ~1 ms (dashboard), ~100 ms to ≤14 ms (agent detection) and ~290 ms to ~4 ms (Cowork).
+> - **Codex install** falls back from the official script to winget and npm; a new app icon; `dev.cmd` runs the app from source with a double-click.
+
 > **Design principle — official CLIs own the agent runtime.** The workbench uses
 > each vendor's official CLI and its existing authentication. It provides code
 > editing, Git, terminals, shared memory, and Cowork coordination; Cowork schedules
@@ -23,7 +35,7 @@ React + Vite.
   natively as a child process via `node-pty`. No keys stored; the CLIs use their
   own subscriptions/auth.
 - **Cowork meetings** — independent tabs for Claude Code, Codex, and Antigravity; visible discussion, a selectable recorder, chair conclusions, code-aware project planning, and background execution after user approval. See [Cowork](#cowork) and its [rendered architecture](docs/architecture.html#cowork).
-- **Collapsible Developer Mode preview** — the center pane starts collapsed and can be toggled from the title bar.
+- **Adjustable layout** — drag the terminal and editor icons in the title bar to swap their sides, and switch each pane on or off.
 - **Preview & Documents** — live Markdown / HTML preview that auto-syncs on edit and save, plus built-in document viewing for Word, Excel, PowerPoint, and PDF.
 - **Vibe Coding Mode** — an alternative, task-first layout (Settings → Appearance → Work Mode): an icon rail (Sessions / Status / Handoff / Files / Git / Settings) whose panels fade in on hover and pin on click, the agent terminal in the middle, and the live result on the right. Dev-server URLs printed in the terminal (`http://localhost:PORT`) open automatically, and the Handoff panel summarises `.project-memory/handoff.md`. Developer Mode keeps the classic code-first layout.
 - **Dashboard & Telemetry** — session list plus token usage scanned from local CLI records (Claude Code, Codex, Antigravity), switchable between **All / 30d / 7d / Today** and split into input / cache read / output. Claude and Codex figures come from the CLIs' own usage records; Antigravity logs carry no token counts, so its figures are character-based estimates and are labelled as such. Includes CLI enable/disable filtering, folder grouping, and one-click workspace switching.
@@ -64,6 +76,18 @@ Multiple discussions and project-planning meetings may run concurrently, includi
 
 Open the rendered [Cowork architecture and meeting flow](docs/architecture.html#cowork) in a browser. [Implementation notes](docs/cowork-architecture.md) cover storage, CLI isolation, scheduling and recovery.
 
+## Memory sync
+
+`.project-memory/` holds the handoff notes that Claude Code, Codex and Antigravity read and write. **Settings → Memory sync** keeps it in sync between your computers while keeping it out of the public project repository. It is off by default; while off, Workbench does no syncing at all (handoffs stay on this computer, no network, no extra tokens).
+
+1. Turn on the consent switch and choose where memory lives:
+   - **GitHub (private repository)** — versioned. Either install the GitHub CLI and let Workbench create the repository, or choose **Without installing gh** and click **Create private repository automatically**, then sign in to GitHub in the window Git opens (Git Credential Manager, bundled with Git for Windows). A fallback opens GitHub's new-repository page with the name and Private pre-filled; paste the URL back. Public repositories are always refused.
+   - **OneDrive / Google Drive** — pick a subfolder inside the synced drive; the drive app does the syncing and Workbench only reads and writes that folder. If the app is missing, Workbench pastes the official winget install command into a terminal; if it is installed but not signed in, Workbench opens it for you.
+2. Every project you open is linked automatically: its `.project-memory` becomes a link into the shared location (one folder per project), and the project repository stops tracking memory files with one small commit. GitHub mode pulls when a project opens and syncs in the background every 10 minutes.
+3. On another computer, enable memory sync with the same storage; projects link to the existing memory when opened.
+
+Switching storage later migrates linked projects on open and keeps the old copy. See [docs/two-pc-workflow.md](docs/two-pc-workflow.md) for a two-computer walkthrough.
+
 ## Installation
 
 ### Method 1: One-Line Quick Install (Windows PowerShell)
@@ -71,28 +95,28 @@ Open the rendered [Cowork architecture and meeting flow](docs/architecture.html#
 Run this command in **PowerShell** (no Git or Node.js required):
 
 ```powershell
-irm https://raw.githubusercontent.com/zkylek1212-k/Mulit-Harness-ADE/master/install.ps1 | iex
+irm https://raw.githubusercontent.com/ikenican/Mulit-Harness-ADE/improve/accuracy-handoff/install.ps1 | iex
 ```
 
-> **What this does:** Automatically fetches the latest release from GitHub, downloads the Windows setup installer (`.exe`), and starts the installation.
+> **What this does:** Automatically fetches this fork's latest release from GitHub, downloads the Windows setup installer (`.exe`), and starts the installation.
 >
 > *Options:*
 > - **Silent install** (no wizard prompt):
 >   ```powershell
->   $env:INSTALL_SILENT=1; irm https://raw.githubusercontent.com/zkylek1212-k/Mulit-Harness-ADE/master/install.ps1 | iex
+>   $env:INSTALL_SILENT=1; irm https://raw.githubusercontent.com/ikenican/Mulit-Harness-ADE/improve/accuracy-handoff/install.ps1 | iex
 >   ```
 > - **Download installer only** (saves to current folder without running):
 >   ```powershell
->   $env:INSTALL_DOWNLOAD_ONLY=1; irm https://raw.githubusercontent.com/zkylek1212-k/Mulit-Harness-ADE/master/install.ps1 | iex
+>   $env:INSTALL_DOWNLOAD_ONLY=1; irm https://raw.githubusercontent.com/ikenican/Mulit-Harness-ADE/improve/accuracy-handoff/install.ps1 | iex
 >   ```
 
 ### Method 2: Direct Download from GitHub Releases
 
 Prefer manual download? Grab the setup package directly from GitHub:
 
-- 🚀 **[Download Latest Release](https://github.com/zkylek1212-k/Mulit-Harness-ADE/releases/latest)**
-- Download `Agent Workbench-<version>-setup.exe` and double-click to install.
-- *(Portable version: download portable archive and run `Agent Workbench.exe` directly without installation.)*
+- 🚀 **[Download Latest Release](https://github.com/ikenican/Mulit-Harness-ADE/releases/latest)**
+- Download `Agent-Workbench-<version>-setup.exe` and double-click to install.
+- *(Portable version: download `Agent-Workbench-<version>-portable.zip`, extract it, and run `Agent Workbench.exe` directly without installation.)*
 
 ---
 
@@ -108,11 +132,13 @@ For developers who want to contribute or build from source:
 ### Getting started
 
 ```bash
-git clone https://github.com/zkylek1212-k/Mulit-Harness-ADE.git
+git clone -b improve/accuracy-handoff https://github.com/ikenican/Mulit-Harness-ADE.git
 cd Mulit-Harness-ADE
 npm install
 npm run dev        # launch in development
 ```
+
+On Windows you can instead **double-click `dev.cmd`** in the repository folder. It installs dependencies on the first run (Node.js LTS required: `winget install OpenJS.NodeJS.LTS`) and starts the dev build, which uses its own settings folder (`%APPDATA%\agent-workbench-dev`) so it runs alongside an installed copy. Renderer changes reload live and main-process changes restart the app, so there is no need to package a build to try a change. `dev.cmd` only calls `dev.ps1` with `-ExecutionPolicy Bypass` for that one run, because Windows blocks running `.ps1` files by default.
 
 ## Build & Publish
 
@@ -133,13 +159,15 @@ Installer output goes to `release/`. Build config is in `electron-builder.yml`.
 src/main         Electron main process (IPC, git, pty, files, extensions)
 src/main/cowork   meeting orchestration, CLI runner, persistence, Git and execution
 src/main/remote  LAN remote bridge: HTTPS + WebSocket, local CA, web push, preview proxy
+src/main/memsync memory sync core (GitHub / OneDrive / Google Drive) and bundled memory scripts
 src/preload      the single IPC contract surface
 src/renderer/src React UI (editor / git / terminal / preview / dashboard panels)
 src/renderer/remote  the iPhone web app (second Vite entry, served by the bridge)
 src/shared       types and logic both sides use (remote protocol, detectors)
 docs/architecture.html  end-to-end architecture overview
 docs/cowork-architecture.md  Cowork flows and implementation boundaries
-.project-memory  shared cross-agent memory (handoff, protocol, decisions)
+.project-memory  shared cross-agent memory (handoff, protocol, decisions); not tracked in this fork
+dev.cmd / dev.ps1  double-click launcher for the dev build (Windows)
 ```
 
 ## iPhone remote control
@@ -284,6 +312,17 @@ N 個內嵌 CLI 終端，以及 Cowork 多 agent 會議。以 Electron + React +
 > 提供編輯、Git、終端、共享記憶，以及 Cowork 協調。Cowork 排程 CLI 呼叫、保存會議紀錄，
 > 並執行使用者明確核准的專案計畫。跨 CLI 交接透過 `.project-memory/`（handoff 筆記 + Git）完成。
 
+> **這是 ikenican 的 fork**，原專案為 [zkylek1212-k/Mulit-Harness-ADE](https://github.com/zkylek1212-k/Mulit-Harness-ADE)。
+> 開發在 `improve/accuracy-handoff` 分支（`master` 對齊原作者）；fork 版以 `<原作者版本>-fork.<序號>`
+> 發佈在本 repo 的 [Releases](https://github.com/ikenican/Mulit-Harness-ADE/releases)。fork 新增：
+>
+> - **記憶同步**——把 `.project-memory`（AI 交接）透過私人 GitHub repo 或 OneDrive／Google Drive 資料夾在多台電腦間同步，不會出現在公開的專案 repo。詳見下方〈記憶同步〉。
+> - **版面**——拖曳標題列的終端／編輯器圖示決定終端在左或右，並可各自開關；終端可以拉寬超過編輯器。
+> - **切換工作區**——切換時自動選到該專案最後用的 CLI 分頁；沒有分頁時自動接續它最近的 session。
+> - **開啟專案資料夾**——檔案樹的按鈕直接用檔案總管開啟實際資料夾。
+> - **主行程更流暢**——CLI 偵測、Cowork 能力探測與儀表板／用量掃描不再卡住主行程（掃描移到 worker thread）：最慢的 IPC 往返從約 530 ms 降到約 1 ms（儀表板）、約 100 ms 降到 14 ms 以內（agent 偵測）、約 290 ms 降到約 4 ms（Cowork）。
+> - **Codex 安裝**在官方腳本失敗時改用 winget、再改用 npm；新的 app 圖示；`dev.cmd` 雙擊就能從原始碼啟動。
+
 ## 功能
 
 - **Monaco 編輯器**——與 VS Code 同款編輯器核心（採 MIT 授權的 `monaco-editor`），
@@ -292,7 +331,7 @@ N 個內嵌 CLI 終端，以及 Cowork 多 agent 會議。以 Electron + React +
 - **多 CLI 終端**——每個 CLI 各有一個 `xterm.js` 終端分頁，透過 `node-pty` 以子行程原生執行。
   不儲存金鑰；CLI 使用其自身的訂閱／驗證。
 - **Cowork 多 agent 會議**——獨立分頁、可見討論、指定摘要 agent、主席結論、專案規劃與核准後背景執行。支援 Claude Code、Codex、Antigravity；詳見下方〈Cowork 使用方式〉及 [架構圖](docs/architecture.html#cowork)。
-- **開發者模式中央預覽收合**——預設收合，可用標題列按鈕切換。
+- **可調整版面**——拖曳標題列的終端與編輯器圖示交換左右位置，並可各自開關。
 - **預覽與文件**——Markdown／HTML 即時預覽（編輯與存檔自動同步），並內建 Word、Excel、PowerPoint 與 PDF 檢視器。
 - **Vibe Coding 模式**——任務優先的另一種版面（設定 → 外觀 → 工作模式）：最左側圖示列（Sessions／Status／Handoff／Files／Git／Settings）游標移過去就淡入彈出、點擊可固定；中間是 Agent 終端，右側是即時成品。終端輸出的 dev server 網址（`http://localhost:PORT`）會自動開啟，Handoff 面板會整理 `.project-memory/handoff.md`。開發者模式維持原本程式碼優先的版面。
 - **儀表板與遙測**——從本機 CLI 紀錄（Claude Code、Codex、Antigravity）掃描 session 清單與 token 用量，可切換**總用量／30 天／7 天／今天**，並拆分輸入／快取讀取／輸出。Claude 與 Codex 取自 CLI 自己的用量紀錄；Antigravity 紀錄沒有 token 欄位，數字為字數估算並明確標示。支援 CLI 啟用連動、資料夾群組分類與一鍵工作區切換。
@@ -331,6 +370,18 @@ N 個內嵌 CLI 終端，以及 Cowork 多 agent 會議。以 Electron + React +
 
 以瀏覽器開啟 [架構總覽的 Cowork 章節](docs/architecture.html#cowork)，可查看已渲染的模組架構與會議流程圖；資料保存、隔離與恢復細節見 [實作筆記](docs/cowork-architecture.md)。
 
+## 記憶同步
+
+`.project-memory/` 是 Claude Code、Codex、Antigravity 共同讀寫的交接筆記。**設定 → 記憶同步**讓它在你的多台電腦間保持一致，同時不放進公開的專案 repo。預設關閉；關閉時 Workbench 完全不做同步（交接只存在本機，不連網路、不多花 token）。
+
+1. 打開同意開關，選擇記憶放哪裡：
+   - **GitHub（私人 repo）**——有版本紀錄。可以安裝 GitHub CLI 讓 Workbench 建立 repo，或選**不安裝 gh**，按**自動建立私人 repo**，再在 Git 跳出的視窗登入 GitHub（Git for Windows 內建的 Git Credential Manager）。備用方式會開啟名稱與 Private 都已預填的 GitHub 建立頁，建好後貼回網址。公開 repo 一律拒絕。
+   - **OneDrive／Google Drive**——在雲端硬碟的同步資料夾裡選一個子資料夾，由雲端硬碟程式負責同步，Workbench 只讀寫那個資料夾。沒安裝時，Workbench 會把官方 winget 安裝指令貼進終端；已安裝但沒登入時，會幫你開啟程式登入。
+2. 之後打開的每個專案都會自動接上：`.project-memory` 變成指向共用位置的連結（每個專案一個資料夾），專案 repo 用一個小提交停止追蹤記憶檔。GitHub 模式在打開專案時拉取，並每 10 分鐘背景同步。
+3. 另一台電腦開啟記憶同步並選同一個存放位置，打開專案時就會接上既有的記憶。
+
+之後換存放位置，已連結的專案會在打開時搬過去並保留舊的一份。兩台電腦的完整流程見 [docs/two-pc-workflow.md](docs/two-pc-workflow.md)。
+
 ## 安裝指南
 
 ### 方法一：PowerShell 一鍵快速安裝（Windows 推薦）
@@ -338,26 +389,26 @@ N 個內嵌 CLI 終端，以及 Cowork 多 agent 會議。以 Electron + React +
 在 **PowerShell** 貼上並執行以下單行指令（無需 Git 或 Node.js）：
 
 ```powershell
-irm https://raw.githubusercontent.com/zkylek1212-k/Mulit-Harness-ADE/master/install.ps1 | iex
+irm https://raw.githubusercontent.com/ikenican/Mulit-Harness-ADE/improve/accuracy-handoff/install.ps1 | iex
 ```
 
-> **說明：** 自動向 GitHub 取得最新版本安裝包（`.exe`），下載並自動啟動安裝精靈。
+> **說明：** 自動向 GitHub 取得本 fork 最新版本安裝包（`.exe`），下載並自動啟動安裝精靈。
 >
 > *進階選項：*
 > - **靜默自動安裝**（不彈出安裝引導畫面）：
 >   ```powershell
->   $env:INSTALL_SILENT=1; irm https://raw.githubusercontent.com/zkylek1212-k/Mulit-Harness-ADE/master/install.ps1 | iex
+>   $env:INSTALL_SILENT=1; irm https://raw.githubusercontent.com/ikenican/Mulit-Harness-ADE/improve/accuracy-handoff/install.ps1 | iex
 >   ```
 > - **僅下載安裝檔到本地**（儲存至當前目錄，不立即執行）：
 >   ```powershell
->   $env:INSTALL_DOWNLOAD_ONLY=1; irm https://raw.githubusercontent.com/zkylek1212-k/Mulit-Harness-ADE/master/install.ps1 | iex
+>   $env:INSTALL_DOWNLOAD_ONLY=1; irm https://raw.githubusercontent.com/ikenican/Mulit-Harness-ADE/improve/accuracy-handoff/install.ps1 | iex
 >   ```
 
 ### 方法二：直接自 GitHub Releases 下載
 
-- 🚀 **[前往最新發行頁面（GitHub Releases）](https://github.com/zkylek1212-k/Mulit-Harness-ADE/releases/latest)**
-- 下載 `Agent Workbench-<版本>-setup.exe` 雙擊即可安裝。
-- *(免安裝綠色版：解壓後直接雙擊 `Agent Workbench.exe` 即可使用)*
+- 🚀 **[前往最新發行頁面（GitHub Releases）](https://github.com/ikenican/Mulit-Harness-ADE/releases/latest)**
+- 下載 `Agent-Workbench-<版本>-setup.exe` 雙擊即可安裝。
+- *(免安裝綠色版：下載 `Agent-Workbench-<版本>-portable.zip`，解壓後直接雙擊 `Agent Workbench.exe` 即可使用)*
 
 ---
 
@@ -373,11 +424,13 @@ irm https://raw.githubusercontent.com/zkylek1212-k/Mulit-Harness-ADE/master/inst
 ### 快速開始
 
 ```bash
-git clone https://github.com/zkylek1212-k/Mulit-Harness-ADE.git
+git clone -b improve/accuracy-handoff https://github.com/ikenican/Mulit-Harness-ADE.git
 cd Mulit-Harness-ADE
 npm install
 npm run dev        # 開發模式啟動
 ```
+
+Windows 上也可以直接**雙擊 repo 資料夾裡的 `dev.cmd`**：第一次會自動安裝相依套件（需要 Node.js LTS：`winget install OpenJS.NodeJS.LTS`），然後啟動開發版。開發版使用獨立的設定資料夾（`%APPDATA%\agent-workbench-dev`），可以和已安裝的版本同時開。改畫面會即時刷新、改主行程會自動重啟，試改動不用重新打包。`dev.cmd` 只是用 `-ExecutionPolicy Bypass` 執行一次 `dev.ps1`，因為 Windows 預設禁止直接執行 `.ps1`。
 
 ## 建置與發佈 (Build & Publish)
 
@@ -398,13 +451,15 @@ npm run release    # （僅限專案維護者）一鍵自動編譯、打包並�
 src/main         Electron 主行程（IPC、git、pty、files、extensions）
 src/main/cowork   會議協調、CLI runner、保存、Git 與背景執行
 src/main/remote  區網遠端橋接：HTTPS + WebSocket、本機 CA、Web Push、預覽代理
+src/main/memsync 記憶同步核心（GitHub／OneDrive／Google Drive）與內建的記憶腳本
 src/preload      唯一的 IPC 契約介面
 src/renderer/src React UI（editor / git / terminal / preview / dashboard 面板）
 src/renderer/remote  iPhone 端網頁 App（第二個 Vite entry，由橋接層提供）
 src/shared       兩端共用的型別與邏輯（遠端協定、各種偵測）
 docs/architecture.html  端到端架構總覽
 docs/cowork-architecture.md  Cowork 功能流程與模組邊界
-.project-memory  跨 agent 共享記憶（handoff、protocol、decisions）
+.project-memory  跨 agent 共享記憶（handoff、protocol、decisions）；本 fork 不納入版控
+dev.cmd / dev.ps1  Windows 雙擊啟動開發版
 ```
 
 ## iPhone 遠端控制
