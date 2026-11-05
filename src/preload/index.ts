@@ -215,6 +215,7 @@ const api = {
     status: (): Promise<RemoteStatus> => ipcRenderer.invoke('remote:status'),
     setEnabled: (enabled: boolean): Promise<RemoteStatus> => ipcRenderer.invoke('remote:setEnabled', enabled),
     setPort: (port: number): Promise<RemoteStatus> => ipcRenderer.invoke('remote:setPort', port),
+    setAllowMesh: (allow: boolean): Promise<RemoteStatus> => ipcRenderer.invoke('remote:setAllowMesh', allow),
     qr: (text: string): Promise<string> => ipcRenderer.invoke('remote:qr', text),
     createPairing: (address?: string): Promise<RemotePairingInfo | null> => ipcRenderer.invoke('remote:createPairing', address),
     devices: (): Promise<RemoteDeviceInfo[]> => ipcRenderer.invoke('remote:devices'),
@@ -784,6 +785,9 @@ export interface RemoteStatus {
   running: boolean
   port: number
   addresses: string[]
+  allowMesh: boolean
+  meshDetected: string[]
+  meshNeedsNewCa: boolean
   /** 手機 PWA 網址（https） */
   appUrl: string | null
   /** 安裝 CA 憑證的設定頁（http） */

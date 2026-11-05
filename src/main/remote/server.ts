@@ -34,7 +34,19 @@ import {
   type RemoteVibeStatus,
   type ServerMessage
 } from '../../shared/remoteProtocol'
-import { certCovers, certDer, createCa, isAllowedOrigin, isPrivateIPv4, issueServerCert, lanAddresses, localHostname } from './certs'
+import {
+  caPermitsMesh,
+  certCovers,
+  certDer,
+  createCa,
+  isAllowedOrigin,
+  isMeshConnection,
+  isPrivateIPv4,
+  issueServerCert,
+  lanAddresses,
+  localHostname,
+  meshAddresses
+} from './certs'
 import {
   addDevice,
   audit,
@@ -62,6 +74,7 @@ import type { CoworkRun } from '../../shared/cowork'
 //   https://<區網IP>:<port+2>    手機預覽代理（見 ./preview.ts）
 //
 // 只接受私有網段來源；即使使用者在路由器上把 port 轉出去，外網連線也會在 TCP 層被斷開。
+// 使用者開了 mesh VPN 時，另外接受走 mesh 網卡進來的連線（certs.ts 的 isMeshConnection）。
 //
 // 手機可以在一個畫面裡切換多台電腦：那是跨 origin 的 WebSocket，所以 upgrade 的
 // Origin 檢查放行「區網上同一個 App 的 origin」（certs.ts 的 isAllowedOrigin），
@@ -99,6 +112,10 @@ export interface BridgeStatus {
   port: number
   setupPort: number
   addresses: string[]
+  /** 目前偵測到的 mesh VPN 位址（不管開關有沒有開） */
+  meshDetected: string[]
+  /** 開啟 mesh 時是否要換 CA（手機要重裝） */
+  meshNeedsNewCa: boolean
   hostName: string | null
   caFingerprint: string | null
   connectedDevices: string[]
@@ -110,10 +127,6 @@ function isAllowedRemote(addr?: string): boolean {
   if (!addr) return false
   const a = addr.replace(/^::ffff:/, '')
   return a === '127.0.0.1' || a === '::1' || isPrivateIPv4(a)
-}
-
-function guardLan(socket: Socket): void {
-  if (!isAllowedRemote(socket.remoteAddress)) socket.destroy()
 }
 
 function readBody(req: http.IncomingMessage, limit = 64 * 1024): Promise<any> {
@@ -207,6 +220,8 @@ export class RemoteBridge {
   private clients = new Set<Client>()
   private port = 0
   private addresses: string[] = []
+  private allowMesh = false
+  private meshAddrs: string[] = []
   private caCert: string | null = null
   private vapid: VapidKeys | null = null
   private pairing: { code: string; expiresAt: number; failures: number } | null = null
@@ -230,11 +245,17 @@ export class RemoteBridge {
     this.onStatus = onStatus
   }
 
+  private guardLan = (socket: Socket): void => {
+    if (isAllowedRemote(socket.remoteAddress)) return
+    if (!isMeshConnection(socket.remoteAddress, socket.localAddress, this.meshAddrs)) socket.destroy()
+  }
+
   // —— 生命週期 ——
 
-  async start(port: number): Promise<void> {
+  async start(port: number, allowMesh = false): Promise<void> {
     await this.stop()
     this.port = port
+    this.allowMesh = allowMesh
     this.lastError = null
     try {
       const { certPem, keyPem } = this.ensureCerts()
@@ -249,7 +270,7 @@ export class RemoteBridge {
           if (!res.headersSent) sendJson(res, 500, { error: 'internal' })
         })
       )
-      server.on('connection', guardLan)
+      server.on('connection', this.guardLan)
 
       const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 })
       server.on('upgrade', (req, socket, head) => {
@@ -257,7 +278,7 @@ export class RemoteBridge {
         // 擋跨站 WebSocket。允許的來源有兩種：本機 PWA 自己，以及
         // 同一個 App 跑在區網上另一台電腦的 origin（手機在一個畫面裡切換電腦用）。
         // 通過這關也只是拿到一條連線，五秒內沒有有效 token 一樣被斷開。
-        if (req.url !== '/ws' || !isAllowedOrigin(req.headers.origin, host)) {
+        if (req.url !== '/ws' || !isAllowedOrigin(req.headers.origin, host, this.meshAddrs.length > 0)) {
           socket.destroy()
           return
         }
@@ -265,7 +286,7 @@ export class RemoteBridge {
       })
 
       const setup = http.createServer((req, res) => this.handleSetup(req, res))
-      setup.on('connection', guardLan)
+      setup.on('connection', this.guardLan)
 
       await new Promise<void>((resolve, reject) => {
         server.once('error', reject)
@@ -280,7 +301,7 @@ export class RemoteBridge {
 
       // 預覽代理（port+2）起不來只是沒有預覽，遠端控制照常跑
       try {
-        await this.preview.start(port + 2, certPem, keyPem, guardLan)
+        await this.preview.start(port + 2, certPem, keyPem, this.guardLan)
       } catch (e) {
         console.warn('[Remote] preview proxy failed to start:', e)
       }
@@ -347,6 +368,8 @@ export class RemoteBridge {
       port: this.port,
       setupPort: this.port + 1,
       addresses: this.running ? this.addresses : lanAddresses(),
+      meshDetected: meshAddresses(),
+      meshNeedsNewCa: this.meshNeedsNewCa(),
       hostName: localHostname(),
       caFingerprint: this.caCertFingerprint(),
       connectedDevices: Array.from(new Set(this.authedClients().map((c) => c.device!.name))),
@@ -360,20 +383,31 @@ export class RemoteBridge {
     return pem ? new crypto.X509Certificate(pem).fingerprint256 : null
   }
 
+  private meshNeedsNewCa(): boolean {
+    const pem = this.caCert || loadCerts()?.caCert
+    return !pem || !caPermitsMesh(pem)
+  }
+
   private authedClients(): Client[] {
     return Array.from(this.clients).filter((c) => c.device)
   }
 
-  /** CA 沿用舊的（手機不必重裝）；server 憑證在 IP 變動或快到期時重簽 */
+  /**
+   * CA 沿用舊的（手機不必重裝）；server 憑證在 IP 變動或快到期時重簽。
+   * 唯一的例外是開了 mesh VPN 而舊 CA 不准簽那個網段：只能換 CA，手機要重裝一次。
+   */
   private ensureCerts(): { certPem: string; keyPem: string } {
-    this.addresses = lanAddresses()
+    this.meshAddrs = this.allowMesh ? meshAddresses() : []
+    this.addresses = [...lanAddresses(), ...this.meshAddrs]
     const host = localHostname()
     const dns = host ? [host] : []
     let stored = loadCerts()
-    if (!stored) {
-      const ca = createCa(os.hostname().slice(0, 40))
+    const mesh = this.meshAddrs.length > 0
+    if (!stored || (mesh && !caPermitsMesh(stored.caCert))) {
+      // 已經換過的 CA 就留著：關掉 mesh 再開，手機不必再裝一次
+      const ca = createCa(os.hostname().slice(0, 40), mesh)
+      audit(stored ? 'ca.replaced.mesh' : 'ca.created')
       stored = { caCert: ca.certPem, caKey: ca.keyPem }
-      audit('ca.created')
     }
     // 不放 127.0.0.1：CA 的 Name Constraints 只允許私有網段，手機也不會連 loopback
     const ips = this.addresses

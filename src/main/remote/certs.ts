@@ -9,7 +9,8 @@ import forge from 'node-forge'
 // 之後每次區網 IP 變動就用這張 CA 重簽 server 憑證，手機不必重裝。
 //
 // 風險控管：被手機信任的 CA 若外洩，理論上能簽任何網站。所以 CA 帶 critical 的 Name Constraints，
-// 只准簽私有 IPv4 位址與 *.local 主機名，外洩也簽不出能騙過手機的 google.com 憑證。
+// 只准簽私有 IPv4 位址與 *.local 主機名（使用者開了 mesh VPN 才加上 100.64/10），
+// 外洩也簽不出能騙過手機的 google.com 憑證。
 
 export interface CertPair {
   certPem: string
@@ -24,30 +25,66 @@ const PRIVATE_V4: Array<[number[], number[]]> = [
   [[169, 254, 0, 0], [255, 255, 0, 0]]
 ]
 
-export function isPrivateIPv4(ip: string): boolean {
+// NordVPN Meshnet、Tailscale 用的網段（RFC 6598）。電信業者的 CGNAT 也用這段，
+// 所以「來源落在這段」不代表可信，只有真的走 mesh 網卡進來的連線才算（見 isMeshConnection）。
+const MESH_V4: [number[], number[]] = [[100, 64, 0, 0], [255, 192, 0, 0]]
+// ponytail: 只認這兩家的網卡名稱；其他 100.64/10 的 mesh VPN 要用時再加
+const MESH_IFACE = /nordlynx|tailscale/i
+
+function inRange(ip: string, [net, mask]: [number[], number[]]): boolean {
   const m = /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(ip)
   if (!m) return false
-  const b = m.slice(1).map(Number)
-  return PRIVATE_V4.some(([net, mask]) => b.every((x, i) => (x & mask[i]) === net[i]))
+  return m.slice(1).map(Number).every((x, i) => (x & mask[i]) === net[i])
+}
+
+export function isPrivateIPv4(ip: string): boolean {
+  return PRIVATE_V4.some((range) => inRange(ip, range))
+}
+
+export function isMeshIPv4(ip: string): boolean {
+  return inRange(ip, MESH_V4)
+}
+
+/**
+ * 這條連線是否走 mesh VPN 進來？對方要在 mesh 網段，而且連到的是本機 mesh 網卡的位址。
+ * 只看對方位址不夠：電腦若直接拿到電信 CGNAT 位址，同一個 ISP 的鄰居也會落在這段，
+ * 但他們連到的是對外網卡的位址，mesh 網卡的位址只有 VPN 隧道裡的裝置碰得到。
+ */
+export function isMeshConnection(remote: string | undefined, local: string | undefined, meshAddrs: string[]): boolean {
+  const strip = (a?: string): string => (a || '').replace(/^::ffff:/, '')
+  return isMeshIPv4(strip(remote)) && meshAddrs.includes(strip(local))
 }
 
 /**
  * 這個 Origin 是不是「我們自己的 App」？
  * 兩種算：本機提供的 PWA，以及同一個 App 跑在區網上另一台電腦的 origin
  * （手機要在一個畫面裡切換多台電腦，WebSocket 因此是跨 origin 的）。
+ * 開了 mesh VPN 時，mesh 網段上的另一台電腦也算。
  * 通過這關只是拿到一條連線，五秒內沒有有效 token 一樣被斷開。
  */
-export function isAllowedOrigin(origin: string | undefined, host: string): boolean {
+export function isAllowedOrigin(origin: string | undefined, host: string, allowMesh = false): boolean {
   if (!origin) return false
   if (origin === `https://${host}`) return true
   try {
     const u = new URL(origin)
     if (u.protocol !== 'https:') return false
     const h = u.hostname.replace(/^\[|\]$/g, '')
-    return isPrivateIPv4(h) || /^[a-z0-9][a-z0-9-]*\.local$/i.test(h)
+    return isPrivateIPv4(h) || (allowMesh && isMeshIPv4(h)) || /^[a-z0-9][a-z0-9-]*\.local$/i.test(h)
   } catch {
     return false
   }
+}
+
+/** 本機 mesh VPN 網卡的位址。網卡名稱對不上的 100.64/10 位址（例如電信 CGNAT）不算 */
+export function meshAddresses(ifaces: ReturnType<typeof os.networkInterfaces> = os.networkInterfaces()): string[] {
+  const out: string[] = []
+  for (const [name, list] of Object.entries(ifaces)) {
+    if (!MESH_IFACE.test(name)) continue
+    for (const a of list || []) {
+      if (a.family === 'IPv4' && !a.internal && isMeshIPv4(a.address)) out.push(a.address)
+    }
+  }
+  return out
 }
 
 /** 本機所有私有 IPv4（192.168 優先，通常就是家用 Wi-Fi 那張網卡） */
@@ -85,20 +122,25 @@ function randomSerial(): string {
   return b.toString('hex')
 }
 
-function nameConstraintsDer(): string {
+function nameConstraintsDer(mesh: boolean): string {
   const { asn1 } = forge
   const subtree = (generalName: forge.asn1.Asn1): forge.asn1.Asn1 =>
     asn1.create(asn1.Class.UNIVERSAL, asn1.Type.SEQUENCE, true, [generalName])
   const ipSubtree = (net: number[], mask: number[]): forge.asn1.Asn1 =>
     subtree(asn1.create(asn1.Class.CONTEXT_SPECIFIC, 7, false, String.fromCharCode(...net, ...mask)))
   const permitted = asn1.create(asn1.Class.CONTEXT_SPECIFIC, 0, true, [
-    ...PRIVATE_V4.map(([n, m]) => ipSubtree(n, m)),
+    ...[...PRIVATE_V4, ...(mesh ? [MESH_V4] : [])].map(([n, m]) => ipSubtree(n, m)),
     subtree(asn1.create(asn1.Class.CONTEXT_SPECIFIC, 2, false, 'local'))
   ])
   return asn1.toDer(asn1.create(asn1.Class.UNIVERSAL, asn1.Type.SEQUENCE, true, [permitted])).getBytes()
 }
 
-export function createCa(label: string): CertPair {
+/** 這張 CA 的 Name Constraints 是否允許簽 mesh 網段？舊版產生的 CA 不允許，手機上的限制也改不了，只能換新 CA */
+export function caPermitsMesh(caPem: string): boolean {
+  return certDer(caPem).includes(Buffer.from(nameConstraintsDer(true), 'binary'))
+}
+
+export function createCa(label: string, mesh = false): CertPair {
   const keys = newRsaKeys()
   const cert = forge.pki.createCertificate()
   cert.publicKey = keys.publicKey
@@ -106,7 +148,8 @@ export function createCa(label: string): CertPair {
   cert.validity.notBefore = new Date(Date.now() - 60_000)
   cert.validity.notAfter = new Date(Date.now() + 5 * 365 * 24 * 3600_000)
   const subject = [
-    { name: 'commonName', value: `Agent Workbench Local CA (${label})` },
+    // mesh 版換個名字，手機上才分得出哪張是舊的、可以刪
+    { name: 'commonName', value: `Agent Workbench Local CA${mesh ? ' + VPN' : ''} (${label})` },
     { name: 'organizationName', value: 'Agent Workbench' }
   ]
   cert.setSubject(subject)
@@ -115,7 +158,7 @@ export function createCa(label: string): CertPair {
     { name: 'basicConstraints', cA: true, pathLenConstraint: 0, critical: true },
     { name: 'keyUsage', keyCertSign: true, cRLSign: true, critical: true },
     { name: 'subjectKeyIdentifier' },
-    { id: '2.5.29.30', critical: true, value: nameConstraintsDer() }
+    { id: '2.5.29.30', critical: true, value: nameConstraintsDer(mesh) }
   ])
   cert.sign(keys.privateKey, forge.md.sha256.create())
   return { certPem: forge.pki.certificateToPem(cert), keyPem: forge.pki.privateKeyToPem(keys.privateKey) }
