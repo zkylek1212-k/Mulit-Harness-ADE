@@ -21,7 +21,17 @@ fs.writeFileSync(path.join(root, 'binary.dat'), Buffer.from([0, 1, 2]))
 fs.writeFileSync(path.join(root, 'large.txt'), Buffer.alloc(1024 * 1024 + 1, 65))
 let paired = true
 const files = new RemoteFiles((device, workspace) => paired && device === 'phone' && workspace === root)
-const server = http.createServer((req, res) => files.serve(req, res))
+// 記下伺服器實際送出的標頭：本機若有 AdGuard 之類的過濾軟體，連 127.0.0.1 的回應標頭也會被改寫（CSP 尤其），不能只看 fetch 收到的
+const sent = new Map<string, Record<string, unknown>>()
+const server = http.createServer((req, res) => {
+  const writeHead = res.writeHead.bind(res)
+  res.writeHead = ((...args: unknown[]) => {
+    const headers = args.find((a) => a && typeof a === 'object') as Record<string, unknown> | undefined
+    sent.set(req.url || '', { ...res.getHeaders(), ...Object.fromEntries(Object.entries(headers || {}).map(([k, v]) => [k.toLowerCase(), v])) })
+    return (writeHead as (...a: unknown[]) => http.ServerResponse)(...args)
+  }) as typeof res.writeHead
+  files.serve(req, res)
+})
 try {
   const list = listWorkspaceFiles(root, '')
   assert.equal(list[0].name, 'docs')
@@ -39,8 +49,9 @@ try {
   const html = await fetch(base + htmlPath)
   assert.equal(html.status, 200)
   assert.match(html.headers.get('content-type')!, /text\/html/)
-  assert.match(html.headers.get('content-security-policy')!, /sandbox allow-scripts/)
-  assert.match(html.headers.get('content-security-policy')!, /connect-src 'none'/)
+  const csp = String(sent.get(htmlPath)?.['content-security-policy'])
+  assert.match(csp, /sandbox allow-scripts/)
+  assert.match(csp, /connect-src 'none'/)
   assert.match(await html.text(), /Preview/)
   const css = await fetch(base + new URL('theme.css', htmlUrl).pathname)
   assert.equal(css.status, 200)

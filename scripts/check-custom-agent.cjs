@@ -143,4 +143,4 @@ async function check() {
   assert.equal(settings.loadSettings().customAgent.resources.hook, config.resources.hook, 'disabling retains configuration')
   console.log('custom agent: settings isolation, opt-in, PTY args, four resource kinds, backups, conflicts and path boundaries passed')
 }
-check().catch((e) => { console.error(e); process.exitCode = 1 }).finally(() => fs.rmSync(tmp, { recursive: true, force: true }))
+check().catch((e) => { console.error(e); process.exitCode = 1 }).finally(() => { try { fs.rmSync(tmp, { recursive: true, force: true }) } catch { /* Windows 偶爾還有 handle */ } require('electron').app.exit(process.exitCode || 0) })

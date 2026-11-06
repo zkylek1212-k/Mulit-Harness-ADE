@@ -93,4 +93,4 @@ async function main() {
   console.log('approval detection: ordinary output / live rendered menus / split chunks / navigation / automatic clearing / history passed for Claude and Codex')
 }
 
-main().catch(error => { console.error(error); process.exitCode = 1 })
+main().catch(error => { console.error(error); process.exitCode = 1 }).finally(() => require('electron').app.exit(process.exitCode || 0))

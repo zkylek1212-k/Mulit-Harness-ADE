@@ -37,8 +37,6 @@ jobs:
           git config --global user.name ci
           status=0
           for f in scripts/check-*.mts; do
-            # check-remote-files：測試跑完後 Node 在結束時觸發 libuv 斷言（master 上就有），修好再加回來
-            [ "$f" = scripts/check-remote-files.mts ] && continue
             echo "::group::$f"
             node --experimental-strip-types --no-warnings "$f" || status=1
             echo "::endgroup::"

@@ -30,7 +30,7 @@ window.api = {
     customList:async kind=>(kind==='mcp'||kind==='hook')?[kind==='mcp'?'mcp.json':'hooks.json']:[...files.keys()].filter(k=>k.startsWith(kind+':')).map(k=>k.slice(kind.length+1)),
     customRead:async(kind,file)=>files.get(kind+':'+file)??null,
     customWrite:async(kind,file,content,before)=>{window.writes.push({kind,file,content,before});files.set(kind+':'+file,content)}},
-  conn:{list:async()=>[]}, notify:{show(){}},
+  conn:{list:async()=>[]}, notify:{show(){}}, window:{setTitleBarTheme(){}}, memsync:{pluginState:async()=>({ok:false})},
   pty:{launchers:async()=>[],onRemoteSpawned:()=>()=>{},spawn:async opts=>{window.spawns.push(opts);return 'test-pty'},
     resize(){},write(){},kill(){},onData:()=>()=>{},onResized:()=>()=>{},onExit:()=>()=>{}}
 }

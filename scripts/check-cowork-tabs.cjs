@@ -44,6 +44,7 @@ window.api = {
   files: { detectDocTools: () => Promise.resolve({}) },
   updater: { getStatus: () => Promise.resolve({ state: 'idle' }), onStatusChange: noop },
   window: { setTitleBarTheme: () => {} },
+  memsync: { pluginState: () => Promise.resolve({ ok: false }) },
   notify: { show: () => {} },
   pty: { launchers: () => Promise.resolve([]), onRemoteSpawned: noop,
     spawn: () => Promise.resolve('mock-pty'), onData: noop, onResized: noop, onExit: noop, resize: () => {}, write: () => {}, kill: () => {} },
@@ -167,6 +168,8 @@ app.whenReady().then(async () => {
     assert.equal(await run('[...document.querySelectorAll("option")].some(e => /custom|自訂/i.test(e.textContent))'), false, 'neither meeting nor Settings offers custom model entry')
     assert.equal(await run('document.querySelectorAll(".cw-model-custom").length'), 0)
     assert.equal(await run('document.querySelector("#settings-fixture option[value=legacy-saved-model]").disabled'), true, 'saved models remain visible without a custom input')
+    assert.ok((await run('document.querySelector("#settings-fixture").innerText')).includes('Review after implementation'), 'the review switch is in Settings')
+    assert.ok((await run('document.querySelector("#settings-fixture").innerText')).includes('Worktree location'), 'the worktree location is in Settings')
     await run('{ const row = [...document.querySelectorAll("#settings-fixture .macos-cowork-model-row")].find(e => e.textContent.includes("Codex")); const model = row.querySelector("select"); model.value = "listed-model"; model.dispatchEvent(new Event("change", { bubbles: true })); }')
     await pause()
     assert.equal(await run('[...document.querySelectorAll("#settings-fixture .macos-cowork-model-row")].find(e => e.textContent.includes("Codex")).querySelectorAll("select")[1].value'), '', 'switching model clears unsupported effort')
