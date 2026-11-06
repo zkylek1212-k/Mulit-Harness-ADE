@@ -12,6 +12,11 @@ directories:
   output: release
   buildResources: build
 
+# Chromium 語系只留 app 支援的語言
+electronLanguages:
+  - en-US
+  - zh-TW
+
 # 只打包編譯產物與 package.json；原始碼不進安裝檔
 files:
   - out/**/*

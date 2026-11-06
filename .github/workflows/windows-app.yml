@@ -1,0 +1,46 @@
+name: Windows App
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths-ignore:
+      - 'apps/linux/**'
+      - '**/*.md'
+  pull_request:
+    paths-ignore:
+      - 'apps/linux/**'
+      - '**/*.md'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Rust tests
+        working-directory: core
+        run: cargo test -p wb-proc -p wb-pty
+      - name: Check scripts
+        shell: bash
+        run: |
+          git config --global user.email ci@example.invalid
+          git config --global user.name ci
+          status=0
+          for f in scripts/check-*.mts; do
+            # check-remote-files：測試跑完後 Node 在結束時觸發 libuv 斷言（master 上就有），修好再加回來
+            [ "$f" = scripts/check-remote-files.mts ] && continue
+            echo "::group::$f"
+            node --experimental-strip-types --no-warnings "$f" || status=1
+            echo "::endgroup::"
+          done
+          exit $status
