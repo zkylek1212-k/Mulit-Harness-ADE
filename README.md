@@ -1,4 +1,4 @@
-# Mulit-Harness-ADE — Agent Workbench
+# Multi-Harness-ADE — Agent Workbench
 
 A lightweight, **agent-native** developer workbench: a Monaco code editor, a Git
 visualizer, N embedded CLI terminals, and Cowork multi-agent meetings. Built with Electron +
@@ -83,7 +83,7 @@ Switching storage later migrates linked projects on open and keeps the old copy.
 Run this command in **PowerShell** (no Git or Node.js required):
 
 ```powershell
-irm https://raw.githubusercontent.com/zkylek1212-k/Mulit-Harness-ADE/master/install.ps1 | iex
+irm https://raw.githubusercontent.com/zkylek1212-k/Multi-Harness-ADE/master/install.ps1 | iex
 ```
 
 > **What this does:** Automatically fetches the latest release from GitHub, downloads the Windows setup installer (`.exe`), and starts the installation.
@@ -91,18 +91,18 @@ irm https://raw.githubusercontent.com/zkylek1212-k/Mulit-Harness-ADE/master/inst
 > *Options:*
 > - **Silent install** (no wizard prompt):
 >   ```powershell
->   $env:INSTALL_SILENT=1; irm https://raw.githubusercontent.com/zkylek1212-k/Mulit-Harness-ADE/master/install.ps1 | iex
+>   $env:INSTALL_SILENT=1; irm https://raw.githubusercontent.com/zkylek1212-k/Multi-Harness-ADE/master/install.ps1 | iex
 >   ```
 > - **Download installer only** (saves to current folder without running):
 >   ```powershell
->   $env:INSTALL_DOWNLOAD_ONLY=1; irm https://raw.githubusercontent.com/zkylek1212-k/Mulit-Harness-ADE/master/install.ps1 | iex
+>   $env:INSTALL_DOWNLOAD_ONLY=1; irm https://raw.githubusercontent.com/zkylek1212-k/Multi-Harness-ADE/master/install.ps1 | iex
 >   ```
 
 ### Method 2: Direct Download from GitHub Releases
 
 Prefer manual download? Grab the setup package directly from GitHub:
 
-- 🚀 **[Download Latest Release](https://github.com/zkylek1212-k/Mulit-Harness-ADE/releases/latest)**
+- 🚀 **[Download Latest Release](https://github.com/zkylek1212-k/Multi-Harness-ADE/releases/latest)**
 - Download `Agent-Workbench-<version>-setup.exe` and double-click to install.
 - *(Portable version: download `Agent-Workbench-<version>-portable.zip`, extract it, and run `Agent Workbench.exe` directly without installation.)*
 
@@ -120,8 +120,8 @@ For developers who want to contribute or build from source:
 ### Getting started
 
 ```bash
-git clone https://github.com/zkylek1212-k/Mulit-Harness-ADE.git
-cd Mulit-Harness-ADE
+git clone https://github.com/zkylek1212-k/Multi-Harness-ADE.git
+cd Multi-Harness-ADE
 npm install
 npm run dev        # launch in development
 ```
@@ -362,7 +362,7 @@ N 個內嵌 CLI 終端，以及 Cowork 多 agent 會議。以 Electron + React +
 在 **PowerShell** 貼上並執行以下單行指令（無需 Git 或 Node.js）：
 
 ```powershell
-irm https://raw.githubusercontent.com/zkylek1212-k/Mulit-Harness-ADE/master/install.ps1 | iex
+irm https://raw.githubusercontent.com/zkylek1212-k/Multi-Harness-ADE/master/install.ps1 | iex
 ```
 
 > **說明：** 自動向 GitHub 取得最新版本安裝包（`.exe`），下載並自動啟動安裝精靈。
@@ -370,16 +370,16 @@ irm https://raw.githubusercontent.com/zkylek1212-k/Mulit-Harness-ADE/master/inst
 > *進階選項：*
 > - **靜默自動安裝**（不彈出安裝引導畫面）：
 >   ```powershell
->   $env:INSTALL_SILENT=1; irm https://raw.githubusercontent.com/zkylek1212-k/Mulit-Harness-ADE/master/install.ps1 | iex
+>   $env:INSTALL_SILENT=1; irm https://raw.githubusercontent.com/zkylek1212-k/Multi-Harness-ADE/master/install.ps1 | iex
 >   ```
 > - **僅下載安裝檔到本地**（儲存至當前目錄，不立即執行）：
 >   ```powershell
->   $env:INSTALL_DOWNLOAD_ONLY=1; irm https://raw.githubusercontent.com/zkylek1212-k/Mulit-Harness-ADE/master/install.ps1 | iex
+>   $env:INSTALL_DOWNLOAD_ONLY=1; irm https://raw.githubusercontent.com/zkylek1212-k/Multi-Harness-ADE/master/install.ps1 | iex
 >   ```
 
 ### 方法二：直接自 GitHub Releases 下載
 
-- 🚀 **[前往最新發行頁面（GitHub Releases）](https://github.com/zkylek1212-k/Mulit-Harness-ADE/releases/latest)**
+- 🚀 **[前往最新發行頁面（GitHub Releases）](https://github.com/zkylek1212-k/Multi-Harness-ADE/releases/latest)**
 - 下載 `Agent-Workbench-<版本>-setup.exe` 雙擊即可安裝。
 - *(免安裝綠色版：下載 `Agent-Workbench-<版本>-portable.zip`，解壓後直接雙擊 `Agent Workbench.exe` 即可使用)*
 
@@ -397,8 +397,8 @@ irm https://raw.githubusercontent.com/zkylek1212-k/Mulit-Harness-ADE/master/inst
 ### 快速開始
 
 ```bash
-git clone https://github.com/zkylek1212-k/Mulit-Harness-ADE.git
-cd Mulit-Harness-ADE
+git clone https://github.com/zkylek1212-k/Multi-Harness-ADE.git
+cd Multi-Harness-ADE
 npm install
 npm run dev        # 開發模式啟動
 ```

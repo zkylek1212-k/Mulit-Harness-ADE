@@ -5,7 +5,7 @@ copyright: MIT
 publish:
   provider: github
   owner: zkylek1212-k
-  repo: Mulit-Harness-ADE
+  repo: Multi-Harness-ADE
   releaseType: release
 
 directories:
