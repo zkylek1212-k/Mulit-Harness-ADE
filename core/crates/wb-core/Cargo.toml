@@ -19,3 +19,7 @@ uuid = { version = "1", features = ["v4"] }
 notify = "8"
 serde_norway = "0.9"
 base64 = "0.22"
+ureq = "3"
+
+[target.'cfg(windows)'.dependencies]
+junction = "1"
