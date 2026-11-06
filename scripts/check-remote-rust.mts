@@ -14,13 +14,13 @@ import * as tls from 'node:tls'
 import { createInterface } from 'node:readline'
 import { WebSocket, WebSocketServer } from 'ws'
 
-const exe = process.env.WB_IPC_PATH || path.join(process.env.CARGO_TARGET_DIR || path.join(process.env.LOCALAPPDATA || '', 'wb-cargo-target'), 'debug', 'wb-ipc.exe')
+import * as legacy from './lib/legacy-ca.mts'
+import { PHONE_AUDITED_OPS, PHONE_COWORK_OPS } from '../src/shared/remoteProtocol.ts'
+import { coreCall as rc, exe } from './lib/core-call.mts'
+
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'wb-remote-e2e-'))
-const rc = (name: string, ...args: unknown[]): any => {
-  const r = JSON.parse(execFileSync(exe, ['--remote', name], { input: JSON.stringify(args.map((a) => (a === undefined ? null : a))), encoding: 'utf8', maxBuffer: 1 << 26 }))
-  if (r.err !== undefined) throw new Error(r.err)
-  return r.value
-}
+assert.deepEqual([...rc('phoneCoworkOps')].sort(), [...PHONE_COWORK_OPS].sort(), 'the phone allowlist matches what the phone page expects')
+assert.deepEqual([...rc('phoneAuditedOps')].sort(), [...PHONE_AUDITED_OPS].sort())
 
 // ── certificates ──
 async function handshake(cert: { certPem: string; keyPem: string }, servername: string, caPem: string): Promise<string> {
@@ -56,14 +56,11 @@ assert.equal(await handshake(rc('issueServerCert', meshCa, ...SAN), 'box.local',
 assert.match(await handshake(rc('issueServerCert', meshCa, [], ['www.google.com']), 'www.google.com', meshCa.certPem), /subtree/)
 
 // A CA and key from the Electron code: what phones in the field already trust. New leaves must chain to it.
-const legacy = await import('../src/main/remote/certs.ts')
 const oldCa = legacy.createCa('old-pc')
 assert.equal(await handshake(rc('issueServerCert', oldCa, ['192.168.50.7'], ['box.local']), 'box.local', oldCa.certPem), 'ok', 'a new leaf chains to an existing CA')
-assert.ok(legacy.certCovers(rc('issueServerCert', oldCa, ['192.168.50.7'], []).certPem, ['192.168.50.7'], []))
 assert.ok(rc('certCovers', legacy.issueServerCert(oldCa, ['192.168.50.7'], ['box.local']).certPem, ['192.168.50.7'], ['box.local']), 'reads what the old code issued')
 assert.equal(rc('caPermitsMesh', oldCa.certPem), false)
 assert.equal(rc('caPermitsMesh', legacy.createCa('old', true).certPem), true, 'recognises an old mesh CA, so phones are not asked to reinstall')
-assert.equal(legacy.caPermitsMesh(meshCa.certPem), true, 'and the old code recognises a new one')
 console.log('certificates ok')
 
 // ── Web Push ──
@@ -101,8 +98,7 @@ function decrypt(body: Buffer, ua: crypto.ECDH, auth: Buffer): string {
   }
   verify(rc('generateVapidKeys'))
   // Keys Electron's Node made: phones are subscribed against these
-  const { generateVapidKeys } = await import('../src/main/remote/webpush.ts')
-  verify(generateVapidKeys())
+  verify(legacy.legacyVapid())
   console.log('web push ok')
 }
 
@@ -413,6 +409,13 @@ try {
   await phone.take((m) => m.t === 'error' && /session/.test(m.message), 'unknown session')
   phone.inbox.length = 0
 
+  // An older phone page still sends resize: the desktop owns the size
+  const sizeBefore = (await ipc('test:ptyInfo', id)).cols
+  phone.send({ t: 'resize', id, cols: 30, rows: 12 })
+  phone.send({ t: 'ping' })
+  await phone.take((m) => m.t === 'pong', 'after resize')
+  assert.equal((await ipc('test:ptyInfo', id)).cols, sizeBefore, 'a phone cannot change the desktop terminal size')
+
   // Preview: a dev server the terminal printed
   const dev = http.createServer((q, s) => {
     s.writeHead(200, { 'Content-Type': 'text/plain', 'X-Frame-Options': 'DENY' })
@@ -425,9 +428,7 @@ try {
   phone.send({ t: 'preview', id })
   assert.match((await phone.take((m) => m.t === 'preview', 'no dev server yet')).error, /no dev server/)
   phone.send({ t: 'input', id, data: `echo http://localhost:${devPort}/\r` })
-  await until(async () => (await ipc('pty:list', ws).catch(() => [])).length >= 0 && (phone.send({ t: 'preview', id }), await phone.take((m) => m.t === 'preview', 'preview')).url != null, 'dev port detected', 15000).catch(async (e) => {
-    throw e
-  })
+  await until(async () => (phone.send({ t: 'preview', id }), await phone.take((m) => m.t === 'preview', 'preview')).url != null, 'dev port detected', 15000)
   phone.send({ t: 'preview', id })
   const pv = await phone.take((m) => m.t === 'preview' && m.url, 'preview url')
   const purl = new URL(pv.url)

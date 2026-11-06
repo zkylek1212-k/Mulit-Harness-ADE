@@ -1,14 +1,14 @@
-// npm run build && node_modules/.bin/electron scripts/check-remote-cowork.cjs [screenshot-dir]
+// npm run build:ui && node scripts/check-remote-cowork.cjs [screenshot-dir]
 // 手機版 Cowork：真的手機 bundle（out/renderer/remote.html），假的桌面 WebSocket。
 // 驗證開會表單帶出桌面記住的與會者、送出的 op／參數跟桌面 window.api.cowork 一致，以及各階段的按鈕與輸入框。
-const { app, BrowserWindow } = require('electron')
+const { app, BrowserWindow } = require('./lib/browser-window.cjs')
 const fs = require('node:fs')
 const http = require('node:http')
 const os = require('node:os')
 const path = require('node:path')
 const assert = require('node:assert/strict')
 
-const root = path.join(__dirname, '../out/renderer')
+const root = path.join(__dirname, '../out/desktop')
 const shots = process.argv[2]
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'remote-cowork-check-'))
 app.setPath('userData', path.join(dir, 'user-data'))

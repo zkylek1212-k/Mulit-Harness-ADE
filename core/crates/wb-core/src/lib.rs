@@ -46,6 +46,29 @@ pub fn start_features(core: &Arc<Core>) {
     remote::start_background(core);
 }
 
+/// Pure functions the check scripts call by name, through wb-ipc
+pub fn test_call(name: &str, a: &[Value]) -> Result<Value, String> {
+    let text = |i: usize| a.get(i).and_then(Value::as_str).unwrap_or("");
+    let to_json = |d: usage::Days| serde_json::to_value(d).map_err(|e| e.to_string());
+    match name {
+        "claudeBgTasks" => Ok(Value::Array(bgtasks::claude_bg_tasks(text(0)))),
+        "codexBgTasks" => Ok(Value::Array(bgtasks::codex_bg_tasks(text(0)))),
+        "antigravityBgTasks" => Ok(Value::Array(bgtasks::antigravity_bg_tasks(text(0)))),
+        "claudeDays" => to_json(usage::claude_days(text(0))),
+        "codexDays" => to_json(usage::codex_days(text(0))),
+        "antigravityDays" => to_json(usage::antigravity_days(text(0))),
+        "sumDays" => {
+            let days: usage::Days = serde_json::from_value(a.first().cloned().unwrap_or(Value::Null)).map_err(|e| e.to_string())?;
+            serde_json::to_value(usage::sum_days(&days, text(1))).map_err(|e| e.to_string())
+        }
+        "dayKey" => Ok(Value::String(usage::day_key(a.first().unwrap_or(&Value::Null)))),
+        "looksLikeApprovalPrompt" => Ok(Value::Bool(wb_pty::approval::looks_like_approval_prompt(text(0)))),
+        "phoneCoworkOps" => Ok(serde_json::json!(remote::server::PHONE_COWORK_OPS)),
+        "phoneAuditedOps" => Ok(serde_json::json!(remote::server::PHONE_AUDITED_OPS)),
+        _ => remote::test_call(name, a),
+    }
+}
+
 pub fn features_call(core: &Arc<Core>, window: u32, channel: &str, args: &[Value]) -> Result<Value, String> {
     match channel.split(':').next().unwrap_or("") {
         "memsync" => memsync::call(core, window, channel, args),

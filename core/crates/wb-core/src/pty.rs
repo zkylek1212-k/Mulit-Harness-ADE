@@ -115,6 +115,12 @@ struct Entry {
     serial: u64,
 }
 
+/// `cmd /c "a b.cmd" "c d"` is misread: a command line starting with a quote loses its first and last quote, so a script under a
+/// path with spaces plus any quoted argument fails to start. Starting with `call` keeps the quotes as written.
+fn batch_args(script: String) -> Vec<String> {
+    vec!["/c".into(), "call".into(), script]
+}
+
 #[derive(Default)]
 pub struct PtyManager {
     entries: Mutex<HashMap<String, Entry>>,
@@ -291,7 +297,7 @@ impl Core {
                 return Ok(("powershell.exe".into(), a));
             }
             if win && (lower.ends_with(".cmd") || lower.ends_with(".bat")) {
-                let mut a = vec!["/c".to_string(), target];
+                let mut a = batch_args(target);
                 a.extend(extra);
                 return Ok(("cmd.exe".into(), a));
             }
@@ -329,7 +335,7 @@ impl Core {
                 return Ok(("powershell.exe".into(), vec!["-ExecutionPolicy".into(), "Bypass".into(), "-File".into(), target]));
             }
             if lower.ends_with(".cmd") || lower.ends_with(".bat") {
-                return Ok(("cmd.exe".into(), vec!["/c".into(), target]));
+                return Ok(("cmd.exe".into(), batch_args(target)));
             }
         }
         Ok((target, Vec::new()))

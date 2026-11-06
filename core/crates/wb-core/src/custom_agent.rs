@@ -139,6 +139,24 @@ pub fn read_file(config: &Value, kind: &str, file: &str) -> Result<Option<String
     }
 }
 
+#[cfg(windows)]
+fn link_count(path: &Path) -> u32 {
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::Storage::FileSystem::{GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION};
+    let Ok(f) = fs::File::open(path) else { return 0 };
+    let mut info: BY_HANDLE_FILE_INFORMATION = unsafe { std::mem::zeroed() };
+    if unsafe { GetFileInformationByHandle(f.as_raw_handle() as _, &mut info) } == 0 {
+        return 0;
+    }
+    info.nNumberOfLinks
+}
+
+#[cfg(not(windows))]
+fn link_count(path: &Path) -> u32 {
+    use std::os::unix::fs::MetadataExt;
+    fs::metadata(path).map(|m| m.nlink() as u32).unwrap_or(0)
+}
+
 pub fn write_file(config: &Value, kind: &str, file: &str, content: &str, before: Option<&str>) -> Result<(), String> {
     let target = target_path(config, kind, file)?;
     if content.len() as u64 > MAX_BYTES || content.contains('\0') {
@@ -161,6 +179,10 @@ pub fn write_file(config: &Value, kind: &str, file: &str, content: &str, before:
         if before.is_some() {
             let backup = format!("{target}.workbench-backup");
             no_symlinks(&backup, &dir)?;
+            // Copying over a hard link would write into whatever else it points to
+            if link_count(Path::new(&backup)) > 1 {
+                return Err("Backup destination cannot be a hard link".into());
+            }
             fs::copy(&target, &backup).map_err(|e| e.to_string())?;
             fs::rename(&temp, &target).map_err(|e| e.to_string())
         } else {

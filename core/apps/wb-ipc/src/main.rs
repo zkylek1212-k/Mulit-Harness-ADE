@@ -206,11 +206,11 @@ fn main() {
         println!("{}", memsync_result(memsync::test_call(&argv[2], &no_tools(), &a)));
         return;
     }
-    if argv.get(1).map(String::as_str) == Some("--remote") {
+    if argv.get(1).map(String::as_str) == Some("--core") {
         let mut input = String::new();
         std::io::Read::read_to_string(&mut std::io::stdin(), &mut input).expect("stdin");
         let a: Vec<Value> = serde_json::from_str(&input).unwrap_or_default();
-        println!("{}", match wb_core::remote::test_call(&argv[2], &a) {
+        println!("{}", match wb_core::test_call(&argv[2], &a) {
             Ok(v) => json!({ "value": v }),
             Err(e) => json!({ "err": e }),
         });
@@ -232,6 +232,14 @@ fn main() {
     let pending: Arc<Mutex<HashMap<u64, mpsc::Sender<Value>>>> = Arc::default();
     let info = AppInfo { version: std::env::var("WB_VERSION").unwrap_or_else(|_| "0.0.0".into()), is_packaged: false, exe_path: String::new(), resources: PathBuf::from(std::env::var("WB_RESOURCES").unwrap_or_default()) };
     let core = Core::new(host.clone(), PathBuf::from(std::env::var("WB_DATA_DIR").expect("WB_DATA_DIR")), info);
+    {
+        let h = host.clone();
+        core.pty.on_event(Arc::new(move |ev| {
+            if let wb_core::pty::PtyEvent::Approval(id) = ev {
+                h.print(&json!({ "event": "test:ptyEvent", "kind": "approval", "id": id }));
+            }
+        }));
+    }
     for line in std::io::stdin().lock().lines() {
         let Ok(line) = line else { break };
         let Ok(msg) = serde_json::from_str::<Value>(&line) else { continue };
@@ -287,6 +295,8 @@ fn main() {
                         None => json!({ "ok": false, "code": "no-service" }),
                     })
                 }
+                "test:ptyInfo" => Ok(core.get_pty_session(args[0].as_str().unwrap_or("")).unwrap_or(Value::Null)),
+                "test:ptyScreen" => Ok(json!(core.pty_screen_text(args[0].as_str().unwrap_or("")).unwrap_or_default())),
                 "test:quit" => {
                     core.shutdown();
                     std::process::exit(0);

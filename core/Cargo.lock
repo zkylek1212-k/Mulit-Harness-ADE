@@ -5598,6 +5598,7 @@ dependencies = [
  "wb-proc",
  "wb-pty",
  "wb-secrets",
+ "windows-sys 0.59.0",
  "x509-parser",
 ]
 
@@ -5645,6 +5646,7 @@ dependencies = [
  "alacritty_terminal",
  "portable-pty",
  "regex",
+ "serde_json",
 ]
 
 [[package]]

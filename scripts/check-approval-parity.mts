@@ -4,7 +4,7 @@ import './ts-resolve.mjs'
 import assert from 'node:assert'
 
 const { looksLikeApprovalPrompt } = await import('../src/shared/approvalDetect.ts')
-const bridge = await import('../src/main/core/bridge.ts')
+const { coreCall } = await import('./lib/core-call.mts')
 
 const screens = [
   // 一般輸出
@@ -48,12 +48,11 @@ const screens = [
 let mismatches = 0
 for (const s of screens) {
   const ts = looksLikeApprovalPrompt(s)
-  const rust = await bridge.coreLooksLikeApproval(s)
+  const rust = coreCall('looksLikeApprovalPrompt', s)
   if (ts !== rust) {
     mismatches++
     console.log(`MISMATCH ts=${ts} rust=${rust}: ${JSON.stringify(s)}`)
   }
 }
-await bridge.coreShutdown()
 assert.equal(mismatches, 0)
 console.log(`approval parity ok (${screens.length} screens)`)

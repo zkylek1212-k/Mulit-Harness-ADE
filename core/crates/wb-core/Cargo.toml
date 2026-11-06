@@ -43,3 +43,4 @@ time = "0.3.55"
 
 [target.'cfg(windows)'.dependencies]
 junction = "1"
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
