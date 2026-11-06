@@ -57,6 +57,12 @@ impl Preview {
         self.port.store(port, Ordering::SeqCst);
     }
 
+    /// Every cookie and ticket issued so far stops working
+    pub fn rotate(&self) {
+        *self.key.lock().unwrap() = new_key();
+        self.tickets.lock().unwrap().clear();
+    }
+
     pub fn stopped(&self) {
         self.port.store(0, Ordering::SeqCst);
         self.tickets.lock().unwrap().clear();

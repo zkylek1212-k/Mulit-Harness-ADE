@@ -240,6 +240,10 @@ struct Launcher {
 
 /// agents/*.yaml travels with the repo: it picks from known CLIs and cannot name its own executable
 fn read_launchers(ws: &str) -> Vec<Launcher> {
+    // No folder is not the current directory: that is wherever the app happened to start
+    if ws.is_empty() {
+        return Vec::new();
+    }
     let dir = Path::new(ws).join("agents");
     let mut out = Vec::new();
     let Ok(rd) = std::fs::read_dir(&dir) else { return out };

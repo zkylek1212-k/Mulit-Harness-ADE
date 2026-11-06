@@ -592,6 +592,8 @@ impl Bridge {
     pub fn revoke_device(&self, id: &str) {
         let Some(store) = self.store() else { return };
         store.remove_device(id);
+        // A preview cookie is not tied to a device, so the only way to end a revoked phone's is to end them all; others reopen Preview
+        self.preview.rotate();
         for c in self.clients.lock().unwrap().values() {
             if c.device_id().as_deref() == Some(id) {
                 c.drop_with(4001);
@@ -972,6 +974,12 @@ impl Bridge {
 
     fn workspace_of(&self, core: &Core, window: Option<u64>) -> Option<String> {
         let id = window? as u32;
+        // A window with no folder has no workspace, or its reads would land in the app's current directory
+        self.window_root(core, id).filter(|ws| !ws.is_empty())
+    }
+
+    /// The window itself, folder or not: the configured custom harness also starts in a window without one
+    fn window_root(&self, core: &Core, id: u32) -> Option<String> {
         core.project_workspaces().into_iter().find(|(w, _)| *w == id).map(|(_, ws)| ws)
     }
 
@@ -1027,7 +1035,7 @@ impl Bridge {
                     c.send(&json!({ "t": "error", "message": "window not found" }));
                     return Ok(());
                 };
-                let Some(ws) = self.workspace_of(&core, window) else {
+                let Some(ws) = self.window_root(&core, win) else {
                     c.send(&json!({ "t": "error", "message": "window not found" }));
                     return Ok(());
                 };

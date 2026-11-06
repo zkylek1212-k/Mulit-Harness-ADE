@@ -393,7 +393,8 @@ async fn webview_create(webview: Webview, id: u64, url: String, x: f64, y: f64, 
             h.send(window, "webview:event", json!([id, event, url]));
         }
     };
-    let builder = WebviewBuilder::new(label, WebviewUrl::External(parsed)).on_page_load(move |wv, payload| {
+    // The old <webview> blocked popups unless asked, and nothing here asks: a page in the embedded browser opens no new windows
+    let builder = WebviewBuilder::new(label, WebviewUrl::External(parsed)).on_new_window(|_, _| tauri::webview::NewWindowResponse::Deny).on_page_load(move |wv, payload| {
         let url = wv.url().map(|u| u.to_string()).unwrap_or_default();
         match payload.event() {
             PageLoadEvent::Started => notify("did-start-loading", url),

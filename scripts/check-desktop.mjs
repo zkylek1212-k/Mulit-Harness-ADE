@@ -72,14 +72,16 @@ try {
   await check('webview element: outside content in a child webview without IPC', async () => {
     // The page itself tries, and tells the test server what happened
     let told = null
+    let popup = null
     const site = http.createServer((q, s) => {
       if (q.url.startsWith('/report')) {
         told = new URL(q.url, 'http://x').searchParams.get('r')
+        popup = new URL(q.url, 'http://x').searchParams.get('p')
         s.end()
         return
       }
       s.setHeader('Content-Type', 'text/html')
-      s.end(`<script>(async () => { let r; try { const t = window.__TAURI_INTERNALS__; if (!t) r = 'no-internals'; else { await t.invoke('ipc', { channel: 'settings:get', args: [] }); r = 'allowed' } } catch (e) { r = 'denied' } await fetch('/report?r=' + r) })()</script>`)
+      s.end(`<script>(async () => { let r; try { const t = window.__TAURI_INTERNALS__; if (!t) r = 'no-internals'; else { await t.invoke('ipc', { channel: 'settings:get', args: [] }); r = 'allowed' } } catch (e) { r = 'denied' } let p; try { p = window.open('/popup') ? 'opened' : 'blocked' } catch (e) { p = 'blocked' } await fetch('/report?r=' + r + '&p=' + p) })()</script>`)
     })
     await new Promise((r) => site.listen(0, '127.0.0.1', r))
     const url = `http://127.0.0.1:${site.address().port}/`
@@ -97,6 +99,7 @@ try {
     await p.eval(`(document.getElementById('w2').remove(), true)`)
     site.close()
     assert.ok(told === 'denied' || told === 'no-internals', `child webview IPC: ${told}`)
+    assert.equal(popup, 'blocked', 'the embedded browser opens no popups')
   })
   await check('webview element: a data: URL is refused', async () => {
     await p.eval(`(() => { const e = document.createElement('wb-webview'); e.id = 'w1'; e.setAttribute('src', 'data:text/html,hi'); e.style.cssText = 'position:fixed;left:50px;top:80px;width:200px;height:100px;z-index:999999'; document.body.appendChild(e); return true })()`)
