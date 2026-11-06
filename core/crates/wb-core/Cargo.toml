@@ -1,0 +1,21 @@
+[package]
+name = "wb-core"
+description = "Everything the UI asks the backend for, one handler per IPC channel. No UI framework in here."
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[dependencies]
+wb-proc = { path = "../wb-proc" }
+wb-git = { path = "../wb-git" }
+wb-secrets = { path = "../wb-secrets" }
+wb-pty = { path = "../wb-pty" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+regex = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+uuid = { version = "1", features = ["v4"] }
+notify = "8"
+serde_norway = "0.9"
+base64 = "0.22"
