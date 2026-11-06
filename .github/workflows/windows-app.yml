@@ -18,7 +18,9 @@ permissions:
 jobs:
   check:
     runs-on: windows-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/core/target
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -27,9 +29,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
-      - name: Rust tests
+      - name: Rust tests and bridge
         working-directory: core
-        run: cargo test -p wb-proc -p wb-pty
+        run: |
+          cargo test -p wb-proc -p wb-git -p wb-secrets -p wb-pty
+          cargo build -p wb-bridge --release
       - name: Check scripts
         shell: bash
         run: |
@@ -39,6 +43,12 @@ jobs:
           for f in scripts/check-*.mts; do
             echo "::group::$f"
             node --experimental-strip-types --no-warnings "$f" || status=1
+            echo "::endgroup::"
+          done
+          # 同一套測試跑 Rust 後端：兩邊行為要一樣
+          for f in scripts/check-cowork.mts scripts/check-cowork-gates.mts; do
+            echo "::group::$f (rust)"
+            WB_CORE_GIT=rust WB_CORE_PROC=rust node --experimental-strip-types --no-warnings "$f" || status=1
             echo "::endgroup::"
           done
           exit $status

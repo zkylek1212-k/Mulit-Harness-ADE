@@ -29,6 +29,9 @@ asarUnpack:
 
 # 自帶的 shared-project-memory plugin：使用者同意後複製成本機 marketplace，Claude Code／Codex 從那裡安裝
 extraResources:
+  # Rust 核心（遷移期）：scripts/build-core.cjs 產生，預設不啟用，由 WB_CORE_* 開關選擇
+  - from: build/bin/wb-bridge.exe
+    to: wb-bridge.exe
   - from: plugins/shared-project-memory
     to: plugins/shared-project-memory
     filter: ['**/*', '!tests/**']

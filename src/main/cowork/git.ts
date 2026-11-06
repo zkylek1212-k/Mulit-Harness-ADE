@@ -4,8 +4,13 @@ import { execFile, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import { route } from '../core/bridge'
 
 export function git(cwd: string, args: string[]): Promise<string> {
+  return route('git', 'git.run', { cwd, args }, () => gitTs(cwd, args))
+}
+
+function gitTs(cwd: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     // fsmonitor 是 repo 設定就能指定的執行點：harness 自己的 git 指令一律關掉
     execFile('git', ['-c', 'core.fsmonitor=false', ...args], { cwd, maxBuffer: 32 * 1024 * 1024, windowsHide: true }, (err, stdout, stderr) => {
@@ -27,7 +32,11 @@ export interface Baseline {
 }
 
 /** 讀工作區的 git 基線。不是 git repo、還沒有 commit 都會丟出可讀的錯誤 */
-export async function readBaseline(dir: string): Promise<Baseline> {
+export function readBaseline(dir: string): Promise<Baseline> {
+  return route('git', 'git.readBaseline', { dir }, () => readBaselineTs(dir))
+}
+
+async function readBaselineTs(dir: string): Promise<Baseline> {
   let root: string
   try {
     root = (await git(dir, ['rev-parse', '--show-toplevel'])).trim()
@@ -75,7 +84,11 @@ export function snapshotDirFor(commonDir: string, runId: string): string {
 }
 
 /** 以 --shared 複製（物件走 alternates，不實際複製），再 checkout 到基線 commit */
-export async function createSnapshot(root: string, dir: string, commit: string): Promise<void> {
+export function createSnapshot(root: string, dir: string, commit: string): Promise<void> {
+  return route('git', 'git.createSnapshot', { root, dir, commit }, () => createSnapshotTs(root, dir, commit))
+}
+
+async function createSnapshotTs(root: string, dir: string, commit: string): Promise<void> {
   if (fs.existsSync(dir)) removeTree(dir)
   fs.mkdirSync(path.dirname(dir), { recursive: true })
   await git(path.dirname(dir), ['clone', '--quiet', '--shared', '--no-checkout', '--', root, dir])
@@ -86,7 +99,11 @@ export async function createSnapshot(root: string, dir: string, commit: string):
  * 回傳快照相對基線的所有變動；空陣列代表乾淨。
  * --ignored 也要看：新快照沒有被忽略的檔，寫進 out/ 之類的目錄一樣算副作用。
  */
-export async function snapshotChanges(dir: string, commit: string): Promise<string[]> {
+export function snapshotChanges(dir: string, commit: string): Promise<string[]> {
+  return route('git', 'git.snapshotChanges', { dir, commit }, () => snapshotChangesTs(dir, commit))
+}
+
+async function snapshotChangesTs(dir: string, commit: string): Promise<string[]> {
   const changes: string[] = []
   const head = (await git(dir, ['rev-parse', 'HEAD'])).trim()
   if (head !== commit) changes.push(`HEAD moved: ${commit.slice(0, 12)} -> ${head.slice(0, 12)}`)
@@ -176,14 +193,22 @@ export function excludeCoworkDir(commonDir: string): void {
   fs.appendFileSync(file, `${text && !text.endsWith('\n') ? '\n' : ''}# Agent Workbench Cowork worktrees\n.cowork/\n`)
 }
 
-export async function addWorktree(repoRoot: string, dir: string, branch: string, base: string): Promise<void> {
+export function addWorktree(repoRoot: string, dir: string, branch: string, base: string): Promise<void> {
+  return route('git', 'git.addWorktree', { repoRoot, dir, branch, base }, () => addWorktreeTs(repoRoot, dir, branch, base))
+}
+
+async function addWorktreeTs(repoRoot: string, dir: string, branch: string, base: string): Promise<void> {
   fs.mkdirSync(path.dirname(dir), { recursive: true })
   // 分支已存在就失敗（不覆寫使用者或上一場會議的分支）
   await git(repoRoot, ['worktree', 'add', '-b', branch, dir, base])
 }
 
 /** 主工作區有 node_modules、且 worktree 會忽略它時，用 junction 連過去（不用再安裝；也不會被 commit） */
-export async function linkNodeModules(repoRoot: string, worktree: string): Promise<boolean> {
+export function linkNodeModules(repoRoot: string, worktree: string): Promise<boolean> {
+  return route('git', 'git.linkNodeModules', { repoRoot, worktree }, () => linkNodeModulesTs(repoRoot, worktree))
+}
+
+async function linkNodeModulesTs(repoRoot: string, worktree: string): Promise<boolean> {
   const src = path.join(repoRoot, 'node_modules')
   const dst = path.join(worktree, 'node_modules')
   if (!fs.existsSync(src) || fs.existsSync(dst)) return false
@@ -209,7 +234,11 @@ function hookArgs(hooksDir?: string): string[] {
 }
 
 /** 把 worktree 的所有變動 commit；沒有變動回 null */
-export async function commitAll(dir: string, message: string, hooksDir?: string): Promise<string | null> {
+export function commitAll(dir: string, message: string, hooksDir?: string): Promise<string | null> {
+  return route('git', 'git.commitAll', { dir, message, hooksDir }, () => commitAllTs(dir, message, hooksDir))
+}
+
+async function commitAllTs(dir: string, message: string, hooksDir?: string): Promise<string | null> {
   await git(dir, ['add', '-A'])
   try {
     await git(dir, ['diff', '--cached', '--quiet'])
@@ -225,14 +254,22 @@ export async function commitAll(dir: string, message: string, hooksDir?: string)
  * 這一輪改了哪些檔（相對 worktree，含新增、刪除；改名拆成刪舊＋加新）。
  * 先 git add -A 再看 index：和接下來 commitAll 收進去的內容一致，也看得到 agent 自己 stage 的檔。
  */
-export async function changedFiles(dir: string): Promise<string[]> {
+export function changedFiles(dir: string): Promise<string[]> {
+  return route('git', 'git.changedFiles', { dir }, () => changedFilesTs(dir))
+}
+
+async function changedFilesTs(dir: string): Promise<string[]> {
   await git(dir, ['add', '-A'])
   const out = await git(dir, ['diff', '--cached', '--name-only', '--no-renames', '-z'])
   return out.split('\0').filter(Boolean)
 }
 
 /** 把指定的檔還原成 HEAD 的內容；HEAD 沒有的（新增的）直接刪掉。路徑必須是 changedFiles 回傳的相對路徑 */
-export async function revertFiles(dir: string, files: string[]): Promise<void> {
+export function revertFiles(dir: string, files: string[]): Promise<void> {
+  return route('git', 'git.revertFiles', { dir, files }, () => revertFilesTs(dir, files))
+}
+
+async function revertFilesTs(dir: string, files: string[]): Promise<void> {
   if (!files.length) return
   const base = fs.realpathSync(dir)
   for (const f of files) {
@@ -246,12 +283,20 @@ export async function revertFiles(dir: string, files: string[]): Promise<void> {
   }
 }
 
-export async function hasChanges(dir: string): Promise<boolean> {
+export function hasChanges(dir: string): Promise<boolean> {
+  return route('git', 'git.hasChanges', { dir }, () => hasChangesTs(dir))
+}
+
+async function hasChangesTs(dir: string): Promise<boolean> {
   return (await git(dir, ['status', '--porcelain', '--untracked-files=all'])).trim().length > 0
 }
 
 /** cherry-pick 一串 commit；衝突就還原並回報是哪一個 */
-export async function cherryPickAll(dir: string, commits: string[], hooksDir?: string): Promise<{ ok: true } | { ok: false; commit: string; message: string }> {
+export function cherryPickAll(dir: string, commits: string[], hooksDir?: string): Promise<{ ok: true } | { ok: false; commit: string; message: string }> {
+  return route('git', 'git.cherryPickAll', { dir, commits, hooksDir }, () => cherryPickAllTs(dir, commits, hooksDir))
+}
+
+async function cherryPickAllTs(dir: string, commits: string[], hooksDir?: string): Promise<{ ok: true } | { ok: false; commit: string; message: string }> {
   const id = await identity(dir)
   for (const c of commits) {
     try {
@@ -275,7 +320,11 @@ export async function cherryPickAll(dir: string, commits: string[], hooksDir?: s
   return { ok: true }
 }
 
-export async function diffStat(dir: string, base: string, head: string): Promise<string> {
+export function diffStat(dir: string, base: string, head: string): Promise<string> {
+  return route('git', 'git.diffStat', { dir, base, head }, () => diffStatTs(dir, base, head))
+}
+
+async function diffStatTs(dir: string, base: string, head: string): Promise<string> {
   return (await git(dir, ['diff', '--no-ext-diff', '--no-textconv', '--stat', `${base}..${head}`])).trim().slice(0, 8000)
 }
 
@@ -283,7 +332,17 @@ export async function diffStat(dir: string, base: string, head: string): Promise
  * 把核准的 commit 合併回使用者的分支：主工作區必須乾淨、而且目前就在原本的來源分支上；
  * 衝突就 merge --abort 還原，不自動選邊。用 commit 不用分支名，核准之後分支再動也不會合到別的內容。
  */
-export async function mergeBranch(
+export function mergeBranch(
+  repoRoot: string,
+  expectBranch: string,
+  commit: string,
+  message: string,
+  hooksDir?: string
+): Promise<{ ok: true; commit: string } | { ok: false; reason: 'wrong-branch' | 'dirty' | 'conflict'; message: string }> {
+  return route('git', 'git.mergeBranch', { repoRoot, expectBranch, commit, message, hooksDir }, () => mergeBranchTs(repoRoot, expectBranch, commit, message, hooksDir))
+}
+
+async function mergeBranchTs(
   repoRoot: string,
   expectBranch: string,
   commit: string,
@@ -309,7 +368,11 @@ export async function mergeBranch(
 }
 
 /** 移除這場會議的 worktree（分支保留，git 紀錄還在）；只動 base（預設 <repo>/.cowork）底下的路徑 */
-export async function removeWorktrees(repoRoot: string, root: string, dirs: string[], worktreeBase?: string): Promise<void> {
+export function removeWorktrees(repoRoot: string, root: string, dirs: string[], worktreeBase?: string): Promise<void> {
+  return route('git', 'git.removeWorktrees', { repoRoot, root, dirs, worktreeBase }, () => removeWorktreesTs(repoRoot, root, dirs, worktreeBase))
+}
+
+async function removeWorktreesTs(repoRoot: string, root: string, dirs: string[], worktreeBase?: string): Promise<void> {
   const base = path.resolve(worktreeBase || path.join(repoRoot, '.cowork'))
   for (const d of dirs) {
     const rel = path.relative(base, path.resolve(d))
@@ -344,7 +407,11 @@ export async function removeWorktrees(repoRoot: string, root: string, dirs: stri
 const sha256 = (data: string | Buffer): string => createHash('sha256').update(data).digest('hex')
 
 /** 目前設定的 hook 路徑（相對路徑以 repo 根目錄為準）；null = 預設的 .git/hooks */
-export async function configuredHooksPath(repoRoot: string): Promise<string | null> {
+export function configuredHooksPath(repoRoot: string): Promise<string | null> {
+  return route('git', 'git.configuredHooksPath', { repoRoot }, () => configuredHooksPathTs(repoRoot))
+}
+
+async function configuredHooksPathTs(repoRoot: string): Promise<string | null> {
   const v = (await git(repoRoot, ['config', '--get', 'core.hooksPath']).catch(() => '')).trim()
   return v || null
 }
@@ -354,7 +421,11 @@ export async function configuredHooksPath(repoRoot: string): Promise<string | nu
  * 不能一律關掉（本 repo 的 pre-commit 是防止記憶檔外洩的防線），也不能照跑：
  * worktree 裡被改過的 tracked hook、分支帶進來的 post-merge 都會被 git 執行（2026-11-06 以 Git 2.53 實測）。
  */
-export async function exportBaselineHooks(repoRoot: string, commit: string, dest: string): Promise<string> {
+export function exportBaselineHooks(repoRoot: string, commit: string, dest: string): Promise<string> {
+  return route('git', 'git.exportBaselineHooks', { repoRoot, commit, dest }, () => exportBaselineHooksTs(repoRoot, commit, dest))
+}
+
+async function exportBaselineHooksTs(repoRoot: string, commit: string, dest: string): Promise<string> {
   fs.rmSync(dest, { recursive: true, force: true })
   fs.mkdirSync(dest, { recursive: true })
   const configured = await configuredHooksPath(repoRoot)
@@ -395,7 +466,11 @@ function gitBuffer(cwd: string, args: string[]): Promise<Buffer> {
  * 這是變動偵測，擋不住同權限的 agent 先改再還原；worktree 不是安全邊界。
  * tracked 的 hook 目錄在工作樹裡，改動會出現在 diff：由 hookPathsIn 列為高風險，並靠基線副本確保不被執行。
  */
-export async function gitGuardState(dir: string): Promise<Record<string, string>> {
+export function gitGuardState(dir: string): Promise<Record<string, string>> {
+  return route('git', 'git.gitGuardState', { dir }, () => gitGuardStateTs(dir))
+}
+
+async function gitGuardStateTs(dir: string): Promise<Record<string, string>> {
   const out: Record<string, string> = {}
   const add = (p: string): void => {
     const key = path.resolve(p).replace(/\\/g, '/').toLowerCase()
@@ -434,7 +509,11 @@ export function diffGuard(base: Record<string, string>, now: Record<string, stri
 }
 
 /** 這些檔在 index 裡的內容識別（含新增、刪除與二進位）；要先 git add -A。內容一變，舊核准就失效 */
-export async function scopeContentHash(dir: string, files: string[]): Promise<string> {
+export function scopeContentHash(dir: string, files: string[]): Promise<string> {
+  return route('git', 'git.scopeContentHash', { dir, files }, () => scopeContentHashTs(dir, files))
+}
+
+async function scopeContentHashTs(dir: string, files: string[]): Promise<string> {
   const parts: string[] = []
   for (const f of [...files].sort()) {
     const line = (await git(dir, ['ls-files', '-s', '--', f])).trim()
@@ -444,7 +523,11 @@ export async function scopeContentHash(dir: string, files: string[]): Promise<st
 }
 
 /** 內容不變時 patch-id 也不變，即使基底不同：用來判斷要不要重新審查 */
-export async function patchId(dir: string, base: string, head: string): Promise<string> {
+export function patchId(dir: string, base: string, head: string): Promise<string> {
+  return route('git', 'git.patchId', { dir, base, head }, () => patchIdTs(dir, base, head))
+}
+
+async function patchIdTs(dir: string, base: string, head: string): Promise<string> {
   const diff = await gitBuffer(dir, ['diff', '--no-ext-diff', '--no-textconv', `${base}..${head}`])
   if (!diff.length) return ''
   return new Promise((resolve, reject) => {
@@ -458,23 +541,39 @@ export async function patchId(dir: string, base: string, head: string): Promise<
   })
 }
 
-export async function diffText(dir: string, base: string, head: string, maxChars: number): Promise<{ text: string; truncated: boolean }> {
+export function diffText(dir: string, base: string, head: string, maxChars: number): Promise<{ text: string; truncated: boolean }> {
+  return route('git', 'git.diffText', { dir, base, head, maxChars }, () => diffTextTs(dir, base, head, maxChars))
+}
+
+async function diffTextTs(dir: string, base: string, head: string, maxChars: number): Promise<{ text: string; truncated: boolean }> {
   const text = await git(dir, ['diff', '--no-ext-diff', '--no-textconv', `${base}..${head}`])
   return text.length > maxChars ? { text: text.slice(0, maxChars), truncated: true } : { text, truncated: false }
 }
 
-export async function changedPaths(dir: string, base: string, head: string): Promise<string[]> {
+export function changedPaths(dir: string, base: string, head: string): Promise<string[]> {
+  return route('git', 'git.changedPaths', { dir, base, head }, () => changedPathsTs(dir, base, head))
+}
+
+async function changedPathsTs(dir: string, base: string, head: string): Promise<string[]> {
   return (await git(dir, ['diff', '--no-ext-diff', '--name-only', '--no-renames', '-z', `${base}..${head}`])).split('\0').filter(Boolean)
 }
 
 /** 目前 worktree 內容的 tree id（會 git add -A）：check 前後比對，確認驗證與提交的是同一份內容 */
-export async function treeOf(dir: string): Promise<string> {
+export function treeOf(dir: string): Promise<string> {
+  return route('git', 'git.treeOf', { dir }, () => treeOfTs(dir))
+}
+
+async function treeOfTs(dir: string): Promise<string> {
   await git(dir, ['add', '-A'])
   return (await git(dir, ['write-tree'])).trim()
 }
 
 /** 只算不動工作區：把 commit 合到 target 的結果 */
-export async function mergeTree(repoRoot: string, target: string, commit: string): Promise<{ ok: true; tree: string } | { ok: false; message: string }> {
+export function mergeTree(repoRoot: string, target: string, commit: string): Promise<{ ok: true; tree: string } | { ok: false; message: string }> {
+  return route('git', 'git.mergeTree', { repoRoot, target, commit }, () => mergeTreeTs(repoRoot, target, commit))
+}
+
+async function mergeTreeTs(repoRoot: string, target: string, commit: string): Promise<{ ok: true; tree: string } | { ok: false; message: string }> {
   try {
     return { ok: true, tree: (await git(repoRoot, ['merge-tree', '--write-tree', target, commit])).trim().split(/\r?\n/)[0] }
   } catch (e) {
@@ -483,18 +582,30 @@ export async function mergeTree(repoRoot: string, target: string, commit: string
 }
 
 /** 暫時的 worktree，內容是指定的 tree：拿來驗證「合併結果」 */
-export async function addTreeWorktree(repoRoot: string, dir: string, base: string, tree: string): Promise<void> {
+export function addTreeWorktree(repoRoot: string, dir: string, base: string, tree: string): Promise<void> {
+  return route('git', 'git.addTreeWorktree', { repoRoot, dir, base, tree }, () => addTreeWorktreeTs(repoRoot, dir, base, tree))
+}
+
+async function addTreeWorktreeTs(repoRoot: string, dir: string, base: string, tree: string): Promise<void> {
   fs.mkdirSync(path.dirname(dir), { recursive: true })
   await git(repoRoot, ['worktree', 'add', '--detach', dir, base])
   await git(dir, ['read-tree', '-u', '--reset', tree])
 }
 
 /** checks 弄髒了 harness 自己的 worktree 時還原（已忽略的檔與依賴不動） */
-export async function resetWorktree(dir: string): Promise<void> {
+export function resetWorktree(dir: string): Promise<void> {
+  return route('git', 'git.resetWorktree', { dir }, () => resetWorktreeTs(dir))
+}
+
+async function resetWorktreeTs(dir: string): Promise<void> {
   await git(dir, ['reset', '-q', '--hard'])
   await git(dir, ['clean', '-q', '-fd'])
 }
 
-export async function revParse(cwd: string, ref: string): Promise<string> {
+export function revParse(cwd: string, ref: string): Promise<string> {
+  return route('git', 'git.revParse', { cwd, ref }, () => revParseTs(cwd, ref))
+}
+
+async function revParseTs(cwd: string, ref: string): Promise<string> {
   return (await git(cwd, ['rev-parse', '--verify', ref])).trim()
 }

@@ -18,6 +18,7 @@ import { registerDashboardHandlers, loadDashboardState } from './ipc/dashboard'
 import { registerUpdaterHandlers } from './ipc/updater'
 import { registerRemoteHandlers, stopRemote } from './remote'
 import { registerCoworkHandlers, shutdownCowork } from './ipc/cowork'
+import { coreShutdown } from './core/bridge'
 import { registerMemSyncHandlers } from './ipc/memsync'
 import { initJumpList, parseCommandLineArgs } from './jumplist'
 
@@ -469,6 +470,8 @@ if (!gotTheLock) {
     void stopRemote()
     // 還在跑的規劃 CLI 一起收掉；下次啟動時會議會轉成 paused
     shutdownCowork()
+    // 正常結束：解除 kill-on-close，使用者從終端開的獨立程式留著；崩潰才整棵收掉
+    void coreShutdown()
   })
 
   app.on('window-all-closed', () => {

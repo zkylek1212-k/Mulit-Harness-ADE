@@ -28,7 +28,8 @@ pub struct RunSpec {
     pub timeout_ms: u64,
     /// Each of stdout and stderr; going over stops the process.
     pub max_bytes: usize,
-    pub env: Vec<(String, String)>,
+    /// None inherits this process's environment; Some replaces it entirely.
+    pub env: Option<Vec<(String, String)>>,
 }
 
 #[derive(Debug, Default, serde::Serialize)]
@@ -55,25 +56,56 @@ pub fn kill_tree(pid: u32) {
     let _ = Command::new("kill").args(["-KILL", &format!("-{pid}")]).status();
 }
 
-fn pump(mut from: impl Read + Send + 'static, max: usize, over: Arc<AtomicBool>) -> std::thread::JoinHandle<Vec<u8>> {
-    std::thread::spawn(move || {
-        let mut out = Vec::new();
-        let mut buf = [0u8; 16 * 1024];
-        while let Ok(n) = from.read(&mut buf) {
-            if n == 0 {
-                break;
-            }
-            if out.len() + n > max {
-                over.store(true, Ordering::SeqCst);
-                continue; // keep draining so the child never blocks on a full pipe
-            }
-            out.extend_from_slice(&buf[..n]);
+/// Receives output as it arrives. Called from one thread at a time.
+pub trait OutputSink: Send {
+    fn on_spawn(&mut self, _pid: u32) {}
+    /// stream: 0 stdout, 1 stderr
+    fn on_output(&mut self, stream: u8, bytes: &[u8]);
+}
+
+#[derive(Default)]
+struct Collect {
+    out: Vec<u8>,
+    err: Vec<u8>,
+}
+
+impl OutputSink for Collect {
+    fn on_output(&mut self, stream: u8, bytes: &[u8]) {
+        if stream == 0 {
+            self.out.extend_from_slice(bytes);
+        } else {
+            self.err.extend_from_slice(bytes);
         }
-        out
-    })
+    }
+}
+
+fn pump(mut from: impl Read, stream: u8, max: usize, over: &AtomicBool, sink: &Mutex<&mut dyn OutputSink>) {
+    let mut total = 0usize;
+    let mut buf = [0u8; 16 * 1024];
+    while let Ok(n) = from.read(&mut buf) {
+        if n == 0 {
+            break;
+        }
+        total += n;
+        if total > max {
+            over.store(true, Ordering::SeqCst);
+            continue; // keep draining so the child never blocks on a full pipe
+        }
+        sink.lock().unwrap().on_output(stream, &buf[..n]);
+    }
 }
 
 pub fn run_process(spec: &RunSpec, cancel: &CancelToken) -> RunResult {
+    let mut sink = Collect::default();
+    let mut r = run_process_with(spec, cancel, &mut sink, |_| {});
+    r.stdout = String::from_utf8_lossy(&sink.out).into_owned();
+    r.stderr = String::from_utf8_lossy(&sink.err).into_owned();
+    r
+}
+
+/// Output goes to the sink; stdout and stderr in the result stay empty.
+/// `on_pid` runs right after spawning: assign the process to a job there, before it can start children.
+pub fn run_process_with(spec: &RunSpec, cancel: &CancelToken, sink: &mut dyn OutputSink, on_pid: impl FnOnce(u32)) -> RunResult {
     let t0 = Instant::now();
     let plan = match launch_plan(&spec.command, &spec.args, cfg!(windows)) {
         Ok(p) => p,
@@ -98,55 +130,60 @@ pub fn run_process(spec: &RunSpec, cancel: &CancelToken) -> RunResult {
         c.process_group(0);
     }
     c.current_dir(&spec.cwd).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
-    for (k, v) in &spec.env {
-        c.env(k, v);
+    if let Some(env) = &spec.env {
+        c.env_clear();
+        for (k, v) in env {
+            c.env(k, v);
+        }
     }
     let mut child = match c.spawn() {
         Ok(ch) => ch,
         Err(e) => return RunResult { spawn_error: Some(e.to_string()), ms: t0.elapsed().as_millis() as u64, ..Default::default() },
     };
-    // Writing stdin can fail if the process dies at once; that must not take the host down.
+    let pid = child.id();
+    on_pid(pid);
+    sink.on_spawn(pid);
     let stdin = child.stdin.take();
-    let input = spec.stdin.clone();
-    let writer = std::thread::spawn(move || {
-        if let Some(mut s) = stdin {
-            let _ = s.write_all(input.as_bytes());
-        }
-    });
-    let over = Arc::new(AtomicBool::new(false));
-    let out = pump(child.stdout.take().unwrap(), spec.max_bytes, over.clone());
-    let err = pump(child.stderr.take().unwrap(), spec.max_bytes, over.clone());
-
-    let child = Arc::new(Mutex::new(child));
-    let pid = child.lock().unwrap().id();
+    let stdout = child.stdout.take().unwrap();
+    let stderr = child.stderr.take().unwrap();
+    let over = AtomicBool::new(false);
+    let shared = Mutex::new(sink);
     let deadline = Duration::from_millis(spec.timeout_ms);
     let (mut timed_out, mut cancelled, mut truncated) = (false, false, false);
-    let mut stopped = false;
-    let code = loop {
-        if let Ok(Some(status)) = child.lock().unwrap().try_wait() {
-            break status.code();
-        }
-        if !stopped {
-            if t0.elapsed() >= deadline {
-                timed_out = true;
-                stopped = true;
-            } else if cancel.is_cancelled() {
-                cancelled = true;
-                stopped = true;
-            } else if over.load(Ordering::SeqCst) {
-                truncated = true;
-                stopped = true;
+
+    let code = std::thread::scope(|scope| {
+        // Writing stdin can fail if the process dies at once; that must not take the host down.
+        scope.spawn(|| {
+            if let Some(mut s) = stdin {
+                let _ = s.write_all(spec.stdin.as_bytes());
             }
-            if stopped {
-                kill_tree(pid);
+        });
+        scope.spawn(|| pump(stdout, 0, spec.max_bytes, &over, &shared));
+        scope.spawn(|| pump(stderr, 1, spec.max_bytes, &over, &shared));
+        let mut stopped = false;
+        loop {
+            if let Ok(Some(status)) = child.try_wait() {
+                break status.code();
             }
+            if !stopped {
+                if t0.elapsed() >= deadline {
+                    timed_out = true;
+                    stopped = true;
+                } else if cancel.is_cancelled() {
+                    cancelled = true;
+                    stopped = true;
+                } else if over.load(Ordering::SeqCst) {
+                    truncated = true;
+                    stopped = true;
+                }
+                if stopped {
+                    kill_tree(pid);
+                }
+            }
+            std::thread::sleep(Duration::from_millis(10));
         }
-        std::thread::sleep(Duration::from_millis(10));
-    };
-    let _ = writer.join();
-    let stdout = String::from_utf8_lossy(&out.join().unwrap_or_default()).into_owned();
-    let stderr = String::from_utf8_lossy(&err.join().unwrap_or_default()).into_owned();
-    RunResult { code, stdout, stderr, timed_out, cancelled, truncated: truncated || over.load(Ordering::SeqCst), ms: t0.elapsed().as_millis() as u64, spawn_error: None }
+    });
+    RunResult { code, stdout: String::new(), stderr: String::new(), timed_out, cancelled, truncated: truncated || over.load(Ordering::SeqCst), ms: t0.elapsed().as_millis() as u64, spawn_error: None }
 }
 
 #[cfg(test)]
@@ -161,7 +198,7 @@ mod tests {
             stdin: stdin.into(),
             timeout_ms,
             max_bytes,
-            env: vec![],
+            env: None,
         }
     }
 

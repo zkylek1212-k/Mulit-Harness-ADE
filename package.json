@@ -18,8 +18,9 @@
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
-    "pack": "npm run build && electron-builder --dir",
-    "dist": "npm run build && electron-builder",
+    "build:core": "node scripts/build-core.cjs",
+    "pack": "npm run build && npm run build:core && electron-builder --dir",
+    "dist": "npm run build && npm run build:core && electron-builder",
     "release": "powershell -ExecutionPolicy Bypass -File ./scripts/release.ps1"
   },
   "dependencies": {

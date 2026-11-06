@@ -273,10 +273,7 @@ const solo = (t: Shared.CoworkTask[]): Shared.CoworkTask[] => t.slice(0, 1).map(
   x = await wait(churn.id, (y) => y.execution?.tasks.t1.status === 'blocked')
   assert.equal(x.execution.tasks.t1.gate.kind, 'checks')
   assert.match(x.execution.tasks.t1.gate.items[0], /keep changing/)
-  await svc.execRetry(churn.id, 't1').catch(() => {})
-  await svc.execPause(churn.id)
-  await new Promise((r) => setTimeout(r, 300))
-  await finish(churn.id).catch(() => {})
+  await finish(churn.id)
 
   // check 改出範圍外的檔：不 commit，等使用者
   const stray = await approved(repo, (t) => solo(t).map((y) => ({ ...y, scope: [...y.scope, 't1.txt'], checks: [[node, '-e', `require('fs').writeFileSync('outside.txt', 'x')`]] })))
@@ -284,7 +281,7 @@ const solo = (t: Shared.CoworkTask[]): Shared.CoworkTask[] => t.slice(0, 1).map(
   x = await wait(stray.id, (y) => y.execution?.tasks.t1.status === 'blocked')
   assert.deepEqual(x.execution.tasks.t1.scopeReview.files, ['outside.txt'])
   assert.equal(x.execution.tasks.t1.commits.length, 0)
-  await finish(stray.id).catch(() => {})
+  await finish(stray.id)
   console.log('task checks ok')
 }
 
@@ -523,10 +520,7 @@ const solo = (t: Shared.CoworkTask[]): Shared.CoworkTask[] => t.slice(0, 1).map(
   x = await wait(r2.id, (y) => y.execution?.tasks.t1.status === 'blocked')
   assert.match(x.execution.tasks.t1.error, /Stopped by Cowork/)
   assert.ok(x.log.some((l: any) => l.t === 'runaway' && l.stopped === true))
-  await svc.execRetry(r2.id, 't1')
-  await svc.execPause(r2.id)
-  await new Promise((res) => setTimeout(res, 300))
-  await finish(r2.id).catch(() => {})
+  await finish(r2.id)
   console.log('runaway monitor ok')
 }
 

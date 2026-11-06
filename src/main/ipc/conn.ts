@@ -4,6 +4,7 @@ import { join, dirname } from 'path'
 import { workspace } from '../index'
 import { readManifest, connRefsOf, splitEnv } from '../ext/manifest'
 import type { ConnectionInfo } from '../../preload/index'
+import { DPAPI_PREFIX, migrateCredentialFile, osProtect, osUnprotect, secretsOnDpapi } from '../core/secrets'
 
 // 連線憑證：以 OS 金鑰（Electron safeStorage）加密後存本機檔，該檔已 gitignore。
 // 值只在 main process 解密，且只在 spawn CLI 時注入 env —— 不寫進任何 agent 設定檔、
@@ -17,7 +18,17 @@ function storePath(): string {
 
 type Store = Record<string, string> // name -> base64(encrypted)
 
+const migratedFiles = new Set<string>()
+
 function load(): Store {
+  if (secretsOnDpapi() && !migratedFiles.has(storePath())) {
+    migratedFiles.add(storePath())
+    try {
+      migrateCredentialFile(storePath(), { decrypt: (b64) => safeStorage.decryptString(Buffer.from(b64, 'base64')), protect: osProtect, unprotect: osUnprotect })
+    } catch (e) {
+      console.error('[conn] credential migration failed; keeping the old file', (e as Error).message)
+    }
+  }
   try {
     return JSON.parse(fs.readFileSync(storePath(), 'utf8')) as Store
   } catch {
@@ -37,6 +48,7 @@ function reveal(name: string): string | null {
   const b64 = s[name]
   if (!b64) return null
   try {
+    if (b64.startsWith(DPAPI_PREFIX)) return osUnprotect(b64.slice(DPAPI_PREFIX.length))
     return safeStorage.decryptString(Buffer.from(b64, 'base64'))
   } catch {
     return null
@@ -83,6 +95,12 @@ export function registerConnHandlers(): void {
 
   ipcMain.handle('conn:set', async (_e, name: string, value: string): Promise<void> => {
     if (!name?.trim()) throw new Error('Connection name cannot be empty')
+    if (secretsOnDpapi()) {
+      const s = load()
+      s[name.trim()] = DPAPI_PREFIX + osProtect(value)
+      save(s)
+      return
+    }
     if (!safeStorage.isEncryptionAvailable()) {
       throw new Error('OS-backed encryption is unavailable on this system; refusing to store the credential in plain text')
     }

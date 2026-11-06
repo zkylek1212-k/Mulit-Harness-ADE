@@ -5,6 +5,7 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { runProcess } from './runner'
+import { route } from '../core/bridge'
 import { maskSecrets, type CheckRun } from '../../shared/cowork'
 
 const CHECK_TIMEOUT_MS = 10 * 60_000
@@ -18,7 +19,11 @@ const RUNNABLE = /\.(exe|cmd|bat|com|ps1)$/i
  * where 會先找目前目錄：cwd 刻意不用 worktree，否則 agent 放一個 npm.cmd 就能換掉核准過的指令。
  * 明確寫出路徑（./scripts/x）的才相對於 worktree，而且不能跨出去。
  */
-export async function resolveCheckCommand(cmd: string, worktree: string): Promise<{ resolved: string } | { error: string }> {
+export function resolveCheckCommand(cmd: string, worktree: string): Promise<{ resolved: string } | { error: string }> {
+  return route('proc', 'resolveCommand', { command: cmd, cwd: worktree }, () => resolveCheckCommandTs(cmd, worktree))
+}
+
+async function resolveCheckCommandTs(cmd: string, worktree: string): Promise<{ resolved: string } | { error: string }> {
   const name = cmd.trim()
   if (!name) return { error: 'empty command' }
   if (path.isAbsolute(name)) return fs.existsSync(name) ? { resolved: name } : { error: `not found: ${name}` }

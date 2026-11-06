@@ -3,6 +3,8 @@
 import { spawn, execFileSync } from 'node:child_process'
 import { readFileSync, existsSync } from 'node:fs'
 import path from 'node:path'
+import { StringDecoder } from 'node:string_decoder'
+import { coreEnabled, coreRunProcess, CoreUnavailableError } from '../core/bridge'
 
 export interface RunSpec {
   command: string
@@ -91,7 +93,90 @@ export function killTree(pid: number | undefined): void {
   }
 }
 
-export function runProcess(spec: RunSpec, signal?: AbortSignal): Promise<RunResult> {
+/** 走 Rust（WB_CORE_PROC=rust）。行程與輸出上限在那邊；逐行檢查還是在這裡，所以 guard 的規則不用寫兩份 */
+async function runProcessRust(spec: RunSpec, signal?: AbortSignal): Promise<RunResult | null> {
+  const t0 = Date.now()
+  const decoders = [new StringDecoder('utf8'), new StringDecoder('utf8')]
+  const parts = ['', '']
+  let total = 0
+  let lineBuf = ''
+  let guardReason: string | undefined
+  let handle: Awaited<ReturnType<typeof coreRunProcess>>
+  try {
+    handle = await coreRunProcess(
+      {
+        command: spec.command,
+        args: spec.args,
+        cwd: spec.cwd,
+        stdin: spec.stdin,
+        timeoutMs: spec.timeoutMs,
+        maxBytes: spec.maxBytes,
+        // 一律帶上現在的環境：bridge 的環境停在它啟動那一刻
+        env: (spec.env || process.env) as Record<string, string>
+      },
+      {
+        onSpawn: () => spec.onSpawn?.(),
+        onOutput: (stream, bytes) => {
+          const d = decoders[stream].write(bytes)
+          parts[stream] += d
+          total += bytes.length
+          spec.onActivity?.(total)
+          if (stream !== 0 || !spec.onStdoutLine || guardReason) return
+          lineBuf += d
+          let i: number
+          while ((i = lineBuf.indexOf('\n')) >= 0) {
+            const line = lineBuf.slice(0, i)
+            lineBuf = lineBuf.slice(i + 1)
+            const why = spec.onStdoutLine(line)
+            if (why) {
+              guardReason = why
+              handle?.cancel()
+              break
+            }
+          }
+        }
+      }
+    )
+  } catch (e) {
+    if (e instanceof CoreUnavailableError) return null // 沒送出：退回 TS
+    throw e
+  }
+  const onAbort = (): void => handle.cancel()
+  if (signal) {
+    if (signal.aborted) onAbort()
+    else signal.addEventListener('abort', onAbort, { once: true })
+  }
+  try {
+    const r = await handle.result
+    return {
+      code: r.code,
+      stdout: parts[0] + decoders[0].end(),
+      stderr: parts[1] + decoders[1].end(),
+      timedOut: r.timedOut,
+      // guard 終止不算使用者取消
+      cancelled: r.cancelled && !guardReason,
+      truncated: r.truncated,
+      ms: r.ms,
+      ...(r.spawnError ? { spawnError: r.spawnError } : {}),
+      ...(guardReason ? { guardReason } : {})
+    }
+  } catch (e) {
+    // bridge 中斷：不知道 CLI 做到哪裡，不重試也不改走 TS，以免重複付費呼叫
+    return { code: null, stdout: parts[0], stderr: parts[1], timedOut: false, cancelled: false, truncated: false, ms: Date.now() - t0, spawnError: (e as Error).message }
+  } finally {
+    signal?.removeEventListener('abort', onAbort)
+  }
+}
+
+export async function runProcess(spec: RunSpec, signal?: AbortSignal): Promise<RunResult> {
+  if (coreEnabled('proc')) {
+    const r = await runProcessRust(spec, signal)
+    if (r) return r
+  }
+  return runProcessTs(spec, signal)
+}
+
+function runProcessTs(spec: RunSpec, signal?: AbortSignal): Promise<RunResult> {
   const t0 = Date.now()
   const plan = launchPlan(spec.command, spec.args)
   if ('error' in plan) {

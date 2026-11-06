@@ -3,6 +3,7 @@ import * as crypto from 'crypto'
 import * as fs from 'fs'
 import { join } from 'path'
 import type { PushSubscriptionJSON } from './webpush'
+import { migrateSealedFile, osProtect, osUnprotect, secretsOnDpapi, type MigrateTools, type SealedValue } from '../core/secrets'
 
 // 遠端控制的本機狀態，全部放在 userData/remote/（不進任何專案、不進版控）：
 //   config.json   開關與 port
@@ -24,11 +25,6 @@ export interface DeviceRecord {
   createdAt: number
   lastSeenAt: number
   push?: PushSubscriptionJSON
-}
-
-interface SealedValue {
-  enc: 'safe' | 'plain'
-  data: string
 }
 
 interface SecretsFile {
@@ -62,7 +58,27 @@ function writeJson(name: string, value: unknown): void {
   fs.renameSync(tmp, p)
 }
 
+const migrateTools: MigrateTools = {
+  decrypt: (b64) => safeStorage.decryptString(Buffer.from(b64, 'base64')),
+  protect: osProtect,
+  unprotect: osUnprotect
+}
+
+let migrated = false
+/** safeStorage 換 DPAPI：失敗就繼續用舊資料，下次再試，絕不重新產生 CA */
+function migrateOnce(): void {
+  if (migrated || !secretsOnDpapi()) return
+  migrated = true
+  try {
+    const n = migrateSealedFile(join(dir(), 'secrets.json'), migrateTools)
+    if (n) audit('secrets.migrated', { count: n })
+  } catch (e) {
+    audit('secrets.migrate.failed', { message: (e as Error).message.slice(0, 200) })
+  }
+}
+
 function seal(plain: string): SealedValue {
+  if (secretsOnDpapi()) return { enc: 'dpapi', data: osProtect(plain) }
   if (safeStorage.isEncryptionAvailable()) {
     return { enc: 'safe', data: safeStorage.encryptString(plain).toString('base64') }
   }
@@ -70,12 +86,18 @@ function seal(plain: string): SealedValue {
   return { enc: 'plain', data: plain }
 }
 
+/** 值存在卻解不開。這是異常，不等於「沒有金鑰」：當成沒有的話會產生新 CA，所有手機就失去信任 */
+export class SecretsUnreadableError extends Error {
+  code = 'secrets-unreadable'
+}
+
 function unseal(v?: SealedValue): string | null {
   if (!v) return null
   try {
+    if (v.enc === 'dpapi') return osUnprotect(v.data)
     return v.enc === 'safe' ? safeStorage.decryptString(Buffer.from(v.data, 'base64')) : v.data
-  } catch {
-    return null
+  } catch (e) {
+    throw new SecretsUnreadableError(`Could not decrypt the remote control keys: ${(e as Error).message.slice(0, 200)}`)
   }
 }
 
@@ -152,10 +174,17 @@ export interface StoredCerts {
 }
 
 export function loadCerts(): StoredCerts | null {
+  migrateOnce()
   const s = readJson<SecretsFile>('secrets.json', {})
   const caKey = unseal(s.caKey)
   if (!s.caCert || !caKey) return null
-  const serverKey = unseal(s.serverKey) || undefined
+  // server 憑證隨時可以重簽：解不開只是多簽一次，不影響手機的信任
+  let serverKey: string | undefined
+  try {
+    serverKey = unseal(s.serverKey) || undefined
+  } catch {
+    serverKey = undefined
+  }
   return { caCert: s.caCert, caKey, serverCert: serverKey ? s.serverCert : undefined, serverKey }
 }
 
@@ -171,6 +200,7 @@ export function saveCerts(c: StoredCerts): void {
 }
 
 export function loadVapid(): { publicKey: string; privateKeyPem: string } | null {
+  migrateOnce()
   const s = readJson<SecretsFile>('secrets.json', {})
   const priv = unseal(s.vapidPrivate)
   return s.vapidPublic && priv ? { publicKey: s.vapidPublic, privateKeyPem: priv } : null

@@ -34,3 +34,5 @@ core/apps/prototype/dist/
 core/apps/prototype/gen/
 core/apps/prototype/icons/
 core/target/
+
+build/bin/

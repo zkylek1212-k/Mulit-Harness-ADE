@@ -3949,6 +3949,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "wb-bridge"
+version = "0.0.0"
+dependencies = [
+ "serde_json",
+ "wb-git",
+ "wb-proc",
+ "wb-secrets",
+]
+
+[[package]]
+name = "wb-git"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "sha2",
+]
+
+[[package]]
 name = "wb-proc"
 version = "0.0.0"
 dependencies = [
@@ -3975,6 +3993,13 @@ version = "0.0.0"
 dependencies = [
  "portable-pty",
  "vt100",
+]
+
+[[package]]
+name = "wb-secrets"
+version = "0.0.0"
+dependencies = [
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
