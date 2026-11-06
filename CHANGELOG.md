@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.48] - 2026-11-06
+
+### Added / 新增
+- 手機遠端控制支援 NordVPN Meshnet 與 Tailscale：「設定 → 遠端控制」新增「允許透過 mesh VPN 連線」開關，預設關閉。打開後，mesh 位址會出現在連線 IP 清單。只有走 NordLynx／Tailscale 網卡進來的連線會被放行。（PR #63）
+- Phone remote control now works over NordVPN Meshnet and Tailscale: Settings → Remote Control has an "Allow connections over a mesh VPN" switch, off by default. When on, the mesh address appears in the connection IP list. Only connections that arrive on a NordLynx or Tailscale interface are accepted.
+- 第一次打開這個開關會更換本機憑證（會先跳確認）：每支手機都要重新安裝才能再連線，已配對的裝置不會解除配對。
+- Switching it on for the first time replaces this computer's certificate, after a confirmation: every phone must reinstall it before it can connect again. Paired devices stay paired.
+
 ## [0.1.47] - 2026-10-30
 
 ### Added / 新增
