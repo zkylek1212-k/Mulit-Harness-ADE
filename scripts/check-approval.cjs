@@ -35,6 +35,7 @@ async function main() {
       return proc
     } },
     '../index': {}, './conn': { resolveConnectionEnv: () => ({}) },
+    '../core/bridge': { coreEnabled: () => false, bridgePath: () => '', coreSpawnPty() {} },
     './settings': { getCustomCliPath: () => null, isCliBypassPermissions: () => false },
     '../ext/paths': { findAgentCli: () => null },
     '../../shared/approvalDetect': detection,

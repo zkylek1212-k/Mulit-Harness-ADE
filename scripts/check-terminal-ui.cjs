@@ -133,6 +133,7 @@ app.whenReady().then(async () => {
       electron: { ipcMain: {}, app: { on() {} } },
       '@lydell/node-pty': { spawn: () => ({ pid: 1, onData: fn => { feedPty = fn }, onExit() {}, resize() {} }) },
       '../index': {}, './conn': { resolveConnectionEnv: () => ({}) },
+      '../core/bridge': { coreEnabled: () => false, bridgePath: () => '', coreSpawnPty() {} },
       './settings': { getCustomCliPath: () => null, isCliBypassPermissions: () => false },
       '../ext/paths': { findAgentCli: () => null },
       '../../shared/approvalDetect': { looksLikeApprovalPrompt: () => false, readApprovalScreen: () => '' },
@@ -142,9 +143,9 @@ app.whenReady().then(async () => {
     const { spawnPty, subscribePty, resizePty } = ptyModule.exports
     const ptyId = spawnPty({ command: 'claude', cols: 120, rows: 30 }, { workspace: '', owner: { id: 1 }, subscribeOwner: false })
     // 照 remote/TerminalView 的順序處理 snapshot / data / resized
-    const phone = () => {
+    const phone = async () => {
       const t = new Headless({ cols: 80, rows: 24, scrollback: 5000, allowProposedApi: true, windowsPty: { backend: 'conpty' } })
-      const snap = subscribePty(ptyId, `phone${Math.random()}`, {
+      const snap = await subscribePty(ptyId, `phone${Math.random()}`, {
         data: (_id, d) => t.write(d),
         resized: (_id, c, r) => t.write('', () => t.resize(c, r)),
         exit() {}
@@ -159,11 +160,11 @@ app.whenReady().then(async () => {
     let early
     for (const [i, e] of events.entries()) {
       if (e[0] === 'd') feedPty(e[1]); else resizePty(ptyId, e[1], e[2])
-      if (i === 100) early = phone()
+      if (i === 100) early = await phone()
       await new Promise(r => setImmediate(r))
     }
     await new Promise(r => setTimeout(r, 100))
-    const late = phone()
+    const late = await phone()
     await Promise.all([settle(early), settle(late)])
     assert.equal(text(early), text(late), 'phone attached mid-session matches a fresh snapshot')
     assert.equal(text(late).split('Claude Code v2.1.280').length - 1, 1, 'one transcript copy after resizes')
