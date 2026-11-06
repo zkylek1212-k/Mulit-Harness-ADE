@@ -8,8 +8,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import './ts-resolve.mjs'
-// WB_MEMSYNC_RUST=1: the same scenarios against the Rust implementation (through wb-ipc)
-const core = await (process.env.WB_MEMSYNC_RUST ? import('./lib/memsync-rust.mts') : import('../src/main/memsync/core.ts'))
+const core: any = await import('./lib/memsync-rust.mts')
 const { applyBundledPlugin, autoLinkBlock, cloneState, connectRepoByUrl, installedPlugins, pluginAction, pluginVersion, prepareMarketplace, createRepoViaGitLogin, parseRepoInput, ensureRepo, ensureFolder, linkProject, projectState, syncNow, ghStatus } = core as any
 type RunResult = { code: number; stdout: string; stderr: string }
 type Run = (cmd: string, args: string[], opts?: { cwd?: string; timeoutMs?: number; env?: Record<string, string>; input?: string }) => Promise<RunResult>

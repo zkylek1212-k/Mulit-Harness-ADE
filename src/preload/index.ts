@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer } from '../desktop/ipc-renderer'
 import type { RemoteVibeStatus } from '../shared/remoteProtocol'
 import type { CustomAgentConfig, CustomResourceKind } from '../shared/customAgent'
 export type { CustomAgentConfig, CustomResourceKind } from '../shared/customAgent'
@@ -115,7 +115,7 @@ const api = {
     install: (): Promise<void> => ipcRenderer.invoke('updater:install'),
     openRelease: (url?: string): Promise<void> => ipcRenderer.invoke('updater:openRelease', url),
     onStatusChange: (cb: (status: UpdaterStatus) => void): (() => void) => {
-      const handler = (_: Electron.IpcRendererEvent, status: UpdaterStatus): void => cb(status)
+      const handler = (_: unknown, status: UpdaterStatus): void => cb(status)
       ipcRenderer.on('updater:statusChange', handler)
       return (): void => {
         ipcRenderer.removeListener('updater:statusChange', handler)

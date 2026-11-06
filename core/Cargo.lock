@@ -5551,17 +5551,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wb-bridge"
-version = "0.0.0"
-dependencies = [
- "serde_json",
- "wb-git",
- "wb-proc",
- "wb-pty",
- "wb-secrets",
-]
-
-[[package]]
 name = "wb-core"
 version = "0.0.0"
 dependencies = [
@@ -5625,18 +5614,6 @@ dependencies = [
  "serde",
  "serde_json",
  "windows-sys 0.59.0",
-]
-
-[[package]]
-name = "wb-prototype"
-version = "0.0.0"
-dependencies = [
- "serde_json",
- "tauri",
- "tauri-build",
- "tungstenite",
- "wb-proc",
- "wb-pty",
 ]
 
 [[package]]

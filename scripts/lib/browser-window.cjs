@@ -134,12 +134,15 @@ class WebContents {
   }
   async executeJavaScript(code) {
     const cdp = await this.ready
-    const r = await cdp.send('Runtime.evaluate', { expression: code, awaitPromise: true, returnByValue: true, userGesture: true })
+    const r = await cdp.send('Runtime.evaluate', { expression: code, awaitPromise: true, returnByValue: false, userGesture: true })
     if (r.exceptionDetails) {
       const e = r.exceptionDetails
       throw new Error(e.exception?.description || e.text)
     }
-    return r.result.value
+    if (!r.result.objectId) return r.result.value
+    // A result too tangled to copy (a live terminal, a DOM node) comes back as an empty object, as it did in Electron, instead of failing the script that produced it
+    const v = await cdp.send('Runtime.callFunctionOn', { objectId: r.result.objectId, functionDeclaration: 'function () { try { return JSON.parse(JSON.stringify(this)) } catch { return {} } }', returnByValue: true })
+    return v.result.value
   }
   async capturePage() {
     const cdp = await this.ready

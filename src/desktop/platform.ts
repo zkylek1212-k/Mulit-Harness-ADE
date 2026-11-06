@@ -1,5 +1,5 @@
 // What Electron gave the page for free: window frame, external links, <webview>, and last version's localStorage.
-import { ipcRenderer } from './electron-shim'
+import { ipcRenderer } from './ipc-renderer'
 
 const invoke = (cmd: string, args: Record<string, unknown> = {}): Promise<any> => (window as any).__TAURI__.core.invoke(cmd, args)
 

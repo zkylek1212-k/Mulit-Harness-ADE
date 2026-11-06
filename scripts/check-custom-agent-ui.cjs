@@ -1,4 +1,4 @@
-// node_modules/.bin/electron scripts/check-custom-agent-ui.cjs
+// node scripts/check-custom-agent-ui.cjs
 const { app, BrowserWindow } = require('./lib/browser-window.cjs')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')

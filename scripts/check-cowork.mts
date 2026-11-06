@@ -11,14 +11,8 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-// WB_COWORK_RUST=1: the same scenarios on the Rust implementation, through wb-ipc
-const RUST = !!process.env.WB_COWORK_RUST
-const rust: any = RUST ? await import('./lib/cowork-rust.mts') : null
-const shared: any = RUST ? rust.shared : await import('../src/shared/cowork.ts')
-const { runProcess, launchPlan }: any = RUST ? {} : await import('../src/main/cowork/runner.ts')
-const { writeJsonAtomic, readJsonWithFallback, prevPath }: any = RUST ? {} : await import('../src/main/cowork/store.ts')
-const gitm: any = RUST ? rust.gitm : await import('../src/main/cowork/git.ts')
-const { CoworkService, CoworkError }: any = RUST ? rust : await import('../src/main/cowork/orchestrator.ts')
+const rust: any = await import('./lib/cowork-rust.mts')
+const { shared, gitm, CoworkService, CoworkError }: any = rust
 
 const tmp = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'cowork-check-')))
 const cleanup: string[] = [tmp]
@@ -233,80 +227,6 @@ const cleanup: string[] = [tmp]
   assert.equal(shared.sanitizeCoworkSettings({ chair: 'nope', participants: ['codex', 'codex', 'x'], limits: { maxPlanningCalls: 9999 } }).limits.maxPlanningCalls, 30)
   assert.deepEqual(shared.sanitizeCoworkSettings({ participants: ['codex', 'codex', 'x'] }).participants, ['codex'])
   console.log('cowork pure ok')
-}
-
-// wb-proc has its own tests for this, and wb-core's store is tested in Rust
-if (!RUST) // ── runner ─────────────────────────────────────────────────────────
-
-{
-  const echo = path.join(tmp, 'echo.mjs')
-  fs.writeFileSync(echo, `let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{process.stdout.write('['+s+']')})`)
-  const r = await runProcess({ command: process.execPath, args: [echo], cwd: tmp, stdin: '中文 "quotes" %PATH%\nline2', timeoutMs: 10000, maxBytes: 1e6 })
-  assert.equal(r.code, 0)
-  assert.equal(r.stdout, '[中文 "quotes" %PATH%\nline2]', 'stdin passes through untouched')
-
-  const sleeper = path.join(tmp, 'sleep.mjs')
-  fs.writeFileSync(sleeper, `setTimeout(()=>{},60000)`)
-  const t0 = Date.now()
-  const to = await runProcess({ command: process.execPath, args: [sleeper], cwd: tmp, stdin: '', timeoutMs: 300, maxBytes: 1e6 })
-  assert.ok(to.timedOut && Date.now() - t0 < 8000, 'timeout kills the process')
-
-  const ac = new AbortController()
-  setTimeout(() => ac.abort(), 200)
-  const ca = await runProcess({ command: process.execPath, args: [sleeper], cwd: tmp, stdin: '', timeoutMs: 30000, maxBytes: 1e6 }, ac.signal)
-  assert.ok(ca.cancelled, 'abort kills the process')
-
-  const flood = path.join(tmp, 'flood.mjs')
-  fs.writeFileSync(flood, `const b='x'.repeat(65536);const f=()=>{process.stdout.write(b,f)};f()`)
-  const tr = await runProcess({ command: process.execPath, args: [flood], cwd: tmp, stdin: '', timeoutMs: 10000, maxBytes: 200000 })
-  assert.ok(tr.truncated && tr.stdout.length <= 200000, 'output is capped')
-
-  const missing = await runProcess({ command: path.join(tmp, 'no-such.exe'), args: [], cwd: tmp, stdin: '', timeoutMs: 1000, maxBytes: 1000 })
-  assert.ok(missing.spawnError, 'missing executable is reported')
-
-  if (process.platform === 'win32') {
-    assert.ok('error' in launchPlan('C:/x/codex.cmd', ['--x', '100%']), 'cmd.exe never sees % or quotes')
-    assert.ok('error' in launchPlan('C:/x/codex.cmd', ['say "hi"']))
-    const plan = launchPlan('C:/Program Files/x/codex.cmd', ['-C', 'C:/Users/Kyle Zhang/snap'])
-    assert.ok(!('error' in plan) && plan.verbatim && plan.args[3] === '""C:/Program Files/x/codex.cmd" "-C" "C:/Users/Kyle Zhang/snap""')
-
-    const shimDir = path.join(tmp, 'npm shim with spaces')
-    const binDir = path.join(shimDir, 'node_modules', 'fake', 'bin')
-    fs.mkdirSync(binDir, { recursive: true })
-    const entry = path.join(binDir, 'cli.cjs')
-    fs.writeFileSync(entry, 'console.log(JSON.stringify(process.argv.slice(2)))')
-    const shim = path.join(shimDir, 'fake.cmd')
-    fs.writeFileSync(shim, '@ECHO off\r\n"%_prog%" "%dp0%\\node_modules\\fake\\bin\\cli.cjs" %*\r\n')
-    const schemaArgs = ['--json-schema', '{"type":"object","description":"100%"}', 'line1\nline2', 'x & echo unsafe']
-    const checkShim = async (args: string[]): Promise<void> => {
-      const r = await runProcess({ command: shim, args, cwd: tmp, stdin: '', timeoutMs: 5000, maxBytes: 10000 })
-      assert.equal(r.code, 0, r.spawnError || r.stderr)
-      assert.deepEqual(JSON.parse(r.stdout), schemaArgs, 'npm shim forwards JSON and metacharacters literally')
-    }
-    await checkShim(schemaArgs)
-    const exe = path.join(binDir, 'cli.exe')
-    fs.copyFileSync(process.execPath, exe)
-    fs.writeFileSync(shim, '@ECHO off\r\n"%dp0%\\node_modules\\fake\\bin\\cli.exe"   %*\r\n')
-    await checkShim([entry, ...schemaArgs])
-    fs.unlinkSync(exe)
-    assert.ok('error' in launchPlan(shim, schemaArgs), 'missing npm target retains the cmd.exe safety guard')
-  }
-  console.log('cowork runner ok')
-}
-
-if (!RUST) // ── 原子寫入 ───────────────────────────────────────────────────────
-
-{
-  const f = path.join(tmp, 'store', 'run.json')
-  const isV = (v: unknown): v is { v: number } => !!v && typeof (v as any).v === 'number'
-  writeJsonAtomic(f, { v: 1 })
-  writeJsonAtomic(f, { v: 2 })
-  assert.deepEqual(readJsonWithFallback(f, isV), { value: { v: 2 }, fromBackup: false })
-  assert.deepEqual(JSON.parse(fs.readFileSync(prevPath(f), 'utf8')), { v: 1 })
-  fs.writeFileSync(f, '{"v": 3, half-writ')
-  assert.deepEqual(readJsonWithFallback(f, isV), { value: { v: 1 }, fromBackup: true }, 'corrupt main falls back to previous')
-  assert.equal(fs.readdirSync(path.dirname(f)).filter((x) => x.endsWith('.tmp')).length, 0, 'no temp files left')
-  console.log('cowork store ok')
 }
 
 // ── git：基線、快照、副作用、刪除守衛、symlink 逃逸 ──────────────────
@@ -1137,7 +1057,7 @@ const three = { ...base, participants: ['claude', 'codex', 'antigravity'] as any
   const long = await discussionSvc.start({ ...opts, limits: { ...opts.limits, maxPlanningCalls: 30 } })
   const history = await wait(long.id, settled)
   for (let i = 0; i < 29; i++) history.discussion.messages.push({ id: `m${history.discussion.messages.length + 1}`, agent: null, message: `Historical requirement ${i}`, replyTo: null, at: Date.now() })
-  if (RUST) await (discussionSvc as any).testPatch(long.id, ['discussion', 'messages'], history.discussion.messages)
+  await (discussionSvc as any).testPatch(long.id, ['discussion', 'messages'], history.discussion.messages)
   assert.equal(shared.discussionNeedsSummary(history), true)
   await discussionSvc.discuss(long.id, 'Keep all earlier requirements')
   const compressed = await wait(long.id, settled)
@@ -1191,4 +1111,4 @@ for (const d of cleanup) {
 }
 assert.ok(emitted.length > 0)
 console.log('cowork ok')
-if (RUST) rust.stop()
+rust.stop()

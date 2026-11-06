@@ -23,7 +23,6 @@ export default defineConfig({
     alias: {
       '@': resolve('src/renderer/src'),
       '@panels': resolve('src/renderer/src/panels'),
-      electron: resolve('src/desktop/electron-shim.ts')
     }
   },
   plugins: [desktopPage(), react()],

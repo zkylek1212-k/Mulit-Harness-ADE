@@ -10,14 +10,10 @@ import { fileURLToPath } from 'node:url'
 import type * as Shared from '../src/shared/cowork.ts'
 
 // app 的相對 import 不寫副檔名：要等 ts-resolve 掛好才能載入，所以用動態 import
-// WB_COWORK_RUST=1: the same scenarios on the Rust implementation, through wb-ipc
-const RUST = !!process.env.WB_COWORK_RUST
-const rust: any = RUST ? await import('./lib/cowork-rust.mts') : null
-const shared: any = RUST ? rust.shared : await import('../src/shared/cowork.ts')
+const rust: any = await import('./lib/cowork-rust.mts')
+const { shared, resolveCheckCommand, runCheck, CoworkService }: any = rust
+const gitx: any = rust.gitm
 const { PHONE_AUDITED_OPS, PHONE_COWORK_OPS } = await import('../src/shared/remoteProtocol.ts')
-const { resolveCheckCommand, runCheck }: any = RUST ? rust : await import('../src/main/cowork/checks.ts')
-const gitx: any = RUST ? rust.gitm : await import('../src/main/cowork/git.ts')
-const { CoworkService }: any = RUST ? rust : await import('../src/main/cowork/orchestrator.ts')
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const fake = path.join(here, 'fixtures', 'cowork-fake-cli.mjs')
@@ -378,8 +374,7 @@ const solo = (t: Shared.CoworkTask[]): Shared.CoworkTask[] => t.slice(0, 1).map(
   const board = shared.currentBoard(r1)!
   // 任務板層級的共同檢查：模型提出，一併核准。這裡直接放進目前的任務板，模擬模型輸出
   const boardChecks = [[process.execPath, '-e', `require('node:assert').ok(require('fs').existsSync('node_modules/dep/index.js'), 'deps'); require('node:assert').ok(require('fs').existsSync('t1.txt') && require('fs').existsSync('t2.txt'), 'both')`]]
-  if (RUST) await svc.testPatch(r1.id, ['boards', '-1', 'checks'], boardChecks)
-  else (board as any).checks = boardChecks
+  await svc.testPatch(r1.id, ['boards', '-1', 'checks'], boardChecks)
   await svc.approve(r1.id, r1.planRevision)
   await start(r1.id, { mode: 'parallel', linkDeps: true })
   const x = await wait(r1.id, (y) => y.phase === 'review')
@@ -392,8 +387,7 @@ const solo = (t: Shared.CoworkTask[]): Shared.CoworkTask[] => t.slice(0, 1).map(
   const r2 = await svc.start({ ...base, workspace: repo } as any)
   const r3 = await wait(r2.id, (y) => y.phase !== 'meeting')
   const failingChecks = [[process.execPath, '-e', 'process.exit(9)']]
-  if (RUST) await svc.testPatch(r3.id, ['boards', '-1', 'checks'], failingChecks)
-  else (shared.currentBoard(r3) as any).checks = failingChecks
+  await svc.testPatch(r3.id, ['boards', '-1', 'checks'], failingChecks)
   await svc.approve(r3.id, r3.planRevision)
   await start(r3.id, { mode: 'sequential', review: true })
   const y = await wait(r3.id, (z) => z.phase === 'review')
@@ -597,4 +591,4 @@ try {
   /* Windows 偶爾還有 handle 沒放 */
 }
 console.log('cowork gates ok')
-if (RUST) rust.stop()
+rust.stop()

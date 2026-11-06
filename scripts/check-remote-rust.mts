@@ -459,6 +459,11 @@ try {
     noCookieWs.once('error', () => res(true))
     noCookieWs.once('unexpected-response', () => res(true))
   }), 'no session, no upgrade')
+  assert.equal((await preview('/', { headers: { cookie } })).status, 200)
+  const p9 = await ipc('remote:createPairing')
+  const other = JSON.parse((await api('/api/pair', { method: 'POST', body: JSON.stringify({ code: p9.code, name: 'Lost' }) })).body.toString())
+  await ipc('remote:revokeDevice', other.deviceId)
+  assert.equal((await preview('/', { headers: { cookie } })).status, 403, 'revoking a phone ends preview cookies')
   hmr.close()
   await new Promise<void>((r) => dev.close(() => r()))
   phone.inbox.length = 0

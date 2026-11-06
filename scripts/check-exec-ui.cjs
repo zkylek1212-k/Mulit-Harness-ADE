@@ -1,4 +1,4 @@
-// node_modules/.bin/electron scripts/check-exec-ui.cjs
+// node scripts/check-exec-ui.cjs
 // 桌面 Cowork 執行介面：真的元件、真的翻譯、假的 window.api。核准內容有沒有顯示，送出時有沒有帶 hash。
 const { app, BrowserWindow } = require('./lib/browser-window.cjs')
 const assert = require('node:assert/strict')

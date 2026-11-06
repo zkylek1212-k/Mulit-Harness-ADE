@@ -68,6 +68,7 @@ export const gitm: any = {
   mergeTree: asyncOf('mergeTree')
 }
 
+// The scenarios in check-cowork*.mts run on this, through wb-ipc
 export const resolveCheckCommand = asyncOf('resolveCheckCommand')
 export const runCheck = async (argv: string[], cwd: string, o: any = {}): Promise<any> => call('runCheck', [argv, cwd, o.timeoutMs, o.tree])
 

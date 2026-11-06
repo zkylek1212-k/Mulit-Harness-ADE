@@ -1,4 +1,4 @@
-// node_modules/.bin/electron scripts/check-cowork-tabs.cjs
+// node scripts/check-cowork-tabs.cjs
 // Real renderer, mocked IPC: independent tab state and background meeting updates.
 const { app, BrowserWindow } = require('./lib/browser-window.cjs')
 const fs = require('node:fs')
