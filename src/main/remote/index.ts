@@ -24,6 +24,9 @@ function getStatus(): RemoteStatus {
     running: s.running,
     port: cfg.port,
     addresses: s.addresses,
+    allowMesh: cfg.allowMesh,
+    meshDetected: s.meshDetected,
+    meshNeedsNewCa: s.meshNeedsNewCa,
     appUrl: primary ? `https://${primary}:${cfg.port}/` : null,
     setupUrl: primary ? `http://${primary}:${cfg.port + 1}/` : null,
     caFingerprint: s.caFingerprint,
@@ -36,7 +39,7 @@ async function applyEnabled(): Promise<void> {
   const cfg = loadConfig()
   if (cfg.enabled) {
     try {
-      await bridge!.start(cfg.port)
+      await bridge!.start(cfg.port, cfg.allowMesh)
     } catch (e) {
       console.error('[Remote] failed to start bridge:', e)
     }
@@ -60,6 +63,13 @@ export function registerRemoteHandlers(): void {
 
   ipcMain.handle('remote:setPort', async (_e, port: number) => {
     saveConfig({ port })
+    await applyEnabled()
+    return getStatus()
+  })
+
+  ipcMain.handle('remote:setAllowMesh', async (_e, allow: boolean) => {
+    saveConfig({ allowMesh: !!allow })
+    audit(allow ? 'mesh.enable' : 'mesh.disable')
     await applyEnabled()
     return getStatus()
   })

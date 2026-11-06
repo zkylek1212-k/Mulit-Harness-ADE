@@ -3,7 +3,7 @@
 import assert from 'node:assert'
 import * as crypto from 'node:crypto'
 import * as tls from 'node:tls'
-import { createCa, issueServerCert, certCovers, isAllowedOrigin, isPrivateIPv4 } from '../src/main/remote/certs.ts'
+import { caPermitsMesh, createCa, issueServerCert, certCovers, isAllowedOrigin, isMeshConnection, isPrivateIPv4, meshAddresses } from '../src/main/remote/certs.ts'
 import { encryptPayload, generateVapidKeys, vapidAuthHeader } from '../src/main/remote/webpush.ts'
 import { parsePrompt, questionPreview } from '../src/renderer/remote/prompt.ts'
 import { sessionStatus } from '../src/shared/remoteProtocol.ts'
@@ -32,13 +32,13 @@ assert.ok(!certCovers(good.certPem, ['192.168.50.8'], []))
   assert.ok(!certCovers(wide.certPem, ['192.168.50.7'], []))
 }
 
-async function handshake(cert: { certPem: string; keyPem: string }, servername: string): Promise<string> {
+async function handshake(cert: { certPem: string; keyPem: string }, servername: string, caPem = ca.certPem): Promise<string> {
   const server = tls.createServer({ cert: cert.certPem, key: cert.keyPem }, (s) => s.end())
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()))
   const port = (server.address() as { port: number }).port
   try {
     return await new Promise<string>((resolve) => {
-      const s = tls.connect({ host: '127.0.0.1', port, servername, ca: ca.certPem }, () => {
+      const s = tls.connect({ host: '127.0.0.1', port, servername, ca: caPem }, () => {
         s.end()
         resolve('ok')
       })
@@ -51,6 +51,39 @@ async function handshake(cert: { certPem: string; keyPem: string }, servername: 
 assert.equal(await handshake(good, 'box.local'), 'ok')
 const evil = issueServerCert(ca, [], ['www.google.com'])
 assert.match(await handshake(evil, 'www.google.com'), /subtree/)
+
+// —— mesh VPN：舊 CA 簽不了 100.64/10，換成 mesh CA 才行；公網名稱照樣被擋 ——
+{
+  const meshCa = createCa('check', true)
+  assert.ok(!caPermitsMesh(ca.certPem))
+  assert.ok(caPermitsMesh(meshCa.certPem))
+  const SAN: [string[], string[]] = [['192.168.50.7', '100.85.1.2'], ['box.local']]
+  assert.match(await handshake(issueServerCert(ca, ...SAN), 'box.local'), /subtree|permitted/)
+  assert.equal(await handshake(issueServerCert(meshCa, ...SAN), 'box.local', meshCa.certPem), 'ok')
+  assert.match(await handshake(issueServerCert(meshCa, [], ['www.google.com']), 'www.google.com', meshCa.certPem), /subtree/)
+
+  // 只認 mesh 網卡：Wi-Fi 拿到電信 CGNAT 位址不算
+  const nic = (address: string, internal = false) => [{ address, family: 'IPv4', internal }] as never
+  assert.deepEqual(
+    meshAddresses({ NordLynx: nic('100.85.1.2'), 'Wi-Fi': nic('100.70.0.9'), tailscale0: nic('100.100.0.1'), wg: nic('100.71.0.1') }),
+    ['100.85.1.2', '100.100.0.1']
+  )
+  assert.deepEqual(meshAddresses({ NordLynx: nic('10.5.0.2') }), [], 'NordLynx 一般 VPN 模式不是 mesh')
+
+  // 連線判斷：對方在 mesh 網段，而且連的是本機 mesh 網卡
+  const MINE = ['100.85.1.2']
+  assert.ok(isMeshConnection('100.90.0.5', '100.85.1.2', MINE))
+  assert.ok(isMeshConnection('::ffff:100.90.0.5', '::ffff:100.85.1.2', MINE))
+  assert.ok(!isMeshConnection('100.90.0.5', '100.70.0.9', MINE), 'ISP 鄰居連到對外網卡')
+  assert.ok(!isMeshConnection('8.8.8.8', '100.85.1.2', MINE), '來源不在 mesh 網段')
+  assert.ok(!isMeshConnection('100.90.0.5', '100.85.1.2', []), '開關沒開')
+  assert.ok(!isMeshConnection(undefined, undefined, MINE))
+
+  // Origin：開了 mesh 才放行 mesh 網段上的另一台電腦
+  assert.ok(!isAllowedOrigin('https://100.90.0.5:47600', 'h'))
+  assert.ok(isAllowedOrigin('https://100.90.0.5:47600', 'h', true))
+  assert.ok(!isAllowedOrigin('https://8.8.8.8', 'h', true))
+}
 
 // —— Web Push：用 RFC 8291 的接收端流程解密，確認加密格式正確 ——
 function decrypt(body: Buffer, ua: crypto.ECDH, auth: Buffer): string {

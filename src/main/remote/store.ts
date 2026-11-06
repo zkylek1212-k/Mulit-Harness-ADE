@@ -13,6 +13,8 @@ import type { PushSubscriptionJSON } from './webpush'
 export interface RemoteConfig {
   enabled: boolean
   port: number
+  /** 允許從 mesh VPN（NordVPN Meshnet、Tailscale）連線。第一次開啟會換 CA，所以預設關閉 */
+  allowMesh: boolean
 }
 
 export interface DeviceRecord {
@@ -83,7 +85,8 @@ export function loadConfig(): RemoteConfig {
   return {
     enabled: !!c.enabled,
     // bridge 會用到 port、port+1（CA 安裝頁）、port+2（手機預覽代理），所以上限留 3 個
-    port: Number.isInteger(port) && port > 1024 && port < 65533 ? port : DEFAULT_PORT
+    port: Number.isInteger(port) && port > 1024 && port < 65533 ? port : DEFAULT_PORT,
+    allowMesh: !!c.allowMesh
   }
 }
 

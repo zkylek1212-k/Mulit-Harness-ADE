@@ -34,6 +34,12 @@ export default function RemoteSettings({ bypassActive }: { bypassActive: boolean
     })
   }, [refreshDevices])
 
+  // 網卡變動沒有事件可聽：VPN 開關之後，mesh 開關要跟著解鎖
+  useEffect(() => {
+    const id = setInterval(() => window.api.remote.status().then(setStatus).catch(() => {}), 5000)
+    return () => clearInterval(id)
+  }, [])
+
   useEffect(() => {
     if (!setupUrl) {
       setSetupQr(null)
@@ -73,6 +79,16 @@ export default function RemoteSettings({ bypassActive }: { bypassActive: boolean
     setBusy(true)
     try {
       setStatus(await window.api.remote.setEnabled(enabled))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const toggleMesh = async (allow: boolean): Promise<void> => {
+    if (allow && status?.meshNeedsNewCa && !window.confirm(t('remote.meshConfirm'))) return
+    setBusy(true)
+    try {
+      setStatus(await window.api.remote.setAllowMesh(allow))
     } finally {
       setBusy(false)
     }
@@ -133,6 +149,37 @@ export default function RemoteSettings({ bypassActive }: { bypassActive: boolean
               </div>
             </div>
           </div>
+          {status?.enabled && (
+            <div className="macos-row">
+              <div className="macos-row-main">
+                <div className="macos-row-left">
+                  <div className="macos-row-badge-icon" style={{ background: status.allowMesh ? '#16A34A' : '#64748B' }}>
+                    <IconShield size={14} />
+                  </div>
+                  <div className="macos-row-info">
+                    <span className="macos-row-title">{t('remote.mesh')}</span>
+                    <span className="macos-row-sub">
+                      {status.meshDetected.length > 0
+                        ? t('remote.meshDetected', { ip: status.meshDetected.join(', ') })
+                        : t('remote.meshNone')}
+                    </span>
+                  </div>
+                </div>
+                <div className="macos-row-right">
+                  <label className="apple-toggle">
+                    <input
+                      type="checkbox"
+                      // 沒有 mesh 位址就不能打開：否則之後 VPN 一連上就會在沒提示的情況下換 CA
+                      disabled={busy || (!status.allowMesh && status.meshDetected.length === 0)}
+                      checked={status.allowMesh}
+                      onChange={(e) => void toggleMesh(e.target.checked)}
+                    />
+                    <span className="apple-toggle-slider" />
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
         {status?.enabled && (
           <div className="remote-notes">
