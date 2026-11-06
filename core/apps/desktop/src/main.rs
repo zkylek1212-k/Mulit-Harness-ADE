@@ -5,6 +5,7 @@
 mod e2e;
 mod jumplist;
 mod legacy_storage;
+mod updates;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -143,6 +144,11 @@ fn encode_query(s: &str) -> String {
 static SELF: OnceLock<(Arc<DesktopHost>, Arc<Core>)> = OnceLock::new();
 
 impl Host for DesktopHost {
+    /// The phone app ships inside the executable, same as the desktop UI
+    fn static_asset(&self, rel: &str) -> Option<Vec<u8>> {
+        self.app.get()?.asset_resolver().get(format!("/{rel}")).map(|a| a.bytes)
+    }
+
     fn send(&self, window: u32, channel: &str, args: Value) {
         self.push(window, json!([channel, args]).to_string());
     }
@@ -159,12 +165,12 @@ impl Host for DesktopHost {
     }
 
     fn windows(&self) -> Vec<u32> {
-        self.handle().webview_windows().keys().filter_map(|l| id_of(l)).collect()
+        self.handle().windows().keys().filter_map(|l| id_of(l)).collect()
     }
 
     fn pick_folder(&self, window: u32, default_path: &str) -> Option<String> {
         let mut d = self.handle().dialog().file();
-        if let Some(w) = self.handle().get_webview_window(&label_of(window)) {
+        if let Some(w) = self.handle().get_window(&label_of(window)) {
             d = d.set_parent(&w);
         }
         if !default_path.is_empty() {
@@ -211,7 +217,7 @@ impl Host for DesktopHost {
             .text1(body)
             .on_activated(move |_| {
                 let label = host.as_ref().and_then(|h| h.windows().first().copied()).map(label_of);
-                if let Some(w) = label.and_then(|l| app.get_webview_window(&l)) {
+                if let Some(w) = label.and_then(|l| app.get_window(&l)) {
                     let _ = w.unminimize();
                     let _ = w.set_focus();
                 }
@@ -221,7 +227,7 @@ impl Host for DesktopHost {
     }
 
     fn set_title(&self, window: u32, title: &str) {
-        if let Some(w) = self.handle().get_webview_window(&label_of(window)) {
+        if let Some(w) = self.handle().get_window(&label_of(window)) {
             let _ = w.set_title(title);
         }
     }
@@ -232,7 +238,7 @@ impl Host for DesktopHost {
             let norm = wb_core::util::resolve(target).to_lowercase();
             for (id, ws) in core.project_workspaces() {
                 if !ws.is_empty() && wb_core::util::resolve(&ws).to_lowercase() == norm {
-                    if let Some(w) = self.handle().get_webview_window(&label_of(id)) {
+                    if let Some(w) = self.handle().get_window(&label_of(id)) {
                         let _ = w.unminimize();
                         let _ = w.show();
                         let _ = w.set_focus();
@@ -246,7 +252,7 @@ impl Host for DesktopHost {
 
     fn open_terminal_window(&self) -> bool {
         let app = self.handle();
-        if let Some(w) = app.get_webview_window(TERMINAL_LABEL) {
+        if let Some(w) = app.get_window(TERMINAL_LABEL) {
             let _ = w.set_focus();
             return true;
         }
@@ -261,7 +267,7 @@ impl Host for DesktopHost {
     }
 
     fn close_terminal_window(&self) -> bool {
-        if let Some(w) = self.handle().get_webview_window(TERMINAL_LABEL) {
+        if let Some(w) = self.handle().get_window(TERMINAL_LABEL) {
             let _ = w.close();
         }
         true
@@ -482,17 +488,37 @@ fn parse_args(core: &Core, argv: &[String], cwd: &str) -> (Option<String>, bool)
     (None, new_window)
 }
 
+/// The installer brings WebView2 along, but a portable copy or a removed runtime lands here: say what to do instead of failing blankly
+fn require_webview2() {
+    if tauri::webview_version().is_ok() {
+        return;
+    }
+    use windows_sys::Win32::UI::WindowsAndMessaging::{MessageBoxW, IDOK, MB_ICONERROR, MB_OKCANCEL};
+    let text = wide("Agent Workbench needs the Microsoft Edge WebView2 Runtime, which is not installed.\n\nChoose OK to open the download page.");
+    let title = wide("Agent Workbench");
+    let answer = unsafe { MessageBoxW(std::ptr::null_mut(), text.as_ptr(), title.as_ptr(), MB_OKCANCEL | MB_ICONERROR) };
+    if answer == IDOK {
+        let _ = shell_open("https://developer.microsoft.com/microsoft-edge/webview2/");
+    }
+    std::process::exit(1);
+}
+
 fn main() {
+    require_webview2();
     jumplist::set_app_id(APP_ID);
     let host = Arc::new(DesktopHost::default());
-    let app = tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+    if let Some(key) = updates::PUBLIC_KEY {
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().pubkey(key).build());
+    }
+    let app = builder
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
             let Some((host, core)) = SELF.get() else { return };
             let (target, new_window) = parse_args(core, &argv, &cwd);
             if target.is_some() || new_window {
                 host.open_project_window(target.as_deref());
             } else if let Some(id) = core.active_project_window() {
-                if let Some(w) = app.get_webview_window(&label_of(id)) {
+                if let Some(w) = app.get_window(&label_of(id)) {
                     let _ = w.unminimize();
                     let _ = w.show();
                     let _ = w.set_focus();
@@ -536,7 +562,7 @@ fn main() {
                     std::thread::spawn(move || {
                         core.window_closed(id);
                         if core.project_workspaces().is_empty() {
-                            if let Some(t) = app.get_webview_window(TERMINAL_LABEL) {
+                            if let Some(t) = app.get_window(TERMINAL_LABEL) {
                                 let _ = t.close();
                             }
                             app.exit(0);
@@ -561,6 +587,10 @@ fn main() {
                 let as_host: Arc<dyn Host> = host.clone();
                 let core = Core::new(as_host, data_dir(), info);
                 let _ = SELF.set((host.clone(), core.clone()));
+                if updates::PUBLIC_KEY.is_some() {
+                    let stopping = core.clone();
+                    core.features().updater.set_backend(Arc::new(updates::SignedUpdates::new(app.handle().clone(), Box::new(move || stopping.shutdown()))));
+                }
                 {
                     let host = host.clone();
                     std::thread::spawn(move || loop {

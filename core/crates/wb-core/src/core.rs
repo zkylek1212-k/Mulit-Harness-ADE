@@ -30,6 +30,10 @@ pub trait Host: Send + Sync {
     fn close_terminal_window(&self) -> bool;
     fn set_title_bar_theme(&self, window: u32, theme: &str) -> bool;
     fn update_jump_list(&self, _recent: &[String], _language: Option<&str>) {}
+    /// A file of the built phone app, by a path the server already validated
+    fn static_asset(&self, _rel: &str) -> Option<Vec<u8>> {
+        None
+    }
 }
 
 #[derive(Clone, Default)]
@@ -176,6 +180,8 @@ impl Core {
 
     /// Quit: terminals end, independent programs started from them survive
     pub fn shutdown(&self) {
+        crate::remote::shutdown(self);
+        crate::cowork_ipc::shutdown(self);
         self.pty_shutdown();
     }
 

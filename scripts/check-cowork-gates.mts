@@ -10,11 +10,14 @@ import { fileURLToPath } from 'node:url'
 import type * as Shared from '../src/shared/cowork.ts'
 
 // app 的相對 import 不寫副檔名：要等 ts-resolve 掛好才能載入，所以用動態 import
-const shared = await import('../src/shared/cowork.ts')
+// WB_COWORK_RUST=1: the same scenarios on the Rust implementation, through wb-ipc
+const RUST = !!process.env.WB_COWORK_RUST
+const rust: any = RUST ? await import('./lib/cowork-rust.mts') : null
+const shared: any = RUST ? rust.shared : await import('../src/shared/cowork.ts')
 const { PHONE_AUDITED_OPS, PHONE_COWORK_OPS } = await import('../src/shared/remoteProtocol.ts')
-const { resolveCheckCommand, runCheck } = await import('../src/main/cowork/checks.ts')
-const gitx = await import('../src/main/cowork/git.ts')
-const { CoworkService } = await import('../src/main/cowork/orchestrator.ts')
+const { resolveCheckCommand, runCheck }: any = RUST ? rust : await import('../src/main/cowork/checks.ts')
+const gitx: any = RUST ? rust.gitm : await import('../src/main/cowork/git.ts')
+const { CoworkService }: any = RUST ? rust : await import('../src/main/cowork/orchestrator.ts')
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const fake = path.join(here, 'fixtures', 'cowork-fake-cli.mjs')
@@ -138,7 +141,7 @@ const svc = new CoworkService({
   resolveExecCli: () => ({ command: process.execPath, prefixArgs: [fake] }),
   emit: () => {}
 })
-svc.init()
+await svc.init()
 const wait = async (id: string, cond: (r: any) => boolean, ms = 40000): Promise<any> => {
   const t0 = Date.now()
   for (;;) {
@@ -162,11 +165,11 @@ const approved = async (workspace: string, edit?: (t: Shared.CoworkTask[]) => Sh
   let r = await wait(r0.id, (x) => x.phase !== 'meeting')
   assert.equal(r.phase, 'awaiting-approval', JSON.stringify(r.block))
   if (edit) {
-    const res = svc.editBoard(r.id, r.planRevision, edit(shared.currentBoard(r)!.tasks))
+    const res = await svc.editBoard(r.id, r.planRevision, edit(shared.currentBoard(r)!.tasks))
     assert.ok(res.ok, JSON.stringify(res))
     r = svc.get(r.id)!
   }
-  svc.approve(r.id, r.planRevision)
+  await svc.approve(r.id, r.planRevision)
   return svc.get(r.id)!
 }
 const start = async (id: string, o: Record<string, unknown> = {}): Promise<void> => {
@@ -180,7 +183,7 @@ const approvalOf = (id: string, waive?: string): Shared.MergeApproval => {
 }
 const finish = async (id: string): Promise<void> => {
   await svc.execCleanup(id)
-  svc.delete(id)
+  await svc.delete(id)
 }
 const solo = (t: Shared.CoworkTask[]): Shared.CoworkTask[] => t.slice(0, 1).map((x) => ({ ...x, dependsOn: [] }))
 
@@ -199,7 +202,7 @@ const solo = (t: Shared.CoworkTask[]): Shared.CoworkTask[] => t.slice(0, 1).map(
   assert.notEqual(on.hash, p.hash, 'Bypass is part of what gets approved')
   assert.ok(on.warnings.includes('bypass-on'))
   assert.equal(svc.get(r.id)!.phase, 'approved', 'nothing started')
-  svc.delete(r.id)
+  await svc.delete(r.id)
   console.log('start approval ok')
 }
 
@@ -247,7 +250,7 @@ const solo = (t: Shared.CoworkTask[]): Shared.CoworkTask[] => t.slice(0, 1).map(
   const mp = await svc.execPreview(missing.id, { mode: 'sequential', linkDeps: false, bypass: false })
   assert.ok(mp.checks[0].error)
   await code(svc.execStart(missing.id, { mode: 'sequential', linkDeps: false, bypass: false, approval: mp.hash }), 'check-unresolved')
-  svc.delete(missing.id)
+  await svc.delete(missing.id)
 
   const pass = await approved(repo, withChecks([[node, '-e', 'process.exit(0)']]))
   await start(pass.id)
@@ -374,8 +377,10 @@ const solo = (t: Shared.CoworkTask[]): Shared.CoworkTask[] => t.slice(0, 1).map(
   const r1 = await wait(r0.id, (x) => x.phase !== 'meeting')
   const board = shared.currentBoard(r1)!
   // 任務板層級的共同檢查：模型提出，一併核准。這裡直接放進目前的任務板，模擬模型輸出
-  ;(board as any).checks = [[process.execPath, '-e', `require('node:assert').ok(require('fs').existsSync('node_modules/dep/index.js'), 'deps'); require('node:assert').ok(require('fs').existsSync('t1.txt') && require('fs').existsSync('t2.txt'), 'both')`]]
-  svc.approve(r1.id, r1.planRevision)
+  const boardChecks = [[process.execPath, '-e', `require('node:assert').ok(require('fs').existsSync('node_modules/dep/index.js'), 'deps'); require('node:assert').ok(require('fs').existsSync('t1.txt') && require('fs').existsSync('t2.txt'), 'both')`]]
+  if (RUST) await svc.testPatch(r1.id, ['boards', '-1', 'checks'], boardChecks)
+  else (board as any).checks = boardChecks
+  await svc.approve(r1.id, r1.planRevision)
   await start(r1.id, { mode: 'parallel', linkDeps: true })
   const x = await wait(r1.id, (y) => y.phase === 'review')
   assert.equal(x.execution.worktrees.integration.depsLinked, true, 'integration worktree links deps')
@@ -386,8 +391,10 @@ const solo = (t: Shared.CoworkTask[]): Shared.CoworkTask[] => t.slice(0, 1).map(
   // 共同 checks 失敗：不審查，合併要豁免
   const r2 = await svc.start({ ...base, workspace: repo } as any)
   const r3 = await wait(r2.id, (y) => y.phase !== 'meeting')
-  ;(shared.currentBoard(r3) as any).checks = [[process.execPath, '-e', 'process.exit(9)']]
-  svc.approve(r3.id, r3.planRevision)
+  const failingChecks = [[process.execPath, '-e', 'process.exit(9)']]
+  if (RUST) await svc.testPatch(r3.id, ['boards', '-1', 'checks'], failingChecks)
+  else (shared.currentBoard(r3) as any).checks = failingChecks
+  await svc.approve(r3.id, r3.planRevision)
   await start(r3.id, { mode: 'sequential', review: true })
   const y = await wait(r3.id, (z) => z.phase === 'review')
   assert.equal(y.execution.integration.checks, 'failed')
@@ -590,3 +597,4 @@ try {
   /* Windows 偶爾還有 handle 沒放 */
 }
 console.log('cowork gates ok')
+if (RUST) rust.stop()

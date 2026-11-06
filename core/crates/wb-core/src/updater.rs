@@ -168,6 +168,7 @@ impl Updater {
 
 /// An installed copy, not a portable folder: installing over a portable one would leave its shortcut on the old version
 fn is_installed(core: &Core) -> bool {
+    // ponytail: "uninstall.exe" is the Tauri installer's name, the other is the old Electron one's
     if !core.info.is_packaged {
         return false;
     }

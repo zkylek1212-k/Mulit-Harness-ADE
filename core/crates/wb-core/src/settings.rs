@@ -323,6 +323,7 @@ impl Core {
         self.save_settings(&updated)?;
         if patch.get("customAgent").is_some() {
             self.host.send_all("settings:changed", json!([]));
+            crate::remote::on_settings_changed(self);
         }
         if patch.get("language").is_some() || patch.get("recentWorkspaces").is_some() {
             self.notify_jump_list();

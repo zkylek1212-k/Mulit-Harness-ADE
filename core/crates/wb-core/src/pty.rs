@@ -141,6 +141,12 @@ impl PtyManager {
         self.job.get_or_init(|| KillOnCloseJob::new().ok()).as_ref()
     }
 
+    pub fn assign_job(&self, pid: u32) {
+        if let Some(j) = self.job() {
+            let _ = j.assign(pid);
+        }
+    }
+
     /// Agents in a job die with the app if it crashes; a clean quit releases it, so independent programs survive
     pub fn release_job(&self) {
         if let Some(j) = self.job() {

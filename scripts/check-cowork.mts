@@ -11,11 +11,14 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const shared = await import('../src/shared/cowork.ts')
-const { runProcess, launchPlan } = await import('../src/main/cowork/runner.ts')
-const { writeJsonAtomic, readJsonWithFallback, prevPath } = await import('../src/main/cowork/store.ts')
-const gitm = await import('../src/main/cowork/git.ts')
-const { CoworkService, CoworkError } = await import('../src/main/cowork/orchestrator.ts')
+// WB_COWORK_RUST=1: the same scenarios on the Rust implementation, through wb-ipc
+const RUST = !!process.env.WB_COWORK_RUST
+const rust: any = RUST ? await import('./lib/cowork-rust.mts') : null
+const shared: any = RUST ? rust.shared : await import('../src/shared/cowork.ts')
+const { runProcess, launchPlan }: any = RUST ? {} : await import('../src/main/cowork/runner.ts')
+const { writeJsonAtomic, readJsonWithFallback, prevPath }: any = RUST ? {} : await import('../src/main/cowork/store.ts')
+const gitm: any = RUST ? rust.gitm : await import('../src/main/cowork/git.ts')
+const { CoworkService, CoworkError }: any = RUST ? rust : await import('../src/main/cowork/orchestrator.ts')
 
 const tmp = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'cowork-check-')))
 const cleanup: string[] = [tmp]
@@ -232,7 +235,8 @@ const cleanup: string[] = [tmp]
   console.log('cowork pure ok')
 }
 
-// ── runner ─────────────────────────────────────────────────────────
+// wb-proc has its own tests for this, and wb-core's store is tested in Rust
+if (!RUST) // ── runner ─────────────────────────────────────────────────────────
 
 {
   const echo = path.join(tmp, 'echo.mjs')
@@ -290,7 +294,7 @@ const cleanup: string[] = [tmp]
   console.log('cowork runner ok')
 }
 
-// ── 原子寫入 ───────────────────────────────────────────────────────
+if (!RUST) // ── 原子寫入 ───────────────────────────────────────────────────────
 
 {
   const f = path.join(tmp, 'store', 'run.json')
@@ -380,7 +384,7 @@ const behave = (cfg: Record<string, unknown>): void => {
   process.env.FAKE_COWORK = JSON.stringify(cfg)
 }
 const svc = new CoworkService(deps)
-svc.init()
+await svc.init()
 
 const base = {
   workspace: repo,
@@ -434,13 +438,13 @@ const code = async (p: Promise<unknown> | (() => unknown), c: string): Promise<v
   assert.ok(fs.existsSync(r.snapshotDir))
   assert.equal(g(repo, 'status', '--porcelain'), '', 'the real repo was never touched')
 
-  await code(() => svc.approve(r.id, r.planRevision + 1), 'stale-revision')
-  svc.approve(r.id, r.planRevision)
+  await code(async () => await svc.approve(r.id, r.planRevision + 1), 'stale-revision')
+  await svc.approve(r.id, r.planRevision)
   const a = svc.get(r.id)!
   assert.equal(a.phase, 'approved')
   assert.equal(a.approvedPlanRevision, 1)
   assert.ok(!fs.existsSync(a.snapshotDir), 'snapshot removed after approval')
-  svc.logDispatch(r.id, 't1', 'Codex #1')
+  await svc.logDispatch(r.id, 't1', 'Codex #1')
   const text = shared.taskDispatchText(a, shared.currentBoard(a)!.tasks[1])
   assert.ok(text.includes('src/b.ts') && text.includes('t1') && text.includes('b uses the helper'))
   assert.ok(fs.readdirSync(path.join(dataDir)).length === 1)
@@ -460,7 +464,7 @@ const code = async (p: Promise<unknown> | (() => unknown), c: string): Promise<v
   assert.match(r.block.message, /still invalid/)
   assert.equal(r.budget.planningCallsUsed, 4, 'R1 + R2 + R34 + one repair')
   assert.equal(r.boards.length, 0)
-  await code(() => svc.approve(r.id, r.planRevision), 'not-allowed')
+  await code(async () => await svc.approve(r.id, r.planRevision), 'not-allowed')
   // 改好之後重試：通過
   behave({ r2Objection: true })
   await svc.retry(r.id)
@@ -535,9 +539,9 @@ const code = async (p: Promise<unknown> | (() => unknown), c: string): Promise<v
   assert.equal(r.phase, 'blocked')
   assert.equal(r.block.kind, 'budget')
   assert.equal(r.budget.planningCallsUsed, 2)
-  svc.raiseLimits(r.id, { maxPlanningCalls: 1 })
+  await svc.raiseLimits(r.id, { maxPlanningCalls: 1 })
   assert.equal(svc.get(r.id)!.limits.maxPlanningCalls, 2, 'limits never shrink')
-  svc.raiseLimits(r.id, { maxPlanningCalls: 3 })
+  await svc.raiseLimits(r.id, { maxPlanningCalls: 3 })
   await svc.retry(r.id)
   const r2 = await waitFor(r.id, settled)
   assert.equal(r2.phase, 'awaiting-approval')
@@ -569,19 +573,19 @@ const code = async (p: Promise<unknown> | (() => unknown), c: string): Promise<v
   const r = await waitFor(run0.id, settled)
   assert.equal(r.phase, 'awaiting-approval')
   const tasks = shared.currentBoard(r)!.tasks
-  await code(() => svc.editBoard(r.id, 99, tasks), 'stale-revision')
-  const bad = svc.editBoard(r.id, 1, [{ ...tasks[0], dependsOn: ['t2'] }, tasks[1]])
+  await code(async () => await svc.editBoard(r.id, 99, tasks), 'stale-revision')
+  const bad = await svc.editBoard(r.id, 1, [{ ...tasks[0], dependsOn: ['t2'] }, tasks[1]])
   assert.ok(!bad.ok && bad.errors.some((e) => /cycle/.test(e)))
-  const evil = svc.editBoard(r.id, 1, [{ ...tasks[0], scope: ['../../etc'] }])
+  const evil = await svc.editBoard(r.id, 1, [{ ...tasks[0], scope: ['../../etc'] }])
   assert.ok(!evil.ok)
   assert.equal(svc.get(r.id)!.planRevision, 1, 'rejected edits change nothing')
-  const good = svc.editBoard(r.id, 1, [{ ...tasks[0], title: 'Renamed' }])
+  const good = await svc.editBoard(r.id, 1, [{ ...tasks[0], title: 'Renamed' }])
   assert.ok(good.ok)
   const r2 = svc.get(r.id)!
   assert.equal(r2.planRevision, 2)
   assert.equal(shared.currentBoard(r2)!.source, 'user')
-  await code(() => svc.approve(r.id, 1), 'stale-revision')
-  svc.approve(r.id, 2)
+  await code(async () => await svc.approve(r.id, 1), 'stale-revision')
+  await svc.approve(r.id, 2)
   // 核准後回饋：重開一版要重新核准（快照自動重建）
   behave({})
   await svc.feedback(r.id, 'please drop t2')
@@ -589,7 +593,7 @@ const code = async (p: Promise<unknown> | (() => unknown), c: string): Promise<v
   assert.equal(r3.phase, 'awaiting-approval')
   assert.equal(r3.planRevision, 3)
   assert.equal(r3.approvedPlanRevision, 2, 'the old approval stays on record')
-  svc.approve(r.id, 3)
+  await svc.approve(r.id, 3)
   console.log('e2e edit & revisions ok')
 }
 
@@ -600,7 +604,7 @@ const code = async (p: Promise<unknown> | (() => unknown), c: string): Promise<v
   const r = await waitFor(run0.id, settled)
   assert.equal(r.phase, 'blocked')
   assert.equal(r.block.kind, 'unresolved')
-  await code(() => svc.approve(r.id, r.planRevision), 'not-allowed')
+  await code(async () => await svc.approve(r.id, r.planRevision), 'not-allowed')
   await code(svc.retry(r.id), 'not-retryable')
   behave({})
   await svc.feedback(r.id, 'go with a.ts')
@@ -614,7 +618,7 @@ const code = async (p: Promise<unknown> | (() => unknown), c: string): Promise<v
   const run1 = await svc.start(base)
   const s = await waitFor(run1.id, settled)
   assert.equal(s.block.kind, 'unresolved')
-  svc.dismissUnresolved(s.id)
+  await svc.dismissUnresolved(s.id)
   const s2 = svc.get(s.id)!
   assert.equal(s2.phase, 'awaiting-approval')
   assert.equal(s2.planRevision, 2)
@@ -627,10 +631,10 @@ const code = async (p: Promise<unknown> | (() => unknown), c: string): Promise<v
   behave({ slowMs: 20000 })
   const run0 = await svc.start(base)
   await waitFor(run0.id, (r) => r.calls.some((c: any) => c.status === 'running'))
-  svc.shutdown()
+  await svc.shutdown()
   await new Promise((res) => setTimeout(res, 800))
   const svc2 = new CoworkService(deps)
-  svc2.init()
+  await svc2.init()
   const r = svc2.get(run0.id)!
   assert.equal(r.phase, 'paused')
   assert.equal(r.block?.kind, 'restart')
@@ -657,7 +661,7 @@ const code = async (p: Promise<unknown> | (() => unknown), c: string): Promise<v
 
 // 13–15 用新的 service（11 把 svc 關了）
 const svc3 = new CoworkService(deps)
-svc3.init()
+await svc3.init()
 async function settle3(id: string): Promise<any> {
   const t0 = Date.now()
   while (svc3.get(id)!.phase === 'meeting' && Date.now() - t0 < 30000) await new Promise((r) => setTimeout(r, 50))
@@ -729,7 +733,7 @@ const three = { ...base, participants: ['claude', 'codex', 'antigravity'] as any
   delete legacy.models
   fs.writeFileSync(file, JSON.stringify(legacy))
   const svc4 = new CoworkService(deps)
-  svc4.init()
+  await svc4.init()
   assert.deepEqual(svc4.get(r.id)!.models, {})
   console.log('e2e models ok')
 }
@@ -758,7 +762,7 @@ const three = { ...base, participants: ['claude', 'codex', 'antigravity'] as any
     resolveExecCli: (agent: string) => (ineligible.has(agent) ? { error: 'not available' } : { command: process.execPath, prefixArgs: [fake] })
   }
   const svc5 = new CoworkService(execDeps)
-  svc5.init()
+  await svc5.init()
   const wait5 = async (id: string, cond: (r: any) => boolean, ms = 30000): Promise<any> => {
     const t0 = Date.now()
     for (;;) {
@@ -772,7 +776,7 @@ const three = { ...base, participants: ['claude', 'codex', 'antigravity'] as any
     const run0 = await svc5.start({ ...three, workspace: erepo, ...extra } as any)
     const r = await wait5(run0.id, (x) => x.phase !== 'meeting')
     assert.equal(r.phase, 'awaiting-approval', JSON.stringify(r.block))
-    svc5.approve(r.id, r.planRevision)
+    await svc5.approve(r.id, r.planRevision)
     return r
   }
   const calls = () => fs.readFileSync(log, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l))
@@ -844,7 +848,7 @@ const three = { ...base, participants: ['claude', 'codex', 'antigravity'] as any
   assert.equal(x.execution.integration.commit, g(wt.path, 'rev-parse', 'HEAD').trim())
 
   // 有 worktree 不能刪紀錄；合併回來源分支；清理後 worktree 不在、分支還在
-  await code(() => svc5.delete(r.id), 'has-worktrees')
+  await code(async () => await svc5.delete(r.id), 'has-worktrees')
   // 已追蹤的檔案有改動就不合併；未追蹤的（例如 app 的 .workbench/）不擋
   fs.writeFileSync(path.join(erepo, 'CLAUDE.md'), 'changed\n')
   await code(svc5.execMerge(r.id), 'stale')
@@ -859,7 +863,7 @@ const three = { ...base, participants: ['claude', 'codex', 'antigravity'] as any
   await svc5.execCleanup(r.id)
   assert.ok(!fs.existsSync(path.join(erepo, '.cowork')))
   assert.ok(g(erepo, 'branch', '--list', `cowork/${r.id}/main`).trim(), 'branch kept after cleanup')
-  svc5.delete(r.id)
+  await svc5.delete(r.id)
   console.log('e2e exec sequential ok')
 
   // 同時：每家一個 worktree；t1 失敗 → t2 等著；重試後 t2 先套用 t1 的 commit；最後整合成一條分支
@@ -900,7 +904,7 @@ const three = { ...base, participants: ['claude', 'codex', 'antigravity'] as any
   onDisk.execution.paused = false
   fs.writeFileSync(runFile, JSON.stringify(onDisk))
   const svc6 = new CoworkService(execDeps)
-  svc6.init()
+  await svc6.init()
   const rec = svc6.get(s.id)!
   assert.equal(rec.execution!.tasks.t1.status, 'cancelled')
   assert.equal(rec.execution!.pausedReason, 'restart')
@@ -916,8 +920,8 @@ const three = { ...base, participants: ['claude', 'codex', 'antigravity'] as any
   const resourceRun = await svc5.start({ ...three, workspace: erepo })
   const ready = await wait5(resourceRun.id, (y) => y.phase === 'awaiting-approval')
   const independent = shared.currentBoard(ready)!.tasks.map((t) => ({ ...t, dependsOn: [], resources: ['port:5173'] }))
-  svc5.editBoard(ready.id, ready.planRevision, independent)
-  svc5.approve(ready.id, ready.planRevision)
+  await svc5.editBoard(ready.id, ready.planRevision, independent)
+  await svc5.approve(ready.id, svc5.get(ready.id)!.planRevision)
   const readyPreview = await svc5.execPreview(ready.id, { mode: 'parallel', linkDeps: false, bypass: false })
   const starting = svc5.execStart(ready.id, { mode: 'parallel', linkDeps: false, bypass: false, approval: readyPreview.hash, review: false })
   await code(svc5.execStart(ready.id, { mode: 'parallel', linkDeps: false, bypass: false, approval: readyPreview.hash }), 'active-run-exists')
@@ -941,10 +945,10 @@ const three = { ...base, participants: ['claude', 'codex', 'antigravity'] as any
   assert.equal(shared.currentBoard(sready)!.tasks[0].assignmentReason, 'Owns the helper module')
   assert.deepEqual(sready.r1.assumptions, [{ agent: 'claude', text: 'good at small modules' }])
   const withDeps = shared.currentBoard(sready)!.tasks.map((t) => (t.id === 't1' ? { ...t, scope: [...t.scope, 'package.json'] } : t))
-  assert.ok(svc5.editBoard(sready.id, sready.planRevision, withDeps).ok)
+  assert.ok((await svc5.editBoard(sready.id, sready.planRevision, withDeps)).ok)
   const sedit = svc5.get(sready.id)!
   assert.equal(shared.currentBoard(sedit)!.tasks[0].assignmentReason, 'Owns the helper module', 'editing keeps the reason when the assignee is unchanged')
-  svc5.approve(sedit.id, sedit.planRevision)
+  await svc5.approve(sedit.id, sedit.planRevision)
   fs.writeFileSync(log, '')
   await startExec(sedit.id, { mode: 'sequential', linkDeps: true, bypass: true })
   x = await wait5(sedit.id, (y) => y.execution.tasks.t1.status === 'blocked')
@@ -978,7 +982,7 @@ const three = { ...base, participants: ['claude', 'codex', 'antigravity'] as any
 {
   const discussionDeps = { ...deps, dataDir: path.join(tmp, "discussion-data") }
   const discussionSvc = new CoworkService(discussionDeps)
-  discussionSvc.init()
+  await discussionSvc.init()
   const wait = (id: string, cond: (r: any) => boolean) => waitFor(id, cond, 30000, discussionSvc)
   behave({})
   const plain = path.join(tmp, 'discussion-folder')
@@ -1008,14 +1012,14 @@ const three = { ...base, participants: ['claude', 'codex', 'antigravity'] as any
   await discussionSvc.discuss(r.id, 'Third round')
   const blocked = await wait(r.id, settled)
   assert.equal(blocked.block.kind, 'budget')
-  discussionSvc.raiseLimits(r.id, { maxPlanningCalls: 9 })
+  await discussionSvc.raiseLimits(r.id, { maxPlanningCalls: 9 })
   await discussionSvc.retry(r.id)
   assert.equal((await wait(r.id, settled)).phase, 'completed')
   const restored = new CoworkService(discussionDeps)
-  restored.init()
+  await restored.init()
   assert.equal(restored.get(r.id)?.discussion?.messages.length, 12)
-  restored.shutdown()
-  discussionSvc.delete(r.id)
+  await restored.shutdown()
+  await discussionSvc.delete(r.id)
 
   behave({ failAgent: 'claude', failStep: 'Discussion' })
   const fail = await discussionSvc.start(opts)
@@ -1027,7 +1031,7 @@ const three = { ...base, participants: ['claude', 'codex', 'antigravity'] as any
   const retried = await wait(f.id, settled)
   assert.equal(retried.phase, 'completed')
   assert.equal(retried.calls.filter((c: any) => c.agent === 'codex').length, 1, 'retry does not repeat earlier speakers')
-  discussionSvc.delete(f.id)
+  await discussionSvc.delete(f.id)
 
   behave({ failAgent: 'codex', failStep: 'Discussion' })
   const skip = await discussionSvc.start(opts)
@@ -1040,7 +1044,7 @@ const three = { ...base, participants: ['claude', 'codex', 'antigravity'] as any
   behave({})
   await discussionSvc.discuss(skip.id, 'Keep going')
   assert.deepEqual((await wait(skip.id, settled)).discussion.order, ['claude', 'antigravity'])
-  discussionSvc.delete(skip.id)
+  await discussionSvc.delete(skip.id)
   console.log('discussion context, isolated workspace, timings, rounds, recovery, retry, skip and budget ok')
 
   // Recorder checkpoint -> chair recommendation, with no implicit project approval/execution.
@@ -1056,7 +1060,7 @@ const three = { ...base, participants: ['claude', 'codex', 'antigravity'] as any
   const memory = shared.buildDiscussionPrompt(rec, 'codex')
   assert.match(memory, /EARLY_REQUIREMENT/)
   assert.ok(!memory.includes('"speaker":'), 'summarized messages are replaced by the record, not repeated')
-  discussionSvc.summarizeDiscussion(rec.id, true)
+  await discussionSvc.summarizeDiscussion(rec.id, true)
   const concluded = await wait(rec.id, settled)
   assert.equal(concluded.calls.length, 5, 'a fresh summary is reused for the chair call')
   assert.equal(concluded.calls.at(-1).agent, 'codex')
@@ -1066,73 +1070,74 @@ const three = { ...base, participants: ['claude', 'codex', 'antigravity'] as any
   assert.equal(concluded.execution, undefined)
   assert.match(shared.discussionProjectPrompt(concluded), /EARLY_REQUIREMENT/)
   const saved = new CoworkService(discussionDeps)
-  saved.init()
+  await saved.init()
   assert.deepEqual(saved.get(rec.id)?.discussion?.summaries, rec.discussion.summaries)
   assert.equal(saved.get(rec.id)?.discussion?.conclusion?.through, 4)
-  saved.shutdown()
+  await saved.shutdown()
   await discussionSvc.discuss(rec.id, 'New direction after conclusion')
   const capped = await wait(rec.id, settled)
   assert.equal(capped.block.kind, 'budget')
   assert.ok(capped.discussion.conclusion.through < capped.discussion.messages.length, 'new discussion makes the old conclusion stale')
   assert.equal(capped.discussion.summaries.length, 1, 'budget failure cannot advance summary coverage')
-  discussionSvc.delete(rec.id)
+  await discussionSvc.delete(rec.id)
 
   behave({})
   const failure = await discussionSvc.start({ ...opts, summarizer: 'claude' })
   await wait(failure.id, settled)
   behave({ failAgent: 'claude', failStep: 'Summary' })
-  discussionSvc.summarizeDiscussion(failure.id, true)
+  await discussionSvc.summarizeDiscussion(failure.id, true)
   const badSummary = await wait(failure.id, settled)
   assert.equal(badSummary.pending.step, 'summary')
   assert.equal(badSummary.discussion.summaries.length, 0)
   assert.equal(badSummary.discussion.conclusion, undefined)
   await code(discussionSvc.dropFailedReviewers(failure.id), 'not-allowed')
-  discussionSvc.setSummarizer(failure.id, 'antigravity')
+  await discussionSvc.setSummarizer(failure.id, 'antigravity')
   behave({})
   await discussionSvc.retry(failure.id)
   const fixed = await wait(failure.id, settled)
   assert.equal(fixed.phase, 'completed')
   assert.equal(fixed.discussion.summaries[0].agent, 'antigravity')
   assert.equal(fixed.calls.filter((c: any) => c.step === 'discussion').length, 3, 'retry does not repeat the discussion')
-  discussionSvc.delete(failure.id)
+  await discussionSvc.delete(failure.id)
 
   // Restart/retry resumes the chair call, keeping the already completed recorder call.
   const finalFailure = await discussionSvc.start({ ...opts, summarizer: 'claude', limits: { ...opts.limits, maxPlanningCalls: 12 } })
   await wait(finalFailure.id, settled)
   behave({ failAgent: 'codex', failStep: 'Conclusion' })
-  discussionSvc.summarizeDiscussion(finalFailure.id, true)
+  await discussionSvc.summarizeDiscussion(finalFailure.id, true)
   const noConclusion = await wait(finalFailure.id, settled)
   assert.equal(noConclusion.pending.step, 'conclusion')
   assert.equal(noConclusion.discussion.summaries.length, 1)
   assert.equal(noConclusion.discussion.conclusion, undefined)
   const recover = new CoworkService(discussionDeps)
-  recover.init()
+  await recover.init()
   behave({})
   await recover.retry(finalFailure.id)
   const recovered = await waitFor(finalFailure.id, settled, 30000, recover)
   assert.equal(recovered.discussion.summaries.length, 1)
   assert.equal(recovered.calls.filter((c: any) => c.step === 'summary').length, 1)
   assert.equal(recovered.discussion.conclusion.through, 4)
-  recover.shutdown()
-  discussionSvc.delete(finalFailure.id)
+  await recover.shutdown()
+  await discussionSvc.delete(finalFailure.id)
 
   const interrupted = await discussionSvc.start({ ...opts, summarizer: 'claude' })
   await wait(interrupted.id, settled)
   behave({ slowMs: 5000 })
-  discussionSvc.summarizeDiscussion(interrupted.id, true)
+  await discussionSvc.summarizeDiscussion(interrupted.id, true)
   await wait(interrupted.id, (r) => r.calls.some((c: any) => c.step === 'summary' && c.status === 'running'))
   await discussionSvc.cancel(interrupted.id)
   const cancelledSummary = discussionSvc.get(interrupted.id)!
   assert.equal(cancelledSummary.phase, 'cancelled')
   assert.equal(cancelledSummary.discussion!.summaries!.length, 0)
   assert.equal(cancelledSummary.discussion!.conclusion, undefined)
-  discussionSvc.delete(interrupted.id)
+  await discussionSvc.delete(interrupted.id)
   behave({})
 
   // Long historical records are consumed oldest-first without dropping a prefix.
   const long = await discussionSvc.start({ ...opts, limits: { ...opts.limits, maxPlanningCalls: 30 } })
   const history = await wait(long.id, settled)
   for (let i = 0; i < 29; i++) history.discussion.messages.push({ id: `m${history.discussion.messages.length + 1}`, agent: null, message: `Historical requirement ${i}`, replyTo: null, at: Date.now() })
+  if (RUST) await (discussionSvc as any).testPatch(long.id, ['discussion', 'messages'], history.discussion.messages)
   assert.equal(shared.discussionNeedsSummary(history), true)
   await discussionSvc.discuss(long.id, 'Keep all earlier requirements')
   const compressed = await wait(long.id, settled)
@@ -1142,7 +1147,7 @@ const three = { ...base, participants: ['claude', 'codex', 'antigravity'] as any
   const speakerPrompt = shared.buildDiscussionPrompt(compressed, 'claude')
   assert.match(speakerPrompt, /EARLY_REQUIREMENT/)
   assert.match(speakerPrompt, /Historical requirement 28/)
-  discussionSvc.summarizeDiscussion(long.id, true)
+  await discussionSvc.summarizeDiscussion(long.id, true)
   const fullyRecorded = await wait(long.id, settled)
   assert.equal(fullyRecorded.discussion.summaries.at(-1).through, fullyRecorded.discussion.messages.length)
   assert.equal(fullyRecorded.discussion.messages.length, 37, 'original messages are retained')
@@ -1150,7 +1155,7 @@ const three = { ...base, participants: ['claude', 'codex', 'antigravity'] as any
   assert.equal(shared.checkDiscussionSummary({ summary: 'x'.repeat(6001), consensus: [], disagreements: [], questions: [] }).ok, false)
   assert.ok(shared.discussionProjectPrompt({ ...fullyRecorded, prompt: 'x'.repeat(20000) }).length > 20000, 'conversion preserves the record for explicit editing instead of silently truncating it')
   assert.equal(shared.sanitizeCoworkSettings({ summarizer: 'evil', summarizeEachRound: 'yes', limits: { maxPlanningCalls: 999 } }).summarizer, null)
-  discussionSvc.delete(long.id)
+  await discussionSvc.delete(long.id)
   console.log('recorder selection, rolling context, original history, summary retries/budget, chair conclusion and approval boundary ok')
 
   behave({ slowMs: 150 })
@@ -1173,7 +1178,7 @@ const three = { ...base, participants: ['claude', 'codex', 'antigravity'] as any
   assert.notEqual(p1.snapshotDir, p2.snapshotDir)
   assert.equal((await wait(p1.id, settled)).phase, 'awaiting-approval')
   assert.equal((await wait(p2.id, settled)).phase, 'awaiting-approval')
-  for (const r of [a, b, c, p1, p2]) discussionSvc.delete(r.id)
+  for (const r of [a, b, c, p1, p2]) await discussionSvc.delete(r.id)
   console.log('concurrent discussions/project planning, isolated context and cancellation ok')
 }
 
@@ -1186,3 +1191,4 @@ for (const d of cleanup) {
 }
 assert.ok(emitted.length > 0)
 console.log('cowork ok')
+if (RUST) rust.stop()

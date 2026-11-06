@@ -296,6 +296,11 @@ fn build_inventory(ws: &str, managed: &HashSet<String>) -> Vec<Value> {
     items
 }
 
+/// Everything installed, with no manifest or toggle state
+pub fn build_inventory_public(ws: &str) -> Vec<Value> {
+    build_inventory(ws, &HashSet::new())
+}
+
 fn disabled_keys(core: &Core, ws: &str) -> HashSet<String> {
     let mut keys = HashSet::new();
     let mut files = vec![core.data_dir.join("customized-state.json")];

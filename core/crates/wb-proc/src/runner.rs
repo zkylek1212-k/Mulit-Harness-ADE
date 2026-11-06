@@ -15,6 +15,9 @@ impl CancelToken {
     pub fn cancel(&self) {
         self.0.store(true, Ordering::SeqCst);
     }
+    pub fn same(&self, other: &CancelToken) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
     pub fn is_cancelled(&self) -> bool {
         self.0.load(Ordering::SeqCst)
     }

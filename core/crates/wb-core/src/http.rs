@@ -24,6 +24,16 @@ fn finish(res: Result<ureq::http::Response<ureq::Body>, ureq::Error>) -> Result<
     Ok(Response { status, body })
 }
 
+/// For push: no redirects, or an allowed host could send this request anywhere
+pub fn post_bytes_no_redirect(url: &str, headers: &[(&str, &str)], body: &[u8], timeout: Duration) -> Result<u16, String> {
+    let agent: ureq::Agent = ureq::Agent::config_builder().http_status_as_error(false).max_redirects(0).timeout_global(Some(timeout)).build().into();
+    let mut req = agent.post(url).header("User-Agent", USER_AGENT);
+    for (k, v) in headers {
+        req = req.header(*k, *v);
+    }
+    req.send(body).map(|r| r.status().as_u16()).map_err(|e| e.to_string())
+}
+
 pub fn get(url: &str, headers: &[(&str, &str)]) -> Result<Response, String> {
     let mut req = agent().get(url).header("User-Agent", USER_AGENT);
     for (k, v) in headers {

@@ -2,6 +2,7 @@
 import assert from 'node:assert'
 import { execFileSync } from 'node:child_process'
 import * as fs from 'node:fs'
+import * as http from 'node:http'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { Desktop, sleep } from './lib/desktop-driver.mjs'
@@ -69,13 +70,62 @@ try {
     await p.waitFor(`window.__t.exit !== null`)
   })
   await check('webview element: outside content in a child webview without IPC', async () => {
+    // The page itself tries, and tells the test server what happened
+    let told = null
+    const site = http.createServer((q, s) => {
+      if (q.url.startsWith('/report')) {
+        told = new URL(q.url, 'http://x').searchParams.get('r')
+        s.end()
+        return
+      }
+      s.setHeader('Content-Type', 'text/html')
+      s.end(`<script>(async () => { let r; try { const t = window.__TAURI_INTERNALS__; if (!t) r = 'no-internals'; else { await t.invoke('ipc', { channel: 'settings:get', args: [] }); r = 'allowed' } } catch (e) { r = 'denied' } await fetch('/report?r=' + r) })()</script>`)
+    })
+    await new Promise((r) => site.listen(0, '127.0.0.1', r))
+    const url = `http://127.0.0.1:${site.address().port}/`
+    await p.eval(`(() => { const e = document.createElement('wb-webview'); e.id = 'w2'; e.setAttribute('src', ${JSON.stringify(url)}); e.style.cssText = 'position:fixed;left:0;top:100px;width:300px;height:200px'; document.body.appendChild(e); return true })()`)
+    for (let i = 0; i < 100 && told === null; i++) await sleep(100)
+    // A window holding a child webview is still the same window to the backend
+    assert.equal(await p.eval(`window.api.files.workspaceRoot()`), ws, 'the window still counts as open')
+    const list = await p.eval(`window.__TAURI__.window.getCurrentWindow().label`)
+    assert.match(list, /^w\d+$/)
+    const before = await p.eval(`window.innerWidth`)
+    await p.eval(`window.__TAURI__.core.invoke('window_control', { action: 'toggle-maximize' })`)
+    await p.waitFor(`window.innerWidth !== ${before}`)
+    await p.eval(`window.__TAURI__.core.invoke('window_control', { action: 'toggle-maximize' })`)
+    await p.waitFor(`window.innerWidth === ${before}`)
+    await p.eval(`(document.getElementById('w2').remove(), true)`)
+    site.close()
+    assert.ok(told === 'denied' || told === 'no-internals', `child webview IPC: ${told}`)
+  })
+  await check('webview element: a data: URL is refused', async () => {
     await p.eval(`(() => { const e = document.createElement('wb-webview'); e.id = 'w1'; e.setAttribute('src', 'data:text/html,hi'); e.style.cssText = 'position:fixed;left:50px;top:80px;width:200px;height:100px;z-index:999999'; document.body.appendChild(e); return true })()`)
     await sleep(600)
     await p.eval(`(document.getElementById('w1').remove(), true)`)
   })
   await check('the UI itself renders the dashboard or file tree', () => p.waitFor(`document.body.innerText.length > 50`))
-  const errors = (await p.errors()).filter((e) => !/No handler registered/.test(e || ''))
-  assert.deepEqual(errors, [])
+  await check('WebGL for the terminal renderer', async () => {
+    assert.equal(await p.eval(`!!document.createElement('canvas').getContext('webgl2')`), true)
+  })
+  await check('clipboard works in this origin', async () => {
+    assert.equal(await p.eval(`window.isSecureContext && !!navigator.clipboard`), true)
+  })
+  await check('remote control serves the phone app from the bundle', async () => {
+    const port = 47950
+    await p.eval(`window.api.remote.setPort(${port})`)
+    const st = await p.eval(`window.api.remote.setEnabled(true)`)
+    assert.equal(st.running, true, JSON.stringify(st))
+    const https = await import('node:https')
+    const get = (u) => new Promise((res, rej) => https.get({ host: '127.0.0.1', port, path: u, rejectUnauthorized: false, agent: false }, (r) => { let b = ''; r.on('data', (c) => (b += c)); r.on('end', () => res({ status: r.statusCode, body: b })) }).on('error', rej))
+    const page = await get('/')
+    assert.equal(page.status, 200)
+    assert.match(page.body, /remote/)
+    assert.equal((await get('/remote-sw.js')).status, 200)
+    assert.equal((await p.eval(`window.api.remote.setEnabled(false)`)).running, false)
+  })
+  const errors = await p.errors()
+  assert.ok(errors.some((e) => /Cannot open data:/.test(e || '')), 'the data: URL was refused')
+  assert.deepEqual(errors.filter((e) => !/Cannot open data:/.test(e || '')), [])
   await check('closing the window ends the app and its terminals', async () => {
     await p.eval(`window.api.pty.spawn({ command: 'cmd' })`)
     p.eval(`document.querySelector('#wb-window-controls button[data-act="close"]').click()`).catch(() => {})

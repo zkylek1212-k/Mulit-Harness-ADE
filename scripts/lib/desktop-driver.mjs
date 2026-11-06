@@ -93,7 +93,7 @@ export class Desktop {
       for (const p of this.pending.values()) p.reject(new Error('app closed'))
       this.pending.clear()
     })
-    createInterface({ input: this.socket }).on('line', (l) => {
+    createInterface({ input: this.socket }).on('error', () => {}).on('line', (l) => {
       const m = JSON.parse(l)
       const p = this.pending.get(m.id)
       if (!p) return

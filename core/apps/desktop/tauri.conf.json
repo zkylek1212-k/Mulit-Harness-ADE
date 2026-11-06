@@ -12,10 +12,11 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "resources": { "resources/plugins/": "plugins/" },
     "icon": ["../../../build/icon.ico", "../../../build/icon.png"],
     "windows": {
       "webviewInstallMode": { "type": "downloadBootstrapper" },
-      "nsis": { "installMode": "currentUser" }
+      "nsis": { "installMode": "currentUser", "installerHooks": "installer-hooks.nsh" }
     }
   }
 }

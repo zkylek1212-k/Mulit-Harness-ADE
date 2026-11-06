@@ -38,11 +38,12 @@ pub fn serve(app: AppHandle) {
                     let Ok(m) = serde_json::from_str::<Value>(&line) else { continue };
                     let id = m["id"].as_u64().unwrap_or(0);
                     if m.get("list").is_some() {
-                        let labels: Vec<String> = app.webview_windows().keys().cloned().collect();
+                        let labels: Vec<String> = app.windows().keys().cloned().collect();
                         let _ = writeln!(out.lock().unwrap(), "{}", json!({ "id": id, "ok": true, "value": labels }));
                         continue;
                     }
-                    let Some(w) = app.get_webview_window(m["label"].as_str().unwrap_or("")) else {
+                    // The page's own webview: once a window also holds a child webview, tauri no longer calls it a "webview window"
+                    let Some(w) = app.get_webview(m["label"].as_str().unwrap_or("")) else {
                         let _ = writeln!(out.lock().unwrap(), "{}", json!({ "id": id, "ok": false, "value": "no such window" }));
                         continue;
                     };
