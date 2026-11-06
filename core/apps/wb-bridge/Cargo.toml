@@ -10,4 +10,5 @@ publish.workspace = true
 wb-proc = { path = "../../crates/wb-proc" }
 wb-git = { path = "../../crates/wb-git" }
 wb-secrets = { path = "../../crates/wb-secrets" }
+wb-pty = { path = "../../crates/wb-pty" }
 serde_json = "1"

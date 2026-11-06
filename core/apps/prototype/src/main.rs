@@ -113,15 +113,17 @@ fn start(app: State<'_, App>, channel: Channel<InvokeResponseBody>) -> Result<()
                 program: "node".into(),
                 args: vec![flood.clone(), rate.to_string(), seconds.to_string()],
                 cwd: None,
+                env: None,
                 cols: 80,
                 rows: 24,
                 scrollback: 2000,
-                credit: CREDIT,
+                credit: Some(CREDIT),
             },
             move |bytes: &[u8]| {
                 let _ = tx.send((id, now_ms(), bytes.to_vec()));
                 hub.publish(id, bytes);
             },
+            |_| {},
         )
         .map_err(|e| e.to_string())?;
         if let Some(pid) = session.pid() {

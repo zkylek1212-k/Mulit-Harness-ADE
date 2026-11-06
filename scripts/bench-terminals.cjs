@@ -19,6 +19,14 @@ const SAMPLE_MS = 20000
 const ROOT = path.resolve(__dirname, '..')
 const CREDIT = 1024 * 1024
 
+function loadBridge() {
+  const { transformSync } = require('esbuild')
+  const code = transformSync(fs.readFileSync(path.join(ROOT, 'src/main/core/bridge.ts'), 'utf8'), { loader: 'ts', format: 'cjs' }).code
+  const mod = { exports: {} }
+  new Function('require', 'module', 'exports', code)(require, mod, mod.exports)
+  return mod.exports
+}
+
 app.whenReady().then(async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wb-bench-'))
   for (const f of ['page.js']) fs.copyFileSync(path.join(__dirname, 'bench', f), path.join(dir, f))
@@ -56,7 +64,27 @@ ipcRenderer.on('data', (_e, id, bytes, t0) => window.postMessage({ id, bytes, t0
       c.proc.resume()
     }
   })
-  for (let i = 0; i < N; i++) {
+  // BENCH_BRIDGE=1：走 Rust 核心（遷移期的實際路徑），鏡像在 Rust，Electron 只轉送
+  const core = process.env.BENCH_BRIDGE ? loadBridge() : null
+  for (let i = 0; i < N && core; i++) {
+    const decoder = new (require('node:string_decoder').StringDecoder)('utf8')
+    const c = core.coreSpawnPty(
+      { program: 'node.exe', args: [path.join(__dirname, 'bench', 'flood.cjs'), String(RATE), String((WARMUP_MS + SAMPLE_MS) / 1000 + 5)], cwd: ROOT, env: process.env, cols: 80, rows: 24, scrollback: 2000 },
+      {
+        onData: (bytes) => {
+          const text = decoder.write(bytes)
+          if (text) win.webContents.send('data', i, text, Date.now())
+        },
+        onResized: () => {},
+        onExit: () => {},
+        onSnapshot: () => {},
+        onApproval: () => {}
+      },
+      (m) => console.error(m)
+    )
+    procs.push({ pid: 0, kill: () => c.kill(), core: c })
+  }
+  for (let i = 0; i < N && !core; i++) {
     const proc = pty.spawn(process.platform === 'win32' ? process.env.BENCH_NODE || 'node.exe' : 'node', [path.join(__dirname, 'bench', 'flood.cjs'), String(RATE), String((WARMUP_MS + SAMPLE_MS) / 1000 + 5)], { cols: 80, rows: 24, cwd: ROOT })
     const mirror = new Headless({ cols: 80, rows: 24, scrollback: 2000, allowProposedApi: true })
     const c = { left: CREDIT, paused: false, proc }
@@ -89,7 +117,7 @@ ipcRenderer.on('data', (_e, id, bytes, t0) => window.postMessage({ id, bytes, t0
   }
   const metrics = app.getAppMetrics().reduce((s, m) => s + m.memory.workingSetSize, 0) / 1024
   const out = {
-    shell: 'electron',
+    shell: process.env.BENCH_BRIDGE ? 'electron+bridge' : 'electron',
     electron: process.versions.electron,
     terminals: N,
     rate_kib_s: RATE / 1024,
@@ -101,6 +129,10 @@ ipcRenderer.on('data', (_e, id, bytes, t0) => window.postMessage({ id, bytes, t0
   console.log(JSON.stringify(out))
   if (jsonOut) fs.writeFileSync(jsonOut, JSON.stringify(out, null, 2))
   for (const p of procs) {
+    if (p.core) {
+      p.kill()
+      continue
+    }
     try {
       execFileSync('taskkill', ['/PID', String(p.pid), '/T', '/F'], { stdio: 'ignore' })
     } catch {

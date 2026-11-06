@@ -1,14 +1,12 @@
 [package]
 name = "wb-pty"
-description = "PTY sessions with credit-based flow control and a headless terminal mirror."
+description = "PTY sessions with credit-based flow control, a headless terminal mirror and approval detection."
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 publish.workspace = true
 
 [dependencies]
+alacritty_terminal = "0.26"
 portable-pty = "0.9"
-vt100 = "0.16"
-
-[dev-dependencies]
-vt100 = "0.16"
+regex = "1"

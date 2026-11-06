@@ -3,6 +3,8 @@
 // Frame: [u8 kind][u32 LE length][payload]
 //   kind 1: JSON. Request {id, method, params}; response {id, result} or {id, error: {code, message}}; event {event, ...}
 //   kind 2: output of a running process: [u64 LE request id][u8 stream, 0 stdout, 1 stderr][bytes]
+//   kind 3: terminal event: [u32 LE session][u8 type][payload]; 0 data, 1 snapshot (JSON), 2 resized (JSON), 3 exit (JSON)
+//           These all share one FIFO and are queued under the mirror lock, so a snapshot sits at an exact stream position.
 //
 // Control frames jump the queue, so a flood of agent output cannot delay a cancel or a response.
 // The parent closing stdin ends the bridge, and the job object then ends every agent, including after a crash.
@@ -10,10 +12,13 @@ use std::collections::{HashMap, VecDeque};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex};
+use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
 use wb_proc::runner::{run_process_with, OutputSink};
 use wb_proc::{resolve_command, CancelToken, KillOnCloseJob, Resolved, RunSpec};
+use wb_pty::approval::looks_like_approval_prompt;
+use wb_pty::{PtyOptions, PtySession};
 
 const PROTOCOL: u32 = 1;
 /// Output frames waiting to be written. A slow reader blocks process output, never control.
@@ -84,6 +89,101 @@ impl Out {
         q.output.push_back(frame(2, &payload));
         cv.notify_all();
     }
+}
+
+/// Coalesce output before judging the screen, so a partial redraw is not read as a new question.
+const APPROVAL_DEBOUNCE: Duration = Duration::from_millis(120);
+
+struct Terminal {
+    session: PtySession,
+    /// Output since the last approval check
+    dirty: Arc<Mutex<Option<Instant>>>,
+    waiting: Mutex<bool>,
+}
+
+type Terminals = Arc<Mutex<HashMap<u32, Arc<Terminal>>>>;
+
+impl Out {
+    fn pty(&self, sid: u32, kind: u8, payload: &[u8]) {
+        let mut body = Vec::with_capacity(5 + payload.len());
+        body.extend_from_slice(&sid.to_le_bytes());
+        body.push(kind);
+        body.extend_from_slice(payload);
+        let (lock, cv) = &*self.0;
+        let mut q = lock.lock().unwrap();
+        while q.output.len() >= MAX_OUTPUT_FRAMES {
+            q = cv.wait(q).unwrap();
+        }
+        q.output.push_back(frame(3, &body));
+        cv.notify_all();
+    }
+}
+
+fn pty_spawn(p: &Value, out: &Out, job: Option<&KillOnCloseJob>, terminals: &Terminals) -> Result<Value, String> {
+    let sid = p.get("sid").and_then(Value::as_u64).ok_or("missing sid")? as u32;
+    let env = p.get("env").and_then(Value::as_object).map(|m| m.iter().filter_map(|(k, v)| v.as_str().map(|v| (k.clone(), v.to_string()))).collect::<Vec<_>>());
+    let num = |k: &str, d: u64| p.get(k).and_then(Value::as_u64).unwrap_or(d);
+    let dirty: Arc<Mutex<Option<Instant>>> = Arc::default();
+    let (out2, out3, dirty2) = (out.clone(), out.clone(), dirty.clone());
+    let opts = PtyOptions {
+        program: s(p, "program")?.to_string(),
+        args: strings(p, "args"),
+        cwd: opt(p, "cwd").map(str::to_string),
+        env,
+        cols: num("cols", 80) as u16,
+        rows: num("rows", 24) as u16,
+        scrollback: num("scrollback", 5000) as usize,
+        credit: None,
+    };
+    let session = PtySession::spawn(
+        opts,
+        move |bytes: &[u8]| {
+            *dirty2.lock().unwrap() = Some(Instant::now());
+            out2.pty(sid, 0, bytes);
+        },
+        move |code| out3.pty(sid, 3, json!({ "code": code }).to_string().as_bytes()),
+    )?;
+    let pid = session.pid();
+    if let (Some(j), Some(pid)) = (job, pid) {
+        let _ = j.assign(pid);
+    }
+    terminals.lock().unwrap().insert(sid, Arc::new(Terminal { session, dirty, waiting: Mutex::new(false) }));
+    Ok(json!({ "pid": pid }))
+}
+
+/// Approval state lives with the mirror. One thread, because this only ever does work for terminals with new output.
+fn watch_approvals(out: Out, terminals: Terminals) {
+    std::thread::spawn(move || loop {
+        std::thread::sleep(Duration::from_millis(40));
+        let list: Vec<(u32, Arc<Terminal>)> = terminals.lock().unwrap().iter().map(|(k, v)| (*k, v.clone())).collect();
+        for (sid, t) in list {
+            let due = {
+                let mut d = t.dirty.lock().unwrap();
+                match *d {
+                    Some(at) if at.elapsed() >= APPROVAL_DEBOUNCE => {
+                        *d = None;
+                        true
+                    }
+                    _ => false,
+                }
+            };
+            if !due {
+                continue;
+            }
+            let screen = t.session.screen_text();
+            let waiting = looks_like_approval_prompt(&screen);
+            let mut last = t.waiting.lock().unwrap();
+            if *last != waiting {
+                *last = waiting;
+                out.control(&json!({ "event": "pty.approval", "sid": sid, "waiting": waiting, "screen": screen }));
+            }
+        }
+    });
+}
+
+fn term_of(terminals: &Terminals, p: &Value) -> Result<(u32, Arc<Terminal>), String> {
+    let sid = p.get("sid").and_then(Value::as_u64).ok_or("missing sid")? as u32;
+    terminals.lock().unwrap().get(&sid).cloned().map(|t| (sid, t)).ok_or_else(|| format!("no terminal {sid}"))
 }
 
 struct Sink {
@@ -216,6 +316,8 @@ fn main() {
     let out = Out::new();
     let job = KillOnCloseJob::new().ok().map(Arc::new);
     let running: Arc<Mutex<HashMap<u64, CancelToken>>> = Arc::default();
+    let terminals: Terminals = Arc::default();
+    watch_approvals(out.clone(), terminals.clone());
     out.control(&json!({ "event": "hello", "protocol": PROTOCOL, "pid": std::process::id() }));
 
     let mut stdin = std::io::stdin().lock();
@@ -249,6 +351,65 @@ fn main() {
                 out.control(&json!({ "id": id, "result": null }));
                 std::thread::sleep(std::time::Duration::from_millis(50));
                 std::process::exit(0);
+            }
+            // Terminal calls run in arrival order on this thread: a write must not overtake the one before it.
+            "pty.spawn" => {
+                let r = pty_spawn(&params, &out, job.as_deref(), &terminals);
+                out.control(&match r {
+                    Ok(v) => json!({ "id": id, "result": v }),
+                    Err(e) => json!({ "id": id, "error": { "code": "core-error", "message": e } }),
+                });
+            }
+            "pty.write" => {
+                if let Ok((_, t)) = term_of(&terminals, &params) {
+                    let _ = t.session.write(params.get("data").and_then(Value::as_str).unwrap_or("").as_bytes());
+                }
+            }
+            "pty.resize" => {
+                if let Ok((sid, t)) = term_of(&terminals, &params) {
+                    let cols = params.get("cols").and_then(Value::as_u64).unwrap_or(80) as u16;
+                    let rows = params.get("rows").and_then(Value::as_u64).unwrap_or(24) as u16;
+                    let prelude = params.get("prelude").and_then(Value::as_str).unwrap_or("");
+                    let o = out.clone();
+                    let _ = t.session.resize_ordered(cols, rows, prelude.as_bytes(), |bytes| {
+                        if !bytes.is_empty() {
+                            o.pty(sid, 0, bytes);
+                        }
+                        o.pty(sid, 2, json!({ "cols": cols, "rows": rows }).to_string().as_bytes());
+                    });
+                    *t.dirty.lock().unwrap() = Some(Instant::now());
+                }
+            }
+            "pty.attach" => {
+                match term_of(&terminals, &params) {
+                    Ok((sid, t)) => {
+                        let scrollback = params.get("scrollback").and_then(Value::as_u64).unwrap_or(5000) as usize;
+                        let o = out.clone();
+                        // Queued under the mirror lock: this is the exact point in the stream the snapshot describes.
+                        t.session.with_mirror(|m| {
+                            let (cols, rows) = m.size();
+                            o.pty(sid, 1, json!({ "req": id, "cols": cols, "rows": rows, "data": m.serialize(scrollback) }).to_string().as_bytes());
+                        });
+                        out.control(&json!({ "id": id, "result": null }));
+                    }
+                    Err(e) => out.control(&json!({ "id": id, "error": { "code": "core-error", "message": e } })),
+                }
+            }
+            "pty.kill" => {
+                if let Ok((_, t)) = term_of(&terminals, &params) {
+                    if let Some(pid) = t.session.pid() {
+                        wb_proc::runner::kill_tree(pid);
+                    }
+                    let _ = t.session.kill();
+                }
+            }
+            "pty.forget" => {
+                if let Some(sid) = params.get("sid").and_then(Value::as_u64) {
+                    terminals.lock().unwrap().remove(&(sid as u32));
+                }
+            }
+            "pty.looksLikeApproval" => {
+                out.control(&json!({ "id": id, "result": looks_like_approval_prompt(params.get("screen").and_then(Value::as_str).unwrap_or("")) }));
             }
             "resolveCommand" => {
                 let cwd = path(&params, "cwd").unwrap_or_default();

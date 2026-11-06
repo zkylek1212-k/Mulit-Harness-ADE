@@ -1,10 +1,16 @@
-//! PTY session: a reader thread, a headless mirror, and credit-based flow control.
-//! Tauri's docs promise ordered Channels but say nothing about backpressure, so the app does it:
-//! the reader stops pulling from the PTY when the consumer has not returned credit.
+//! PTY sessions: a reader thread, a headless mirror, optional credit-based flow control.
+//!
+//! `on_data` runs while holding the mirror lock. A caller that queues frames there and also queues snapshots under
+//! the same lock gets a stream where a snapshot sits at an exact position: nothing missed, nothing repeated.
+pub mod approval;
+pub mod mirror;
+
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
+use std::time::{Duration, Instant};
 
+use mirror::Mirror;
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 
 const DSR_QUERY: &[u8] = b"\x1b[6n";
@@ -17,41 +23,80 @@ pub struct PtyOptions {
     pub program: String,
     pub args: Vec<String>,
     pub cwd: Option<String>,
+    /// None inherits this process's environment; Some replaces it.
+    pub env: Option<Vec<(String, String)>>,
     pub cols: u16,
     pub rows: u16,
     pub scrollback: usize,
-    /// Bytes the consumer may hold before the reader waits.
-    pub credit: i64,
+    /// Bytes the consumer may hold before the reader waits. None = no limit.
+    pub credit: Option<i64>,
 }
 
+type SharedWriter = Arc<Mutex<Option<Box<dyn Write + Send>>>>;
+
 pub struct PtySession {
-    master: Mutex<Box<dyn MasterPty + Send>>,
-    writer: Arc<Mutex<Box<dyn Write + Send>>>,
-    child: Mutex<Box<dyn Child + Send + Sync>>,
-    mirror: Arc<Mutex<vt100::Parser>>,
+    master: Arc<Mutex<Option<Box<dyn MasterPty + Send>>>>,
+    writer: SharedWriter,
+    child: Arc<Mutex<Box<dyn Child + Send + Sync>>>,
+    mirror: Arc<Mutex<Mirror>>,
     credit: Arc<(Mutex<i64>, Condvar)>,
     stalls: Arc<AtomicU64>,
+    pid: Option<u32>,
 }
 
 impl PtySession {
-    pub fn spawn(o: PtyOptions, mut on_data: impl FnMut(&[u8]) + Send + 'static) -> Result<Self, String> {
-        let pair = native_pty_system()
-            .openpty(PtySize { rows: o.rows, cols: o.cols, pixel_width: 0, pixel_height: 0 })
-            .map_err(|e| e.to_string())?;
+    pub fn spawn(o: PtyOptions, mut on_data: impl FnMut(&[u8]) + Send + 'static, on_exit: impl FnOnce(i32) + Send + 'static) -> Result<Self, String> {
+        let pair = native_pty_system().openpty(PtySize { rows: o.rows, cols: o.cols, pixel_width: 0, pixel_height: 0 }).map_err(|e| e.to_string())?;
         let mut cmd = CommandBuilder::new(&o.program);
         cmd.args(&o.args);
         if let Some(cwd) = &o.cwd {
             cmd.cwd(cwd);
         }
+        if let Some(env) = &o.env {
+            cmd.env_clear();
+            for (k, v) in env {
+                cmd.env(k, v);
+            }
+        }
         let child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
         drop(pair.slave);
+        let pid = child.process_id();
         let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
-        let writer = Arc::new(Mutex::new(pair.master.take_writer().map_err(|e| e.to_string())?));
-        let mirror = Arc::new(Mutex::new(vt100::Parser::new(o.rows, o.cols, o.scrollback)));
-        let credit = Arc::new((Mutex::new(o.credit), Condvar::new()));
+        let writer: SharedWriter = Arc::new(Mutex::new(Some(pair.master.take_writer().map_err(|e| e.to_string())?)));
+        let master = Arc::new(Mutex::new(Some(pair.master)));
+        let child = Arc::new(Mutex::new(child));
+        let mirror = Arc::new(Mutex::new(Mirror::new(o.cols, o.rows, o.scrollback)));
+        let credit = Arc::new((Mutex::new(o.credit.unwrap_or(i64::MAX / 2)), Condvar::new()));
         let stalls = Arc::new(AtomicU64::new(0));
+        let code: Arc<Mutex<Option<i32>>> = Arc::default();
 
-        let (mirror2, credit2, stalls2, writer2) = (mirror.clone(), credit.clone(), stalls.clone(), writer.clone());
+        // ConPTY keeps the output pipe open after the child exits, until the pseudoconsole is closed. So a waiter has
+        // to notice the exit and close it, and that is also what makes the reader see the final output and then EOF.
+        {
+            let (child, master, writer, code, credit) = (child.clone(), master.clone(), writer.clone(), code.clone(), credit.clone());
+            std::thread::spawn(move || loop {
+                let status = child.lock().unwrap().try_wait();
+                match status {
+                    Ok(Some(s)) => {
+                        *code.lock().unwrap() = Some(s.exit_code() as i32);
+                        // A reader waiting for credit must still reach EOF, or closing the pseudoconsole can hang.
+                        *credit.0.lock().unwrap() = i64::MAX / 2;
+                        credit.1.notify_all();
+                        writer.lock().unwrap().take();
+                        master.lock().unwrap().take();
+                        return;
+                    }
+                    Ok(None) => std::thread::sleep(Duration::from_millis(50)),
+                    Err(_) => {
+                        *code.lock().unwrap() = Some(-1);
+                        master.lock().unwrap().take();
+                        return;
+                    }
+                }
+            });
+        }
+
+        let (mirror2, credit2, stalls2, writer2, code2) = (mirror.clone(), credit.clone(), stalls.clone(), writer.clone(), code.clone());
         std::thread::spawn(move || {
             let mut buf = vec![0u8; 64 * 1024];
             let mut answered_startup_query = false;
@@ -74,14 +119,28 @@ impl PtySession {
                 // it gets an answer. Answer that first one here; later queries belong to the terminal front end.
                 if !answered_startup_query && contains(&buf[..n], DSR_QUERY) {
                     answered_startup_query = true;
-                    let _ = writer2.lock().unwrap().write_all(b"\x1b[1;1R");
+                    if let Some(w) = writer2.lock().unwrap().as_mut() {
+                        let _ = w.write_all(b"\x1b[1;1R");
+                    }
                 }
-                mirror2.lock().unwrap().process(&buf[..n]);
+                let mut m = mirror2.lock().unwrap();
+                m.process(&buf[..n]);
                 *credit2.0.lock().unwrap() -= n as i64;
                 on_data(&buf[..n]);
             }
+            let t = Instant::now();
+            let exit = loop {
+                if let Some(c) = *code2.lock().unwrap() {
+                    break c;
+                }
+                if t.elapsed() > Duration::from_secs(3) {
+                    break -1;
+                }
+                std::thread::sleep(Duration::from_millis(20));
+            };
+            on_exit(exit);
         });
-        Ok(Self { master: Mutex::new(pair.master), writer, child: Mutex::new(child), mirror, credit, stalls })
+        Ok(Self { master, writer, child, mirror, credit, stalls, pid })
     }
 
     pub fn add_credit(&self, n: i64) {
@@ -91,17 +150,29 @@ impl PtySession {
     }
 
     pub fn write(&self, data: &[u8]) -> std::io::Result<()> {
-        self.writer.lock().unwrap().write_all(data)
+        match self.writer.lock().unwrap().as_mut() {
+            Some(w) => w.write_all(data),
+            None => Ok(()), // already exited
+        }
     }
 
-    pub fn resize(&self, cols: u16, rows: u16) -> Result<(), String> {
-        self.master.lock().unwrap().resize(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 }).map_err(|e| e.to_string())?;
-        self.mirror.lock().unwrap().screen_mut().set_size(rows, cols);
+    /// Resize in stream order: the prelude goes in first, the size changes after it, and `emit` sees them under the
+    /// mirror lock. ConPTY's repaint arrives through the reader, so it lands behind both.
+    pub fn resize_ordered(&self, cols: u16, rows: u16, prelude: &[u8], emit: impl FnOnce(&[u8])) -> Result<(), String> {
+        if let Some(m) = self.master.lock().unwrap().as_ref() {
+            m.resize(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 }).map_err(|e| e.to_string())?;
+        }
+        let mut m = self.mirror.lock().unwrap();
+        if !prelude.is_empty() {
+            m.process(prelude);
+        }
+        emit(prelude);
+        m.resize(cols, rows);
         Ok(())
     }
 
     pub fn pid(&self) -> Option<u32> {
-        self.child.lock().unwrap().process_id()
+        self.pid
     }
 
     pub fn kill(&self) -> std::io::Result<()> {
@@ -112,70 +183,56 @@ impl PtySession {
         self.stalls.load(Ordering::Relaxed)
     }
 
+    /// Runs with the mirror locked, so whatever `f` queues holds an exact position in the output stream.
+    pub fn with_mirror<T>(&self, f: impl FnOnce(&Mirror) -> T) -> T {
+        f(&self.mirror.lock().unwrap())
+    }
+
     /// Bytes that redraw the current screen, for a client attaching or catching up.
     pub fn snapshot(&self) -> Vec<u8> {
-        self.mirror.lock().unwrap().screen().contents_formatted()
+        self.with_mirror(|m| m.serialize(0).into_bytes())
     }
 
-    /// Visible text only, the same input as `readApprovalScreen`.
+    /// Visible rows, the input of approval detection.
     pub fn screen_text(&self) -> String {
-        let mirror = self.mirror.lock().unwrap();
-        let (_, cols) = mirror.screen().size();
-        screen_rows(mirror.screen(), cols).join("
-")
+        self.with_mirror(|m| m.rows().join("\n"))
     }
-}
-
-/// Mirror without a PTY: for comparing against @xterm/headless on recorded bytes.
-pub fn mirror_text(bytes: &[u8], cols: u16, rows: u16) -> String {
-    let mut p = vt100::Parser::new(rows, cols, 0);
-    p.process(bytes);
-    screen_rows(p.screen(), cols).join("
-")
-}
-
-/// One string per visible row, like `readApprovalScreen`. `contents()` joins wrapped rows, so it cannot be used for this.
-fn screen_rows(screen: &vt100::Screen, cols: u16) -> Vec<String> {
-    screen.rows(0, cols).collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::mpsc::channel;
-    use std::time::Duration;
 
-    #[test]
-    fn mirror_handles_ansi_and_cursor() {
-        let text = mirror_text(b"\x1b[32mhello\x1b[0m\r\nworld\x1b[1;3HX", 20, 4);
-        assert!(text.starts_with("heXlo"), "{text:?}");
-        assert!(text.contains("world"));
+    fn node_opts(script: &str, credit: Option<i64>) -> PtyOptions {
+        PtyOptions {
+            program: if cfg!(windows) { "node.exe".into() } else { "node".into() },
+            args: vec!["-e".into(), script.into()],
+            cwd: None,
+            env: None,
+            cols: 80,
+            rows: 24,
+            scrollback: 100,
+            credit,
+        }
     }
 
     #[test]
     fn credit_stops_the_reader_until_returned() {
         // ConPTY only forwards screen changes, so the output has to keep changing over time, like a real agent.
         let (tx, rx) = channel::<usize>();
-        let node = if cfg!(windows) { "node.exe" } else { "node" };
         let session = PtySession::spawn(
-            PtyOptions {
-                program: node.into(),
-                args: vec!["-e".into(), "let i=0;setInterval(()=>console.log('line '+(i++)+' '+'x'.repeat(60)),2)".into()],
-                cwd: None,
-                cols: 80,
-                rows: 24,
-                scrollback: 0,
-                credit: 4096,
-            },
+            node_opts("let i=0;setInterval(()=>console.log('line '+(i++)+' '+'x'.repeat(60)),2)", Some(4096)),
             move |b: &[u8]| {
                 let _ = tx.send(b.len());
             },
+            |_| {},
         )
         .unwrap();
         let drain = |ms: u64| {
-            let end = std::time::Instant::now() + Duration::from_millis(ms);
+            let end = Instant::now() + Duration::from_millis(ms);
             let mut got = 0;
-            while let Some(left) = end.checked_duration_since(std::time::Instant::now()) {
+            while let Some(left) = end.checked_duration_since(Instant::now()) {
                 if let Ok(n) = rx.recv_timeout(left) {
                     got += n;
                 }
@@ -193,12 +250,21 @@ mod tests {
     }
 
     #[test]
-    fn snapshot_redraws_the_same_screen() {
-        let mut a = vt100::Parser::new(5, 40, 0);
-        a.process(b"\x1b[31mred\x1b[0m\r\nline two\x1b[3;5Hthree");
-        let snap = a.screen().contents_formatted();
-        let mut b = vt100::Parser::new(5, 40, 0);
-        b.process(&snap);
-        assert_eq!(a.screen().contents(), b.screen().contents());
+    fn exit_code_and_final_output_arrive() {
+        let (tx, rx) = channel::<i32>();
+        let (dtx, drx) = channel::<Vec<u8>>();
+        let _session = PtySession::spawn(
+            node_opts("console.log('goodbye-marker');process.exit(7)", None),
+            move |b: &[u8]| {
+                let _ = dtx.send(b.to_vec());
+            },
+            move |c| {
+                let _ = tx.send(c);
+            },
+        )
+        .unwrap();
+        assert_eq!(rx.recv_timeout(Duration::from_secs(20)).expect("exit event"), 7);
+        let all: Vec<u8> = drx.try_iter().flatten().collect();
+        assert!(String::from_utf8_lossy(&all).contains("goodbye-marker"), "{:?}", String::from_utf8_lossy(&all));
     }
 }

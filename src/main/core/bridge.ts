@@ -11,7 +11,7 @@ import * as path from 'node:path'
 
 export const CORE_PROTOCOL = 1
 
-export type CoreModule = 'git' | 'proc'
+export type CoreModule = 'git' | 'proc' | 'pty'
 
 export function coreEnabled(mod: CoreModule): boolean {
   return process.env[`WB_CORE_${mod.toUpperCase()}`] === 'rust'
@@ -51,7 +51,17 @@ function encode(msg: unknown): Buffer {
   return Buffer.concat([head, payload])
 }
 
+/** 一個 Rust 終端的事件；全部照串流順序送達 */
+export interface CorePtyHandlers {
+  onData: (bytes: Buffer) => void
+  onResized: (cols: number, rows: number) => void
+  onExit: (code: number) => void
+  onSnapshot: (req: number, cols: number, rows: number, data: string) => void
+  onApproval: (waiting: boolean, screen: string) => void
+}
+
 class CoreBridge {
+  ptys = new Map<number, CorePtyHandlers>()
   private child: ChildProcess | null = null
   private buf: Buffer = Buffer.alloc(0)
   private pending = new Map<number, Pending>()
@@ -110,6 +120,10 @@ class CoreBridge {
     const err = new CoreResultUnknownError(`wb-bridge stopped (${why}). The result of the running operation is unknown.`)
     for (const p of this.pending.values()) p.reject(err)
     this.pending.clear()
+    // 終端也一樣：不知道跑到哪，job object 已經把 agent 收掉，告訴使用者結束了
+    const ptys = [...this.ptys.values()]
+    this.ptys.clear()
+    for (const h of ptys) h.onExit(-1)
   }
 
   private onData(d: Buffer, onHello: (protocol: number) => void): void {
@@ -125,8 +139,30 @@ class CoreBridge {
         this.pending.get(id)?.onOutput?.(payload[8], Buffer.from(payload.subarray(9)))
         continue
       }
+      if (kind === 3) {
+        const h = this.ptys.get(payload.readUInt32LE(0))
+        if (!h) continue
+        const type = payload[4]
+        const body = payload.subarray(5)
+        if (type === 0) h.onData(Buffer.from(body))
+        else {
+          const j = JSON.parse(body.toString('utf8'))
+          if (type === 1) h.onSnapshot(j.req, j.cols, j.rows, j.data)
+          else if (type === 2) h.onResized(j.cols, j.rows)
+          else if (type === 3) {
+            const sid = payload.readUInt32LE(0)
+            this.ptys.delete(sid)
+            h.onExit(j.code)
+            this.syncRef()
+            // Rust 端也放掉，不然長時間使用會一直累積
+            this.send('pty.forget', { sid }).catch(() => {})
+          }
+        }
+        continue
+      }
       const m = JSON.parse(payload.toString('utf8'))
       if (m.event === 'hello') onHello(m.protocol)
+      else if (m.event === 'pty.approval') this.ptys.get(m.sid)?.onApproval(m.waiting, m.screen)
       else if (m.event === 'proc.spawn') this.pending.get(m.id)?.onSpawn?.(m.pid)
       else if (m.id !== undefined) {
         const p = this.pending.get(m.id)
@@ -143,7 +179,7 @@ class CoreBridge {
   private syncRef(): void {
     const c = this.child as (ChildProcess & { stdout: any; stderr: any; stdin: any }) | null
     if (!c) return
-    const on = this.pending.size > 0 || this.starting
+    const on = this.pending.size > 0 || this.starting || this.ptys.size > 0
     for (const h of [c, c.stdout, c.stderr, c.stdin]) {
       if (on) h?.ref?.()
       else h?.unref?.()
@@ -164,6 +200,18 @@ class CoreBridge {
 
   pid(): number | undefined {
     return this.child?.pid
+  }
+
+  /** 不等回覆的訊息；順序與送出順序相同 */
+  async send(method: string, params: unknown): Promise<number> {
+    await this.start()
+    const id = this.nextId++
+    this.child!.stdin!.write(encode({ id, method, params }))
+    return id
+  }
+
+  syncRefNow(): void {
+    this.syncRef()
   }
 
   cancel(target: number): void {
@@ -208,6 +256,75 @@ export async function route<T>(mod: CoreModule, method: string, params: unknown,
     throw e
   }
   return sent.result
+}
+
+let nextSid = 1
+
+export interface CorePty {
+  sid: number
+  pid: () => number
+  write: (data: string) => void
+  resize: (cols: number, rows: number, prelude: string) => void
+  kill: () => void
+  /** 回傳接上當下的畫面；attached 在快照那個串流位置同步呼叫，之後的輸出一段不漏、也不重複 */
+  attach: (scrollback: number, attached: () => void) => Promise<{ data: string; cols: number; rows: number } | null>
+}
+
+/**
+ * 同步回傳，實際啟動非同步：pty.ts 的 spawnPty 是同步 API。這裡的 send 走同一條 chain，順序不會亂。
+ * 啟動失敗（找不到執行檔）透過 onSpawnError 回報，不是例外。
+ */
+export function coreSpawnPty(params: Record<string, unknown>, handlers: CorePtyHandlers, onSpawnError: (message: string) => void): CorePty {
+  const c = core()
+  const sid = nextSid++
+  let pid = 0
+  c.ptys.set(sid, handlers)
+  const waiting = new Map<number, { resolve: (v: { data: string; cols: number; rows: number }) => void; attached: () => void }>()
+  const onSnapshot = handlers.onSnapshot
+  handlers.onSnapshot = (req, cols, rows, data) => {
+    const w = waiting.get(req)
+    if (w) {
+      waiting.delete(req)
+      w.attached()
+      w.resolve({ data, cols, rows })
+    } else onSnapshot(req, cols, rows, data)
+  }
+  c.call<{ pid: number }>('pty.spawn', { sid, ...params })
+    .then((r) => r.result)
+    .then(
+      (r) => {
+        pid = r.pid
+      },
+      (e: Error) => {
+        c.ptys.delete(sid)
+        onSpawnError(e.message)
+      }
+    )
+  const fire = (method: string, p: Record<string, unknown>): void => {
+    c.send(method, { sid, ...p }).catch(() => {})
+  }
+  return {
+    sid,
+    pid: () => pid,
+    write: (data) => fire('pty.write', { data }),
+    resize: (cols, rows, prelude) => fire('pty.resize', { cols, rows, prelude }),
+    kill: () => fire('pty.kill', {}),
+    attach: async (scrollback, attached) => {
+      const { id, result } = await c.call<null>('pty.attach', { sid, scrollback })
+      return new Promise((resolve) => {
+        waiting.set(id, { resolve, attached })
+        // 終端已經不在（例如啟動失敗）：沒有快照可等，回 null，跟找不到 pty 一樣
+        result.catch(() => {
+          waiting.delete(id)
+          resolve(null)
+        })
+      })
+    }
+  }
+}
+
+export function coreLooksLikeApproval(screen: string): Promise<boolean> {
+  return coreCall('pty.looksLikeApproval', { screen })
 }
 
 export interface CoreProcHandle {

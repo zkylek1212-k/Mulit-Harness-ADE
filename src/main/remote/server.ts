@@ -669,7 +669,7 @@ export class RemoteBridge {
         return
       }
       case 'attach': {
-        const snap = subscribePty(msg.id, subKey, {
+        const snap = await subscribePty(msg.id, subKey, {
           data: (id, d) => this.send(c, { t: 'data', id, d }),
           resized: (id, cols, rows) => this.send(c, { t: 'resized', id, cols, rows }),
           exit: () => {

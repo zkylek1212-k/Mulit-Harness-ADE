@@ -8,6 +8,8 @@ import * as path from 'path'
 import * as yaml from 'js-yaml'
 import * as crypto from 'crypto'
 import { execFileSync } from 'child_process'
+import { StringDecoder } from 'string_decoder'
+import { bridgePath, coreEnabled, coreSpawnPty, type CorePty } from '../core/bridge'
 import { getWorkspaceForEvent } from '../index'
 import { looksLikeApprovalPrompt, readApprovalScreen } from '../../shared/approvalDetect'
 import { detectDevPort } from '../../shared/portDetect'
@@ -37,7 +39,12 @@ export interface PtySubscriber {
 }
 
 interface PtyEntry {
-  proc: pty.IPty
+  /** node-pty（預設）。走 Rust 時是 null，改用 core */
+  proc: pty.IPty | null
+  /** WB_CORE_PTY=rust：行程、鏡像與核准偵測都在 Rust */
+  core: CorePty | null
+  /** Rust 模式下最後一次回報的畫面文字（只有待審批時用得到） */
+  screenText: string
   meta: ActiveSessionMeta
   /** 顯示名稱（Claude Code / Codex / 自訂 launcher 名稱…） */
   title: string
@@ -52,8 +59,8 @@ interface PtyEntry {
    * main 自己的終端畫面（headless xterm）。中途接上的 subscriber（手機、桌面 attach）拿它序列化的畫面，
    * 不能重播原始輸出：那些輸出是在各種寬度下畫的，用現在的寬度重播游標定位全錯，TUI 會疊成好幾份。
    */
-  screen: ScreenMirror
-  serializer: SerializeAddon
+  screen: ScreenMirror | null
+  serializer: SerializeAddon | null
   /** Claude Code / Antigravity CLI：改尺寸時會清掉重印整段對話 */
   reprintsOnResize: boolean
   subs: Map<string, PtySubscriber>
@@ -136,29 +143,33 @@ export function getPtySession(id: string): PtySessionInfo | null {
  * subscriber 只在 screen 處理完某段輸出後才收到那段（見 feed），所以此刻序列化的畫面
  * 剛好涵蓋「之前送過的全部」，之後的輸出一段不漏、也不重複。
  */
-export function subscribePty(
+export async function subscribePty(
   id: string,
   key: string,
   sub: PtySubscriber
-): { data: string; cols: number; rows: number } | null {
+): Promise<{ data: string; cols: number; rows: number } | null> {
   const e = entries.get(id)
   if (!e) return null
+  // Rust：subscriber 在快照那個串流位置才加入，所以同樣不漏也不重複
+  if (e.core) return e.core.attach(SCREEN_SCROLLBACK, () => e.subs.set(key, sub))
   e.subs.set(key, sub)
-  return { data: e.serializer.serialize({ scrollback: SCREEN_SCROLLBACK }), cols: e.screen.cols, rows: e.screen.rows }
+  return { data: e.serializer!.serialize({ scrollback: SCREEN_SCROLLBACK }), cols: e.screen!.cols, rows: e.screen!.rows }
 }
 
 /** 審批文字來自已解析的當前畫面，不能從原始 ANSI 紀錄撈已被擦掉的提示。 */
 export function getPtyScreenText(id: string): string | null {
   const e = entries.get(id)
-  return e ? readApprovalScreen(e.screen) : null
+  if (!e) return null
+  return e.screen ? readApprovalScreen(e.screen) : e.screenText
 }
 
 function scheduleApproval(e: PtyEntry): void {
-  if (e.approvalTimer || entries.get(e.meta.id) !== e) return
+  const screen = e.screen
+  if (!screen || e.approvalTimer || entries.get(e.meta.id) !== e) return
   // 合併多個 ANSI 輸出片段，等 xterm 處理完再判斷，不把局部重畫當成新問題。
   e.approvalTimer = setTimeout(() => {
     e.approvalTimer = null
-    const waiting = looksLikeApprovalPrompt(readApprovalScreen(e.screen))
+    const waiting = looksLikeApprovalPrompt(readApprovalScreen(screen))
     if (waiting === e.needsApproval) return
     e.needsApproval = waiting
     if (waiting) ptyEvents.emit('approval', e.meta.id)
@@ -169,6 +180,11 @@ function scheduleApproval(e: PtyEntry): void {
 
 /** 依序送進 screen；screen 處理完才轉給 subscriber，screen 永遠不落後任何 subscriber */
 function feed(e: PtyEntry, data: string, deliver: (sub: PtySubscriber) => void): void {
+  // Rust 的鏡像先處理完才送過來：這裡直接轉給 subscriber
+  if (!e.screen) {
+    for (const sub of e.subs.values()) deliver(sub)
+    return
+  }
   e.screen.write(data, () => {
     for (const sub of e.subs.values()) deliver(sub)
     scheduleApproval(e)
@@ -193,7 +209,8 @@ export function unsubscribePty(id: string, key: string): void {
 export function writePty(id: string, data: string): boolean {
   const e = entries.get(id)
   if (!e) return false
-  e.proc.write(data)
+  if (e.core) e.core.write(data)
+  else e.proc!.write(data)
   // 方向鍵、Tab 等仍然在操作同一個問題；由後續畫面是否還有提示決定狀態。
   return true
 }
@@ -201,8 +218,16 @@ export function writePty(id: string, data: string): boolean {
 export function resizePty(id: string, cols: number, rows: number): void {
   const e = entries.get(id)
   if (!e || cols < 2 || rows < 2 || (cols === e.cols && rows === e.rows)) return
+  // Rust 在同一把鏡像鎖下排前導序列與尺寸，順序保證與下面相同
+  if (e.core) {
+    e.cols = cols
+    e.rows = rows
+    e.core.resize(cols, rows, resizePrelude(e))
+    return
+  }
+  const screen = e.screen!
   try {
-    e.proc.resize(cols, rows)
+    e.proc!.resize(cols, rows)
   } catch {
     return
   }
@@ -211,8 +236,8 @@ export function resizePty(id: string, cols: number, rows: number): void {
   // ConPTY 的重畫下一輪事件才會進 onData，這裡同步排進去就一定排在它前面
   const prelude = resizePrelude(e)
   if (prelude) feed(e, prelude, (sub) => sub.data(id, prelude))
-  e.screen.write('', () => {
-    e.screen.resize(cols, rows)
+  screen.write('', () => {
+    screen.resize(cols, rows)
     for (const sub of e.subs.values()) sub.resized?.(id, cols, rows)
     scheduleApproval(e)
   })
@@ -222,15 +247,20 @@ export function killPty(id: string): void {
   const e = entries.get(id)
   if (!e) return
   e.killed = true
-  hardKill(e.proc)
+  stopProc(e)
   finish(id, e, -1)
+}
+
+function stopProc(e: PtyEntry): void {
+  if (e.core) e.core.kill()
+  else hardKill(e.proc!)
 }
 
 export function cleanupPtyForWindow(webContentsId: number): void {
   for (const [id, e] of Array.from(entries.entries())) {
     if (e.ownerId === webContentsId) {
       e.killed = true
-      hardKill(e.proc)
+      stopProc(e)
       finish(id, e, -1)
     }
   }
@@ -247,7 +277,8 @@ function finish(id: string, e: PtyEntry, code: number): void {
   e.busy = false
   entries.delete(id)
   // 排在還沒處理完的輸出後面，subscriber 才收得到最後幾段
-  e.screen.write('', () => e.screen.dispose())
+  const screen = e.screen
+  if (screen) screen.write('', () => screen.dispose())
   ptyEvents.emit('exit', id, code, e.title, e.killed)
   ptyEvents.emit('changed')
 }
@@ -441,7 +472,7 @@ function resolveCommand(name: string): { cmd: string; extraArgs: string[] } {
 }
 
 app.on('before-quit', () => {
-  for (const e of entries.values()) hardKill(e.proc)
+  for (const e of entries.values()) stopProc(e)
   entries.clear()
 })
 
@@ -631,22 +662,28 @@ export function spawnPty(
       : ws && fs.existsSync(ws)
         ? ws
         : process.env.USERPROFILE || process.env.HOME || process.cwd()
-  const ptyProcess = pty.spawn(command, args, {
-    name: 'xterm-color',
-    cols,
-    rows,
-    cwd: spawnCwd,
-    env: env as Record<string, string>
-  })
+  // bridge 不存在就照舊走 node-pty：這時什麼都還沒送出去
+  const useCore = coreEnabled('pty') && fs.existsSync(bridgePath())
+  const ptyProcess = useCore
+    ? null
+    : pty.spawn(command, args, {
+        name: 'xterm-color',
+        cols,
+        rows,
+        cwd: spawnCwd,
+        env: env as Record<string, string>
+      })
 
   const entry: PtyEntry = {
     proc: ptyProcess,
+    core: null,
+    screenText: '',
     meta: {
       id,
       command: opts.command || opts.launcherId || 'shell',
       launcherId: opts.launcherId,
       startTime: Date.now(),
-      pid: ptyProcess.pid,
+      pid: ptyProcess?.pid ?? 0,
       sessionId: opts.sessionId,
       cwd: spawnCwd,
       args
@@ -658,8 +695,8 @@ export function spawnPty(
     rows,
     tail: '',
     // windowsPty：ConPTY 長高時是在底下補空行（不是把歷史拉回畫面），照它的行為算才不會被重畫蓋掉歷史
-    screen: new ScreenMirror({ cols, rows, scrollback: SCREEN_SCROLLBACK, allowProposedApi: true, windowsPty: { backend: 'conpty' } }),
-    serializer: new SerializeAddon(),
+    screen: useCore ? null : new ScreenMirror({ cols, rows, scrollback: SCREEN_SCROLLBACK, allowProposedApi: true, windowsPty: { backend: 'conpty' } }),
+    serializer: useCore ? null : new SerializeAddon(),
     reprintsOnResize: isClaude || isAntigravity,
     subs: new Map(),
     needsApproval: false,
@@ -670,11 +707,11 @@ export function spawnPty(
     devPort: null,
     killed: false
   }
-  entry.screen.loadAddon(entry.serializer as unknown as Parameters<ScreenMirror['loadAddon']>[0])
+  entry.screen?.loadAddon(entry.serializer as unknown as Parameters<ScreenMirror['loadAddon']>[0])
   if (ctx.subscribeOwner) entry.subs.set(`wc:${ctx.owner.id}`, webContentsSubscriber(ctx.owner))
   entries.set(id, entry)
 
-  ptyProcess.onData((data) => {
+  const onOutput = (data: string): void => {
     entry.lastOutputAt = Date.now()
     entry.tail = (entry.tail + data).slice(-TAIL_LIMIT)
     feed(entry, data, (sub) => sub.data(id, data))
@@ -701,12 +738,44 @@ export function spawnPty(
       entry.devPort = port
       ptyEvents.emit('changed')
     }
-  })
-
-  ptyProcess.onExit(({ exitCode }) => {
+  }
+  const onExited = (exitCode: number): void => {
     feed(entry, '', (sub) => sub.exit(id, exitCode))
     finish(id, entry, exitCode)
-  })
+  }
+
+  if (ptyProcess) {
+    ptyProcess.onData(onOutput)
+    ptyProcess.onExit(({ exitCode }) => onExited(exitCode))
+  } else {
+    const decoder = new StringDecoder('utf8')
+    entry.core = coreSpawnPty(
+      { program: command, args, cwd: spawnCwd, env, cols, rows, scrollback: SCREEN_SCROLLBACK },
+      {
+        onData: (bytes) => {
+          const text = decoder.write(bytes)
+          if (text) onOutput(text)
+        },
+        onResized: (c, r) => {
+          for (const sub of entry.subs.values()) sub.resized?.(id, c, r)
+        },
+        onExit: onExited,
+        onSnapshot: () => {},
+        onApproval: (waiting, screen) => {
+          entry.screenText = screen
+          if (waiting === entry.needsApproval) return
+          entry.needsApproval = waiting
+          if (waiting) ptyEvents.emit('approval', id)
+          ptyEvents.emit('changed')
+        }
+      },
+      (message) => {
+        // 找不到執行檔之類：node-pty 會同步丟例外，這裡是非同步的，所以印在終端裡讓使用者看到
+        onOutput(`\r\nFailed to start terminal: ${message}\r\n`)
+        onExited(-1)
+      }
+    )
+  }
 
   ptyEvents.emit('changed')
   return id
@@ -732,7 +801,7 @@ export function registerPtyHandlers(): void {
   // 接上一個已存在的 pty（例如手機開的終端要出現在桌面分頁）：回傳 scrollback 並開始轉送輸出
   ipcMain.handle('pty:attach', async (event, id: string) => {
     const wc = event.sender
-    const snap = subscribePty(id, `wc:${wc.id}`, webContentsSubscriber(wc))
+    const snap = await subscribePty(id, `wc:${wc.id}`, webContentsSubscriber(wc))
     return snap && { snapshot: snap.data, cols: snap.cols, rows: snap.rows }
   })
 
