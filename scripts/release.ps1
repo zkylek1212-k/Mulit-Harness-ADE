@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Automated Release & Publish Workflow for Agent Workbench (Mulit-Harness-ADE).
+    Automated Release & Publish Workflow for Agent Workbench (Multi-Harness-ADE).
     (Maintainers only - requires repository write permissions via GitHub CLI 'gh')
 
 .DESCRIPTION
@@ -93,7 +93,7 @@ $releaseTitle = "v$version"
 Write-Host ""
 Write-Host "Target Release Version: " -NoNewline -ForegroundColor White
 Write-Host "$tagName" -ForegroundColor Cyan
-Write-Host "Repository: zkylek1212-k/Mulit-Harness-ADE" -ForegroundColor Gray
+Write-Host "Repository: zkylek1212-k/Multi-Harness-ADE" -ForegroundColor Gray
 Write-Host ""
 
 # 2. Typecheck & Build
@@ -276,11 +276,11 @@ Write-Host "      Release $tagName Successfully Published!         " -Foreground
 Write-Host "==========================================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "Release Page URL:" -ForegroundColor White
-Write-Host "  https://github.com/zkylek1212-k/Mulit-Harness-ADE/releases/tag/$tagName" -ForegroundColor Cyan
+Write-Host "  https://github.com/zkylek1212-k/Multi-Harness-ADE/releases/tag/$tagName" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Auto-Updater:" -ForegroundColor White
 Write-Host "  latest.yml uploaded; installed apps will detect and offer auto-update." -ForegroundColor Gray
 Write-Host ""
 Write-Host "Quick Install Command for Users:" -ForegroundColor White
-Write-Host "  irm https://raw.githubusercontent.com/zkylek1212-k/Mulit-Harness-ADE/master/install.ps1 | iex" -ForegroundColor Yellow
+Write-Host "  irm https://raw.githubusercontent.com/zkylek1212-k/Multi-Harness-ADE/master/install.ps1 | iex" -ForegroundColor Yellow
 Write-Host ""

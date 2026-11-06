@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Automated Windows installer for Agent Workbench (Mulit-Harness-ADE).
+    Automated Windows installer for Agent Workbench (Multi-Harness-ADE).
 
 .DESCRIPTION
     Fetches the latest release from GitHub, downloads the installer,
@@ -19,7 +19,7 @@
     Download the portable package instead of the setup installer (if available).
 
 .EXAMPLE
-    irm https://raw.githubusercontent.com/zkylek1212-k/Mulit-Harness-ADE/master/install.ps1 | iex
+    irm https://raw.githubusercontent.com/zkylek1212-k/Multi-Harness-ADE/master/install.ps1 | iex
 #>
 
 [CmdletBinding()]
@@ -36,7 +36,7 @@ $ErrorActionPreference = "Stop"
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
 
 $RepoOwner = "zkylek1212-k"
-$RepoName = "Mulit-Harness-ADE"
+$RepoName = "Multi-Harness-ADE"
 
 Write-Host ""
 Write-Host "==========================================================" -ForegroundColor Cyan
