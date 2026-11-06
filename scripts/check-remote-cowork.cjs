@@ -39,6 +39,7 @@ class FakeSocket {
           baseline: { ok: true }, defaults: { chair: 'codex', participants: ['claude', 'codex'], models: { claude: { model: 'opus', effort: 'high' } }, summarizer: null, summarizeEachRound: true, limits: { maxPlanningCalls: 6, maxPlanningMinutes: 10, maxExecutionMinutes: 30 } } }
       : m.op === 'models' ? [{ agent: 'claude', options: [{ id: 'opus', label: 'Opus' }], fallback: { model: '', effort: '', source: 'cli-default' } }]
       // 沒回傳值的操作跟真的桌面一樣不帶 data（JSON 會丟掉 undefined）
+      : m.op === 'execPreview' ? { hash: 'preview-hash', mode: m.args[1].mode, linkDeps: true, bypass: true, baseCommit: 'abc', checks: [{ taskId: 't1', argv: ['npm', 'test'], resolved: 'C:/node/npm.cmd' }], worktreeRoot: 'C:/x', warnings: ['bypass-on'] }
       : m.op === 'list' ? [] : m.op === 'start' || m.op === 'get' ? RUN : undefined
     this.emit({ t: 'cowork', reqId: m.reqId, result: { ok: true, data } })
   }
@@ -146,8 +147,13 @@ app.whenReady().then(async () => {
     await js(`__push({ phase: 'approved' })`)
     await waitFor(hasText('Run Sequentially'), 'exec buttons')
     await click('button.btn', 'Run Sequentially')
+    // 先看要核准的內容（Bypass、會執行的指令），確認後才開始，並帶上內容 hash
+    await waitFor(`window.__ops.at(-1).op === 'execPreview'`, 'execPreview op')
+    await waitFor(hasText('Bypass is on'), 'bypass state is shown')
+    await waitFor(hasText('npm test'), 'checks are shown')
+    await click('button.btn', 'Confirm and start')
     await waitFor(`window.__ops.at(-1).op === 'execStart'`, 'execStart op')
-    assert.deepEqual((await lastOp()).args, ['r1', { mode: 'sequential' }])
+    assert.deepEqual((await lastOp()).args, ['r1', { mode: 'sequential', approval: 'preview-hash' }])
 
     // 結束的會議可以刪除，刪完回清單
     await js(`__push({ phase: 'cancelled' })`)

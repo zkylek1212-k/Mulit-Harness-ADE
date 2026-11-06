@@ -11,7 +11,9 @@ import type {
   CoworkResult,
   CoworkRun,
   CoworkRunSummary,
-  CoworkSettings
+  CoworkSettings,
+  ExecPreview,
+  MergeApproval
 } from '../shared/cowork'
 
 // ── Workbench IPC 契約（唯一整合縫合處）────────────────────────────────
@@ -304,17 +306,21 @@ const api = {
       ipcRenderer.invoke('cowork:logDispatch', runId, taskId, target),
     delete: (runId: string): Promise<CoworkResult<void>> => ipcRenderer.invoke('cowork:delete', runId),
     // 背景執行：在 repo 內的 .cowork/<runId>/ worktree 裡跑，進度與回覆經 onUpdate 回來
-    execStart: (runId: string, opts: { mode: 'sequential' | 'parallel'; linkDeps: boolean }): Promise<CoworkResult<void>> =>
+    execPreview: (runId: string, opts: { mode: 'sequential' | 'parallel'; linkDeps: boolean }): Promise<CoworkResult<ExecPreview>> =>
+      ipcRenderer.invoke('cowork:execPreview', runId, opts),
+    execStart: (runId: string, opts: { mode: 'sequential' | 'parallel'; linkDeps: boolean; approval: string }): Promise<CoworkResult<void>> =>
       ipcRenderer.invoke('cowork:execStart', runId, opts),
+    execWaive: (runId: string, taskId: string, reason: string): Promise<CoworkResult<void>> => ipcRenderer.invoke('cowork:execWaive', runId, taskId, reason),
+    execWaiveGitConfig: (runId: string, taskId: string, reason: string): Promise<CoworkResult<void>> => ipcRenderer.invoke('cowork:execWaiveGitConfig', runId, taskId, reason),
     execMessage: (runId: string, taskId: string, text: string): Promise<CoworkResult<void>> =>
       ipcRenderer.invoke('cowork:execMessage', runId, taskId, text),
     execRetry: (runId: string, taskId: string): Promise<CoworkResult<void>> => ipcRenderer.invoke('cowork:execRetry', runId, taskId),
     // 越界改動：接受（照原樣 commit）或還原越界的檔
-    execAcceptScope: (runId: string, taskId: string): Promise<CoworkResult<void>> => ipcRenderer.invoke('cowork:execAcceptScope', runId, taskId),
+    execAcceptScope: (runId: string, taskId: string, hash?: string): Promise<CoworkResult<void>> => ipcRenderer.invoke('cowork:execAcceptScope', runId, taskId, hash),
     execRevertScope: (runId: string, taskId: string): Promise<CoworkResult<void>> => ipcRenderer.invoke('cowork:execRevertScope', runId, taskId),
     execPause: (runId: string): Promise<CoworkResult<void>> => ipcRenderer.invoke('cowork:execPause', runId),
     execResume: (runId: string): Promise<CoworkResult<void>> => ipcRenderer.invoke('cowork:execResume', runId),
-    execMerge: (runId: string): Promise<CoworkResult<void>> => ipcRenderer.invoke('cowork:execMerge', runId),
+    execMerge: (runId: string, approval: MergeApproval): Promise<CoworkResult<void>> => ipcRenderer.invoke('cowork:execMerge', runId, approval),
     execCleanup: (runId: string): Promise<CoworkResult<void>> => ipcRenderer.invoke('cowork:execCleanup', runId),
     bypass: (): Promise<CoworkResult<boolean>> => ipcRenderer.invoke('cowork:bypass'),
     onUpdate: (cb: (run: CoworkRun) => void): (() => void) => {

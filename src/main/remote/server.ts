@@ -66,6 +66,7 @@ import { RemoteFiles, listWorkspaceFiles, readWorkspaceText } from './files'
 import { scanBgTasks } from '../ipc/dashboard'
 import { coworkEvents, invokeCowork } from '../ipc/cowork'
 import type { CoworkRun } from '../../shared/cowork'
+import { PHONE_AUDITED_OPS, PHONE_COWORK_OPS } from '../../shared/remoteProtocol'
 
 // Remote Bridge：讓同一個區網的 iPhone 遠端操作桌面上的 CLI 終端。
 //
@@ -759,8 +760,16 @@ export class RemoteBridge {
           bgTasks: entry ? scanBgTasks(entry.workspaceRoot) : [], error: entry ? undefined : 'no workspace' })
       }
       case 'cowork': {
+        const op = String(msg.op)
+        if (!PHONE_COWORK_OPS.has(op)) return this.send(c, { t: 'cowork', reqId: msg.reqId, result: { ok: false as const, code: 'not-allowed' } })
         const ws = this.workspaceOf(msg.windowId)
-        const result = ws ? await invokeCowork(String(msg.op), ws, msg.args) : { ok: false as const, code: 'no-workspace' }
+        const result = ws ? await invokeCowork(op, ws, msg.args) : { ok: false as const, code: 'no-workspace' }
+        if (PHONE_AUDITED_OPS.has(op)) {
+          // 只記內容識別（run、hash、commit），不記理由全文或任何機密
+          const a = Array.isArray(msg.args) ? msg.args : []
+          const ids = a.map((v: unknown) => (typeof v === 'string' ? v.slice(0, 80) : v && typeof v === 'object' ? { commit: (v as any).commit, targetHead: (v as any).targetHead, approval: (v as any).approval, waived: !!(v as any).waive, mode: (v as any).mode } : v))
+          audit(`cowork.${op}`, { deviceId: c.device?.id, args: op === 'execWaive' ? ids.slice(0, 2) : ids, ok: result.ok, ...(result.ok ? {} : { code: result.code }) })
+        }
         return this.send(c, { t: 'cowork', reqId: msg.reqId, result })
       }
       case 'files': {

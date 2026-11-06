@@ -1,12 +1,14 @@
 // Cowork 的 git 操作：讀基線、建立唯讀規劃用的快照、偵測副作用、清掉快照。
 // 只用 node 內建模組，scripts/check-cowork.mts 可以直接在暫存 repo 上測。
-import { execFile } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 export function git(cwd: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile('git', args, { cwd, maxBuffer: 32 * 1024 * 1024, windowsHide: true }, (err, stdout, stderr) => {
+    // fsmonitor 是 repo 設定就能指定的執行點：harness 自己的 git 指令一律關掉
+    execFile('git', ['-c', 'core.fsmonitor=false', ...args], { cwd, maxBuffer: 32 * 1024 * 1024, windowsHide: true }, (err, stdout, stderr) => {
       if (err) reject(new Error((stderr || err.message).trim()))
       else resolve(stdout)
     })
@@ -201,8 +203,13 @@ async function identity(dir: string): Promise<string[]> {
   return ['-c', 'user.name=Agent Workbench Cowork', '-c', 'user.email=cowork@agent-workbench.invalid']
 }
 
+/** 指定只跑核准時匯出的 hook 副本；沒有副本（舊紀錄）就維持 git 原本的行為 */
+function hookArgs(hooksDir?: string): string[] {
+  return hooksDir ? ['-c', `core.hooksPath=${hooksDir.replace(/\\/g, '/')}`] : []
+}
+
 /** 把 worktree 的所有變動 commit；沒有變動回 null */
-export async function commitAll(dir: string, message: string): Promise<string | null> {
+export async function commitAll(dir: string, message: string, hooksDir?: string): Promise<string | null> {
   await git(dir, ['add', '-A'])
   try {
     await git(dir, ['diff', '--cached', '--quiet'])
@@ -210,7 +217,7 @@ export async function commitAll(dir: string, message: string): Promise<string | 
   } catch {
     /* 有變動 */
   }
-  await git(dir, [...(await identity(dir)), 'commit', '-q', '-m', message])
+  await git(dir, [...hookArgs(hooksDir), ...(await identity(dir)), 'commit', '-q', '-m', message])
   return (await git(dir, ['rev-parse', 'HEAD'])).trim()
 }
 
@@ -244,7 +251,7 @@ export async function hasChanges(dir: string): Promise<boolean> {
 }
 
 /** cherry-pick 一串 commit；衝突就還原並回報是哪一個 */
-export async function cherryPickAll(dir: string, commits: string[]): Promise<{ ok: true } | { ok: false; commit: string; message: string }> {
+export async function cherryPickAll(dir: string, commits: string[], hooksDir?: string): Promise<{ ok: true } | { ok: false; commit: string; message: string }> {
   const id = await identity(dir)
   for (const c of commits) {
     try {
@@ -255,7 +262,7 @@ export async function cherryPickAll(dir: string, commits: string[]): Promise<{ o
       /* 還沒有 */
     }
     try {
-      await git(dir, [...id, 'cherry-pick', '--allow-empty', '--keep-redundant-commits', c])
+      await git(dir, [...hookArgs(hooksDir), ...id, 'cherry-pick', '--allow-empty', '--keep-redundant-commits', c])
     } catch (e) {
       try {
         await git(dir, ['cherry-pick', '--abort'])
@@ -269,18 +276,19 @@ export async function cherryPickAll(dir: string, commits: string[]): Promise<{ o
 }
 
 export async function diffStat(dir: string, base: string, head: string): Promise<string> {
-  return (await git(dir, ['diff', '--stat', `${base}..${head}`])).trim().slice(0, 8000)
+  return (await git(dir, ['diff', '--no-ext-diff', '--no-textconv', '--stat', `${base}..${head}`])).trim().slice(0, 8000)
 }
 
 /**
- * 把分支合併回使用者的分支：主工作區必須乾淨、而且目前就在原本的來源分支上；
- * 衝突就 merge --abort 還原，不自動選邊。
+ * 把核准的 commit 合併回使用者的分支：主工作區必須乾淨、而且目前就在原本的來源分支上；
+ * 衝突就 merge --abort 還原，不自動選邊。用 commit 不用分支名，核准之後分支再動也不會合到別的內容。
  */
 export async function mergeBranch(
   repoRoot: string,
   expectBranch: string,
-  branch: string,
-  message: string
+  commit: string,
+  message: string,
+  hooksDir?: string
 ): Promise<{ ok: true; commit: string } | { ok: false; reason: 'wrong-branch' | 'dirty' | 'conflict'; message: string }> {
   const current = (await git(repoRoot, ['rev-parse', '--abbrev-ref', 'HEAD'])).trim()
   if (current !== expectBranch) return { ok: false, reason: 'wrong-branch', message: current }
@@ -288,7 +296,7 @@ export async function mergeBranch(
   const dirty = (await git(repoRoot, ['status', '--porcelain', '--untracked-files=no'])).trim()
   if (dirty) return { ok: false, reason: 'dirty', message: dirty.split(/\r?\n/).slice(0, 20).join('\n') }
   try {
-    await git(repoRoot, [...(await identity(repoRoot)), 'merge', '--no-ff', '-m', message, branch])
+    await git(repoRoot, [...hookArgs(hooksDir), ...(await identity(repoRoot)), 'merge', '--no-ff', '-m', message, commit])
   } catch (e) {
     try {
       await git(repoRoot, ['merge', '--abort'])
@@ -300,9 +308,9 @@ export async function mergeBranch(
   return { ok: true, commit: (await git(repoRoot, ['rev-parse', 'HEAD'])).trim() }
 }
 
-/** 移除這場會議的 worktree（分支保留，git 紀錄還在）；只動 .cowork/ 底下的路徑 */
-export async function removeWorktrees(repoRoot: string, root: string, dirs: string[]): Promise<void> {
-  const base = path.resolve(repoRoot, '.cowork')
+/** 移除這場會議的 worktree（分支保留，git 紀錄還在）；只動 base（預設 <repo>/.cowork）底下的路徑 */
+export async function removeWorktrees(repoRoot: string, root: string, dirs: string[], worktreeBase?: string): Promise<void> {
+  const base = path.resolve(worktreeBase || path.join(repoRoot, '.cowork'))
   for (const d of dirs) {
     const rel = path.relative(base, path.resolve(d))
     if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) continue
@@ -329,4 +337,164 @@ export async function removeWorktrees(repoRoot: string, root: string, dirs: stri
   } catch {
     /* 還有別場會議的 worktree */
   }
+}
+
+// ── 核准內容、hook 信任、git 設定防護 ─────────────────────────────────
+
+const sha256 = (data: string | Buffer): string => createHash('sha256').update(data).digest('hex')
+
+/** 目前設定的 hook 路徑（相對路徑以 repo 根目錄為準）；null = 預設的 .git/hooks */
+export async function configuredHooksPath(repoRoot: string): Promise<string | null> {
+  const v = (await git(repoRoot, ['config', '--get', 'core.hooksPath']).catch(() => '')).trim()
+  return v || null
+}
+
+/**
+ * 把基線的 hook 匯出成一份副本；harness 的 commit、cherry-pick、merge 只跑這份。
+ * 不能一律關掉（本 repo 的 pre-commit 是防止記憶檔外洩的防線），也不能照跑：
+ * worktree 裡被改過的 tracked hook、分支帶進來的 post-merge 都會被 git 執行（2026-11-06 以 Git 2.53 實測）。
+ */
+export async function exportBaselineHooks(repoRoot: string, commit: string, dest: string): Promise<string> {
+  fs.rmSync(dest, { recursive: true, force: true })
+  fs.mkdirSync(dest, { recursive: true })
+  const configured = await configuredHooksPath(repoRoot)
+  const write = (name: string, data: Buffer): void => {
+    const file = path.join(dest, path.basename(name))
+    fs.writeFileSync(file, data)
+    fs.chmodSync(file, 0o755)
+  }
+  if (configured && !path.isAbsolute(configured)) {
+    const rel = configured.replace(/\\/g, '/').replace(/\/+$/, '')
+    const names = (await git(repoRoot, ['ls-tree', '--name-only', '-z', commit, '--', `${rel}/`])).split('\0').filter(Boolean)
+    for (const n of names) {
+      const data = await gitBuffer(repoRoot, ['cat-file', 'blob', `${commit}:${n}`]).catch(() => null)
+      if (data) write(n, data)
+    }
+    if (names.length) return dest
+  }
+  const dir = configured && path.isAbsolute(configured) ? configured : path.resolve(repoRoot, (await git(repoRoot, ['rev-parse', '--git-path', 'hooks'])).trim())
+  if (fs.existsSync(dir)) {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (e.isFile() && !e.name.endsWith('.sample')) write(e.name, fs.readFileSync(path.join(dir, e.name)))
+    }
+  }
+  return dest
+}
+
+function gitBuffer(cwd: string, args: string[]): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    execFile('git', ['-c', 'core.fsmonitor=false', ...args], { cwd, encoding: 'buffer', maxBuffer: 32 * 1024 * 1024, windowsHide: true }, (err, stdout, stderr) => {
+      if (err) reject(new Error(String(stderr || err.message).trim()))
+      else resolve(stdout)
+    })
+  })
+}
+
+/**
+ * 影響 git 行為的本機設定與 hook 內容 hash：設定來源（含 include）、worktree 專屬設定、repo 外的 hook 目錄。
+ * 這是變動偵測，擋不住同權限的 agent 先改再還原；worktree 不是安全邊界。
+ * tracked 的 hook 目錄在工作樹裡，改動會出現在 diff：由 hookPathsIn 列為高風險，並靠基線副本確保不被執行。
+ */
+export async function gitGuardState(dir: string): Promise<Record<string, string>> {
+  const out: Record<string, string> = {}
+  const add = (p: string): void => {
+    const key = path.resolve(p).replace(/\\/g, '/').toLowerCase()
+    try {
+      out[key] = sha256(fs.readFileSync(p))
+    } catch {
+      /* 讀不到就不列入 */
+    }
+  }
+  const top = path.resolve((await git(dir, ['rev-parse', '--show-toplevel'])).trim())
+  const origins = await git(dir, ['config', '--local', '--list', '--show-origin', '--includes']).catch(() => '')
+  for (const line of origins.split(/\r?\n/)) {
+    const m = /^file:(.+?)\t/.exec(line)
+    if (m) add(path.resolve(dir, m[1]))
+  }
+  add(path.resolve(dir, (await git(dir, ['rev-parse', '--git-path', 'config'])).trim()))
+  const wtConfig = path.resolve(dir, (await git(dir, ['rev-parse', '--git-path', 'config.worktree'])).trim())
+  if (fs.existsSync(wtConfig)) add(wtConfig)
+  const hooks = path.resolve(dir, (await git(dir, ['rev-parse', '--git-path', 'hooks'])).trim())
+  const rel = path.relative(top, hooks)
+  const inTree = rel && !rel.startsWith('..') && !path.isAbsolute(rel)
+  if (!inTree && fs.existsSync(hooks)) {
+    for (const e of fs.readdirSync(hooks, { withFileTypes: true })) {
+      if (e.isFile() && !e.name.endsWith('.sample')) add(path.join(hooks, e.name))
+    }
+  }
+  return out
+}
+
+/** 基線之後新增或改動的項目（路徑可讀就好）；移除也算 */
+export function diffGuard(base: Record<string, string>, now: Record<string, string>): string[] {
+  const out: string[] = []
+  for (const [k, v] of Object.entries(now)) if (base[k] !== v) out.push(k)
+  for (const k of Object.keys(base)) if (!(k in now)) out.push(k)
+  return out
+}
+
+/** 這些檔在 index 裡的內容識別（含新增、刪除與二進位）；要先 git add -A。內容一變，舊核准就失效 */
+export async function scopeContentHash(dir: string, files: string[]): Promise<string> {
+  const parts: string[] = []
+  for (const f of [...files].sort()) {
+    const line = (await git(dir, ['ls-files', '-s', '--', f])).trim()
+    parts.push(`${f}\0${line || 'deleted'}`)
+  }
+  return sha256(parts.join('\n'))
+}
+
+/** 內容不變時 patch-id 也不變，即使基底不同：用來判斷要不要重新審查 */
+export async function patchId(dir: string, base: string, head: string): Promise<string> {
+  const diff = await gitBuffer(dir, ['diff', '--no-ext-diff', '--no-textconv', `${base}..${head}`])
+  if (!diff.length) return ''
+  return new Promise((resolve, reject) => {
+    const p = spawn('git', ['-c', 'core.fsmonitor=false', 'patch-id', '--stable'], { cwd: dir, windowsHide: true })
+    let out = ''
+    p.stdout.setEncoding('utf8').on('data', (d: string) => (out += d))
+    p.on('error', reject)
+    p.on('close', () => resolve(out.trim().split(/\s+/)[0] || ''))
+    p.stdin.on('error', () => {})
+    p.stdin.end(diff)
+  })
+}
+
+export async function diffText(dir: string, base: string, head: string, maxChars: number): Promise<{ text: string; truncated: boolean }> {
+  const text = await git(dir, ['diff', '--no-ext-diff', '--no-textconv', `${base}..${head}`])
+  return text.length > maxChars ? { text: text.slice(0, maxChars), truncated: true } : { text, truncated: false }
+}
+
+export async function changedPaths(dir: string, base: string, head: string): Promise<string[]> {
+  return (await git(dir, ['diff', '--no-ext-diff', '--name-only', '--no-renames', '-z', `${base}..${head}`])).split('\0').filter(Boolean)
+}
+
+/** 目前 worktree 內容的 tree id（會 git add -A）：check 前後比對，確認驗證與提交的是同一份內容 */
+export async function treeOf(dir: string): Promise<string> {
+  await git(dir, ['add', '-A'])
+  return (await git(dir, ['write-tree'])).trim()
+}
+
+/** 只算不動工作區：把 commit 合到 target 的結果 */
+export async function mergeTree(repoRoot: string, target: string, commit: string): Promise<{ ok: true; tree: string } | { ok: false; message: string }> {
+  try {
+    return { ok: true, tree: (await git(repoRoot, ['merge-tree', '--write-tree', target, commit])).trim().split(/\r?\n/)[0] }
+  } catch (e) {
+    return { ok: false, message: (e as Error).message.slice(0, 800) }
+  }
+}
+
+/** 暫時的 worktree，內容是指定的 tree：拿來驗證「合併結果」 */
+export async function addTreeWorktree(repoRoot: string, dir: string, base: string, tree: string): Promise<void> {
+  fs.mkdirSync(path.dirname(dir), { recursive: true })
+  await git(repoRoot, ['worktree', 'add', '--detach', dir, base])
+  await git(dir, ['read-tree', '-u', '--reset', tree])
+}
+
+/** checks 弄髒了 harness 自己的 worktree 時還原（已忽略的檔與依賴不動） */
+export async function resetWorktree(dir: string): Promise<void> {
+  await git(dir, ['reset', '-q', '--hard'])
+  await git(dir, ['clean', '-q', '-fd'])
+}
+
+export async function revParse(cwd: string, ref: string): Promise<string> {
+  return (await git(cwd, ['rev-parse', '--verify', ref])).trim()
 }

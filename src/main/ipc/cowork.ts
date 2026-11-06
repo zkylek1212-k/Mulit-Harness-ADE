@@ -439,6 +439,11 @@ async function startRun(workspace: string, req: StartRequest): Promise<CoworkRun
  * 每個 Cowork 操作：第一個參數是呼叫端的工作區，其餘照 preload 傳的順序。
  * 桌面走 ipcMain（cowork:<key>），手機走 Remote Bridge（invokeCowork）；兩邊同一份。
  */
+const execChoice = (opts: { mode?: string; linkDeps?: boolean } | undefined): { mode: 'sequential' | 'parallel'; linkDeps: boolean } => ({
+  mode: opts?.mode === 'parallel' ? 'parallel' : 'sequential',
+  linkDeps: opts?.linkDeps !== false
+})
+
 const ops: Record<string, (workspace: string, ...args: any[]) => unknown> = {
   capabilities: async (workspace, force?: boolean) => {
     const cw = sanitizeCoworkSettings(loadSettings().cowork)
@@ -472,19 +477,37 @@ const ops: Record<string, (workspace: string, ...args: any[]) => unknown> = {
   logDispatch: (_w, runId: string, taskId: string, target: string) => svc().logDispatch(String(runId), String(taskId), String(target ?? '')),
   delete: (_w, runId: string) => svc().delete(String(runId)),
   // 背景執行：權限照使用者目前的 Bypass 設定（開始時記下來，整場沿用）
-  execStart: (_w, runId: string, opts: { mode?: string; linkDeps?: boolean }) =>
-    svc().execStart(String(runId), {
-      mode: opts?.mode === 'parallel' ? 'parallel' : 'sequential',
-      linkDeps: opts?.linkDeps !== false,
-      bypass: isCliBypassPermissions()
-    }),
+  // 先看要核准的內容（checks、Bypass、worktree 位置），hash 綁定這些內容；開始時重新核對
+  execPreview: (_w, runId: string, opts: { mode?: string; linkDeps?: boolean }) =>
+    svc().execPreview(String(runId), { ...execChoice(opts), bypass: isCliBypassPermissions(), worktreeRoot: sanitizeCoworkSettings(loadSettings().cowork).worktreeRoot }),
+  execStart: (_w, runId: string, opts: { mode?: string; linkDeps?: boolean; approval?: string }) => {
+    const cw = sanitizeCoworkSettings(loadSettings().cowork)
+    return svc().execStart(String(runId), {
+      ...execChoice(opts),
+      bypass: isCliBypassPermissions(),
+      approval: typeof opts?.approval === 'string' ? opts.approval : undefined,
+      review: cw.execReview,
+      worktreeRoot: cw.worktreeRoot,
+      runawayStop: cw.runawayStop
+    })
+  },
+  execDiff: (_w, runId: string) => svc().execDiff(String(runId)),
+  execWaive: (_w, runId: string, taskId: string, reason: string) => svc().execWaive(String(runId), String(taskId), String(reason ?? '')),
+  // git 設定被改只能在桌面放行：這個操作不在手機的 allowlist
+  execWaiveGitConfig: (_w, runId: string, taskId: string, reason: string) => svc().execWaive(String(runId), String(taskId), String(reason ?? ''), true),
   execMessage: (_w, runId: string, taskId: string, text: string) => svc().execMessage(String(runId), String(taskId), String(text ?? '')),
   execRetry: (_w, runId: string, taskId: string) => svc().execRetry(String(runId), String(taskId)),
-  execAcceptScope: (_w, runId: string, taskId: string) => svc().execAcceptScope(String(runId), String(taskId)),
+  execAcceptScope: (_w, runId: string, taskId: string, hash?: string) => svc().execAcceptScope(String(runId), String(taskId), typeof hash === 'string' ? hash : undefined),
   execRevertScope: (_w, runId: string, taskId: string) => svc().execRevertScope(String(runId), String(taskId)),
   execPause: (_w, runId: string) => svc().execPause(String(runId)),
   execResume: (_w, runId: string) => svc().execResume(String(runId)),
-  execMerge: (_w, runId: string) => svc().execMerge(String(runId)),
+  execMerge: (_w, runId: string, approval?: { commit?: unknown; targetHead?: unknown; waive?: unknown }) =>
+    svc().execMerge(
+      String(runId),
+      typeof approval?.commit === 'string'
+        ? { commit: approval.commit, targetHead: typeof approval.targetHead === 'string' ? approval.targetHead : '', ...(typeof approval.waive === 'string' ? { waive: approval.waive } : {}) }
+        : undefined
+    ),
   execCleanup: (_w, runId: string) => svc().execCleanup(String(runId)),
   bypass: () => isCliBypassPermissions()
 }

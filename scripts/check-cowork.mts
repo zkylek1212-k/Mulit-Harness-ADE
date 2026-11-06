@@ -776,6 +776,15 @@ const three = { ...base, participants: ['claude', 'codex', 'antigravity'] as any
     return r
   }
   const calls = () => fs.readFileSync(log, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l))
+  // 使用者看過 preview 才開始；這裡的舊流程不測審查（check-cowork-gates.mts 測）
+  const startExec = async (id: string, o: { mode: any; linkDeps: boolean; bypass: boolean }): Promise<void> => {
+    const p = await svc5.execPreview(id, o)
+    await svc5.execStart(id, { ...o, approval: p.hash, review: false })
+  }
+  const approvalOf = (id: string, waive?: string): any => {
+    const ex = svc5.get(id)!.execution!
+    return { commit: ex.integration?.commit || '', targetHead: ex.targetHead || '', ...(waive ? { waive } : {}) }
+  }
 
   // 規劃參考資料：基線的 CLAUDE.md 與勾選的 skill 進了 prompt
   behave({ logFile: log })
@@ -788,7 +797,7 @@ const three = { ...base, participants: ['claude', 'codex', 'antigravity'] as any
 
   // 依序：一個 worktree，t1（claude）→ t2（agy）；各一個 commit；主工作區保持乾淨
   fs.writeFileSync(log, '')
-  await svc5.execStart(r.id, { mode: 'sequential', linkDeps: true, bypass: true })
+  await startExec(r.id, { mode: 'sequential', linkDeps: true, bypass: true })
   await code(() => svc5.cancel(r.id), 'not-allowed')
   let x = await wait5(r.id, (y) => y.phase === 'review')
   const wt = x.execution.worktrees.main
@@ -809,7 +818,7 @@ const three = { ...base, participants: ['claude', 'codex', 'antigravity'] as any
   assert.ok(agyExec.argv.includes('--dangerously-skip-permissions'))
   assert.ok(agyExec.head.includes('Prerequisite tasks') && agyExec.head.includes('Done t1.'), 'dependent task sees the prerequisite reply')
   const agentTurn = x.execution.tasks.t2.turns.find((t: any) => t.role === 'agent')
-  assert.equal(agentTurn.text, 'Done t2.')
+  assert.equal(shared.stripResultBlock(agentTurn.text), 'Done t2.')
   assert.ok(agentTurn.progress[0].startsWith('write_to_file t2.txt'), agentTurn.progress[0])
 
   // 追問：接續同一個 agy conversation，改動另成一個 commit，整合重算
@@ -818,11 +827,13 @@ const three = { ...base, participants: ['claude', 'codex', 'antigravity'] as any
   await svc5.execMessage(r.id, 't2', 'also add a note')
   // 追問寫的 followup.txt 不在 t2 的 scope：先不 commit，等使用者決定
   x = await wait5(r.id, (y) => y.execution.tasks.t2.status === 'blocked')
-  assert.deepEqual(x.execution.tasks.t2.scopeReview, { files: ['followup.txt'], followUp: true })
+  assert.deepEqual(x.execution.tasks.t2.scopeReview.files, ['followup.txt'])
+  assert.equal(x.execution.tasks.t2.scopeReview.followUp, true)
   assert.equal(x.execution.tasks.t2.commits.length, 1, 'out-of-scope changes are not committed')
   assert.ok(x.log.some((l: any) => l.t === 'task-scope' && l.taskId === 't2'))
   await code(svc5.execAcceptScope(r.id, 't1'), 'not-allowed')
-  await svc5.execAcceptScope(r.id, 't2')
+  await code(svc5.execAcceptScope(r.id, 't2'), 'stale')
+  await svc5.execAcceptScope(r.id, 't2', svc5.get(r.id)!.execution!.tasks.t2.scopeReview!.hash)
   x = await wait5(r.id, (y) => y.phase === 'review' && y.execution.tasks.t2.commits.length === 2)
   assert.equal(x.execution.tasks.t2.scopeReview, undefined)
   assert.ok(x.execution.tasks.t2.changedFiles.includes('followup.txt'))
@@ -836,11 +847,12 @@ const three = { ...base, participants: ['claude', 'codex', 'antigravity'] as any
   await code(() => svc5.delete(r.id), 'has-worktrees')
   // 已追蹤的檔案有改動就不合併；未追蹤的（例如 app 的 .workbench/）不擋
   fs.writeFileSync(path.join(erepo, 'CLAUDE.md'), 'changed\n')
-  await code(svc5.execMerge(r.id), 'merge-dirty')
+  await code(svc5.execMerge(r.id), 'stale')
+  await code(svc5.execMerge(r.id, approvalOf(r.id)), 'merge-dirty')
   g(erepo, 'checkout', '--', 'CLAUDE.md')
   fs.mkdirSync(path.join(erepo, '.workbench'))
   fs.writeFileSync(path.join(erepo, '.workbench', 'state.json'), '{}')
-  await svc5.execMerge(r.id)
+  await svc5.execMerge(r.id, approvalOf(r.id))
   x = svc5.get(r.id)!
   assert.equal(x.phase, 'completed')
   assert.ok(fs.existsSync(path.join(erepo, 't1.txt')) && fs.existsSync(path.join(erepo, 'followup.txt')))
@@ -853,7 +865,7 @@ const three = { ...base, participants: ['claude', 'codex', 'antigravity'] as any
   // 同時：每家一個 worktree；t1 失敗 → t2 等著；重試後 t2 先套用 t1 的 commit；最後整合成一條分支
   behave({ execFail: 't1' })
   const p = await meeting()
-  await svc5.execStart(p.id, { mode: 'parallel', linkDeps: false, bypass: false })
+  await startExec(p.id, { mode: 'parallel', linkDeps: false, bypass: false })
   x = await wait5(p.id, (y) => y.execution.tasks.t1.status === 'failed')
   assert.equal(x.execution.tasks.t2.status, 'pending')
   assert.equal(x.phase, 'executing')
@@ -877,7 +889,7 @@ const three = { ...base, participants: ['claude', 'codex', 'antigravity'] as any
   // 停止與重啟：跑到一半停止 → 任務標成被中斷；app 重啟時還在跑的任務也一樣，等使用者繼續
   behave({ execSlowMs: 4000 })
   const s = await meeting()
-  await svc5.execStart(s.id, { mode: 'sequential', linkDeps: false, bypass: true })
+  await startExec(s.id, { mode: 'sequential', linkDeps: false, bypass: true })
   await wait5(s.id, (y) => y.execution.tasks.t1.status === 'running')
   await svc5.execPause(s.id)
   x = await wait5(s.id, (y) => y.execution.tasks.t1.status === 'cancelled')
@@ -906,8 +918,9 @@ const three = { ...base, participants: ['claude', 'codex', 'antigravity'] as any
   const independent = shared.currentBoard(ready)!.tasks.map((t) => ({ ...t, dependsOn: [], resources: ['port:5173'] }))
   svc5.editBoard(ready.id, ready.planRevision, independent)
   svc5.approve(ready.id, ready.planRevision)
-  const starting = svc5.execStart(ready.id, { mode: 'parallel', linkDeps: false, bypass: false })
-  await code(svc5.execStart(ready.id, { mode: 'parallel', linkDeps: false, bypass: false }), 'active-run-exists')
+  const readyPreview = await svc5.execPreview(ready.id, { mode: 'parallel', linkDeps: false, bypass: false })
+  const starting = svc5.execStart(ready.id, { mode: 'parallel', linkDeps: false, bypass: false, approval: readyPreview.hash, review: false })
+  await code(svc5.execStart(ready.id, { mode: 'parallel', linkDeps: false, bypass: false, approval: readyPreview.hash }), 'active-run-exists')
   await starting
   const first = await wait5(ready.id, (y) => y.execution.tasks.t1.status === 'running')
   assert.equal(first.execution.tasks.t2.status, 'pending', 'shared port is not used concurrently')
@@ -916,7 +929,7 @@ const three = { ...base, participants: ['claude', 'codex', 'antigravity'] as any
   // Planning another meeting is allowed; starting another execution before cleanup is not.
   behave({})
   const secondProject = await meeting()
-  await code(svc5.execStart(secondProject.id, { mode: 'sequential', linkDeps: false, bypass: false }), 'active-run-exists')
+  await code(svc5.execStart(secondProject.id, { mode: 'sequential', linkDeps: false, bypass: false, approval: (await svc5.execPreview(secondProject.id, { mode: 'sequential', linkDeps: false, bypass: false })).hash }), 'active-run-exists')
   await svc5.execCleanup(ready.id)
   console.log('e2e exclusive resources serialize independent tasks ok')
 
@@ -933,13 +946,13 @@ const three = { ...base, participants: ['claude', 'codex', 'antigravity'] as any
   assert.equal(shared.currentBoard(sedit)!.tasks[0].assignmentReason, 'Owns the helper module', 'editing keeps the reason when the assignee is unchanged')
   svc5.approve(sedit.id, sedit.planRevision)
   fs.writeFileSync(log, '')
-  await svc5.execStart(sedit.id, { mode: 'sequential', linkDeps: true, bypass: true })
+  await startExec(sedit.id, { mode: 'sequential', linkDeps: true, bypass: true })
   x = await wait5(sedit.id, (y) => y.execution.tasks.t1.status === 'blocked')
   assert.deepEqual(x.execution.depsLinkSkippedFor, ['t1'])
   assert.equal(x.execution.worktrees.main.depsLinked, false)
   assert.deepEqual(x.execution.tasks.t1.scopeReview.files, ['stray.txt'])
   assert.equal(x.execution.tasks.t2.status, 'pending', 'dependents wait while a task is held for scope review')
-  assert.deepEqual(x.execution.tasks.t1.result, { interfaces: ['t1.txt holds the marker'], verified: ['npm test -> pass'], unverified: ['Windows paths'], notes: 'note from t1' })
+  assert.deepEqual(x.execution.tasks.t1.result, { interfaces: ['t1.txt holds the marker'], verified: ['npm test -> pass'], unverified: ['Windows paths'], notes: 'note from t1', acceptance: [{ item: 1, status: 'done', evidence: 'fake evidence' }] })
   const swt = x.execution.worktrees.main.path
   assert.ok(calls().find((c) => c.me === 'claude').head.includes('NOT installed'), 'agent is told dependencies are not installed')
   await svc5.execRevertScope(sedit.id, 't1')

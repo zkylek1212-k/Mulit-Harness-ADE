@@ -7,8 +7,9 @@ import * as path from 'node:path'
 import * as crypto from 'node:crypto'
 import { runProcess, type RunResult } from './runner'
 import { writeJsonAtomic, readJsonWithFallback } from './store'
-import { CoworkExecutor, ExecError, type ExecCli } from './executor'
+import { CoworkExecutor, ExecError, type ExecCli, type ExecStartOptions } from './executor'
 import {
+  diffText,
   git,
   readBaseline,
   createSnapshot,
@@ -33,10 +34,12 @@ import {
   latestDiscussionSummary,
   buildR2Prompt,
   buildR34Prompt,
+  buildExecReviewPrompt,
   buildRepairPrompt,
   buildRevisePrompt,
   checkR1,
   checkR2,
+  checkExecReview,
   checkResolution,
   checkTasks,
   collectIssues,
@@ -63,6 +66,9 @@ import {
   type CoworkRunSummary,
   type CoworkStep,
   type CoworkTask,
+  type ExecPreview,
+  type ExecReview,
+  type MergeApproval,
   type ParsedOutput,
   type R1Output,
   type R2Output,
@@ -132,6 +138,10 @@ export class CoworkError extends Error {
   }
 }
 
+/** 實作後審查用：在指定的唯讀快照上呼叫，不佔規劃預算 */
+type ReadonlyTarget = { cwd: string; commit: string }
+const EXEC_REVIEW_MAX_DIFF = 200_000
+
 type StepResult<T> =
   | { ok: true; value: T }
   | { ok: false; kind: 'failed' | 'budget' | 'side-effects' | 'cancelled'; error: string; details?: string[] }
@@ -164,6 +174,7 @@ export class CoworkService {
       save: (run) => this.save(run),
       emit: (run) => this.deps.emit(run),
       resolveExecCli: (agent) => (this.deps.resolveExecCli ? this.deps.resolveExecCli(agent) : { error: 'execution is not available' }),
+      review: (run) => this.reviewExecution(run),
       otherActiveRun: (run) =>
         [...this.runs.values()].find(
           (r) => r.id !== run.id && repoIdOf(r.repo.commonDir) === repoIdOf(run.repo.commonDir) && r.execution && !r.execution.cleaned && !r.execution.merged
@@ -617,19 +628,20 @@ export class CoworkService {
     step: CoworkStep,
     agent: CoworkAgent,
     prompt: string,
-    validate: (v: unknown) => { ok: true; value: T } | { ok: false; errors: string[] }
+    validate: (v: unknown) => { ok: true; value: T } | { ok: false; errors: string[] },
+    target?: ReadonlyTarget
   ): Promise<StepResult<T>> {
     const check = (value: unknown): ReturnType<typeof validate> => {
       const message = (value as { message?: unknown } | null)?.message
       if (run.mode === 'project' && step !== 'r1' && (typeof message !== 'string' || !message.trim() || message.length > 12000)) return { ok: false, errors: ['message must contain a brief public response, at most 12000 characters'] }
       return validate(value)
     }
-    const first = await this.callAgent(run, agent, step, prompt, false)
+    const first = await this.callAgent(run, agent, step, prompt, false, target)
     if (!first.ok) return first
     const v1 = check(first.value)
     if (v1.ok) return v1
     // 修正呼叫也計入預算；預算不夠就直接回報驗證錯誤，不硬擠
-    const repaired = await this.callAgent(run, agent, step, buildRepairPrompt(prompt, first.raw, v1.errors), true)
+    const repaired = await this.callAgent(run, agent, step, buildRepairPrompt(prompt, first.raw, v1.errors), true, target)
     if (!repaired.ok) {
       if (repaired.kind === 'budget') {
         return { ok: false, kind: 'budget', error: `Invalid output and no budget left to repair it: ${v1.errors.slice(0, 3).join('; ')}`, details: v1.errors }
@@ -664,27 +676,28 @@ export class CoworkService {
     agent: CoworkAgent,
     step: CoworkStep,
     prompt: string,
-    repair: boolean
+    repair: boolean,
+    target?: ReadonlyTarget
   ): Promise<{ ok: true; value: unknown; raw: string } | Extract<StepResult<never>, { ok: false }>> {
-    // 預算在呼叫開始前記帳；失敗的呼叫也算（cowork.md §8）
-    if (run.budget.planningCallsUsed >= run.limits.maxPlanningCalls) {
+    // 預算在呼叫開始前記帳；失敗的呼叫也算（cowork.md §8）。實作後審查算在執行預算（時間由 executor 記）
+    if (!target && run.budget.planningCallsUsed >= run.limits.maxPlanningCalls) {
       return { ok: false, kind: 'budget', error: `Planning call limit reached (${run.limits.maxPlanningCalls}).` }
     }
     const maxMs = run.limits.maxPlanningMinutes * 60_000
-    if (this.msUsed(run) >= maxMs) {
+    if (!target && this.msUsed(run) >= maxMs) {
       return { ok: false, kind: 'budget', error: `Planning time limit reached (${run.limits.maxPlanningMinutes} min).` }
     }
     const cli = await this.deps.resolveCli(agent)
     if ('error' in cli) return { ok: false, kind: 'failed', error: `${agent} is not available: ${cli.error}` }
     try {
-      await this.ensureSnapshot(run)
+      if (!target) await this.ensureSnapshot(run)
     } catch (e) {
       return { ok: false, kind: 'failed', error: `Could not prepare the planning snapshot: ${(e as Error).message}` }
     }
 
     this.inflight.set(run.id, (this.inflight.get(run.id) || 0) + 1)
     try {
-      return await this.callAgentInner(run, agent, step, prompt, repair, cli)
+      return await this.callAgentInner(run, agent, step, prompt, repair, cli, target)
     } finally {
       this.inflight.set(run.id, Math.max(0, (this.inflight.get(run.id) || 1) - 1))
     }
@@ -708,8 +721,11 @@ export class CoworkService {
     step: CoworkStep,
     prompt: string,
     repair: boolean,
-    cli: ResolvedCli
+    cli: ResolvedCli,
+    target?: ReadonlyTarget
   ): Promise<{ ok: true; value: unknown; raw: string } | Extract<StepResult<never>, { ok: false }>> {
+    const cwd = target?.cwd ?? run.snapshotDir
+    const baseCommit = target?.commit ?? run.repo.baseCommit
     const callId = `c${run.calls.length + 1}`
     // 這場會議的選擇 → CLI 的預設（codex 是使用者 config.toml 的值）
     const choice = run.models?.[agent]
@@ -727,7 +743,7 @@ export class CoworkService {
     fs.writeFileSync(schemaFile, JSON.stringify(schema))
     let inv
     try {
-      inv = plannerInvocation(agent, { cwd: run.snapshotDir, schema, schemaFile, outFile, windowsSandbox: cli.windowsSandbox, model, effort, discussion: run.mode === 'discussion' })
+      inv = plannerInvocation(agent, { cwd, schema, schemaFile, outFile, windowsSandbox: cli.windowsSandbox, model, effort, discussion: run.mode === 'discussion' })
     } catch (e) {
       return { ok: false, kind: 'failed', error: (e as Error).message }
     }
@@ -749,8 +765,10 @@ export class CoworkService {
       ...(effort ? { effort } : {})
     }
     run.calls.push(call)
-    run.budget.planningCallsUsed++
-    this.clockStart(run)
+    if (!target) {
+      run.budget.planningCallsUsed++
+      this.clockStart(run)
+    }
     this.save(run)
 
     const ac = new AbortController()
@@ -763,7 +781,7 @@ export class CoworkService {
         {
           command: cli.command,
           args: [...(cli.prefixArgs || []), ...inv.args],
-          cwd: run.snapshotDir,
+          cwd,
           stdin: inv.stdin ? inv.stdin(sent) : sent,
           timeoutMs: call.timeoutMs,
           env: cli.env ? { ...process.env, ...cli.env } : undefined,
@@ -785,7 +803,7 @@ export class CoworkService {
       )
     } finally {
       set.delete(ac)
-      this.clockStop(run)
+      if (!target) this.clockStop(run)
     }
     call.endedAt = this.now()
 
@@ -818,7 +836,7 @@ export class CoworkService {
     // 每次呼叫後都核對快照：任何變動都代表 CLI 沒守住唯讀，這次規劃作廢並保留 diff
     let changes: string[] = []
     try {
-      if (run.mode !== 'discussion') changes = await snapshotChanges(run.snapshotDir, run.repo.baseCommit)
+      if (run.mode !== 'discussion') changes = await snapshotChanges(cwd, baseCommit)
     } catch (e) {
       changes = [`could not verify the snapshot: ${(e as Error).message}`]
     }
@@ -828,7 +846,7 @@ export class CoworkService {
       call.status = 'failed'
       call.error = 'side effects detected'
       fs.writeFileSync(path.join(meetingDir, `${callId}.side-effects.txt`), changes.join('\n'))
-      this.abortAll(run, 'side-effects')
+      if (!target) this.abortAll(run, 'side-effects')
       this.save(run)
       return {
         ok: false,
@@ -1027,7 +1045,7 @@ export class CoworkService {
     this.nextGen(run)
     run.planRevision++
     run.log.push({ t: 'edit', planRevision: run.planRevision, at: this.now() })
-    this.adoptBoard(run, { tasks: checked.value, decisions: board.decisions, unresolved: board.unresolved }, 'user', false)
+    this.adoptBoard(run, { tasks: checked.value, ...(board.checks ? { checks: board.checks } : {}), decisions: board.decisions, unresolved: board.unresolved }, 'user', false)
     return { ok: true }
   }
 
@@ -1081,7 +1099,87 @@ export class CoworkService {
 
   // ── 背景執行（cowork.md §12.5）──────────────────────────────────────
 
-  async execStart(runId: string, o: { mode: CoworkExecMode; linkDeps: boolean; bypass: boolean }): Promise<void> {
+  /**
+   * 實作後審查：優先找沒有參與實作的模型，在整合結果的唯讀快照上看 diff。
+   * 不把不同 CLI 當成不同模型的證明；模型識別未知就標「獨立性未確認」。失敗不中斷流程，標成未審查交給使用者。
+   */
+  private async reviewExecution(run: CoworkRun): Promise<void> {
+    const ex = run.execution!
+    const it = ex.integration!
+    const board = currentBoard(run)!
+    const implementers = [...new Set(Object.values(ex.tasks).map((t) => t.agent))]
+    const base = { implementers, findings: [], commit: it.commit!, patchId: it.patchId || '', truncated: false, at: this.now() }
+    const usable: CoworkAgent[] = []
+    for (const a of new Set<CoworkAgent>([run.chair, ...run.participants])) {
+      const c = await this.deps.resolveCli(a)
+      if (!('error' in c)) usable.push(a)
+    }
+    const modelOf = (a: CoworkAgent): string => run.models?.[a]?.model || ''
+    const others = usable.filter((a) => !implementers.includes(a))
+    // 使用者明確選了同一個模型的，就不算跨模型
+    const distinct = others.filter((a) => !modelOf(a) || !implementers.some((i) => modelOf(i) === modelOf(a)))
+    const agent = distinct[0] || others[0] || implementers.find((a) => usable.includes(a))
+    if (!agent) {
+      ex.review = { ...base, status: 'failed', error: 'no reviewer is available' }
+      run.log.push({ t: 'exec-review', status: 'failed', at: this.now() })
+      return
+    }
+    const independence: NonNullable<ExecReview['independence']> = !others.includes(agent)
+      ? 'same-source'
+      : modelOf(agent) && implementers.every((i) => modelOf(i) && modelOf(i) !== modelOf(agent))
+        ? 'cross-model'
+        : 'unconfirmed'
+    const dir = `${snapshotDirFor(run.repo.commonDir, run.id)}-review`
+    const under = path.join(run.repo.commonDir, 'cowork')
+    ex.review = { ...base, status: 'running', agent, independence }
+    run.log.push({ t: 'exec-review', status: 'running', agent, at: this.now() })
+    this.save(run)
+    this.deps.emit(run)
+    try {
+      await createSnapshot(run.repo.root, dir, it.commit!)
+      const { text, truncated } = await diffText(ex.worktrees[it.worktree!].path, run.repo.baseCommit, it.commit!, EXEC_REVIEW_MAX_DIFF)
+      const waivers = Object.entries(ex.tasks).flatMap(([id, t]) => (t.waiver ? [`${id}: ${t.waiver.reason}`] : []))
+      const prompt = buildExecReviewPrompt(run, board, { diff: text, truncated, checks: it.checkRuns || [], waivers })
+      const res = await this.runStep(run, 'exec-review', agent, prompt, checkExecReview, { cwd: dir, commit: it.commit! })
+      const model = [...run.calls].reverse().find((c) => c.step === 'exec-review')?.model
+      ex.review = res.ok
+        ? { ...base, status: 'ok', agent, model, independence, truncated, verdict: res.value.verdict, message: res.value.message, findings: res.value.findings, at: this.now() }
+        : { ...base, status: 'failed', agent, independence, truncated, error: res.error, at: this.now() }
+    } catch (e) {
+      ex.review = { ...base, status: 'failed', agent, independence, error: (e as Error).message.slice(0, 500), at: this.now() }
+    } finally {
+      try {
+        removeSnapshot(dir, under)
+      } catch {
+        /* 清不掉不影響結果 */
+      }
+    }
+    run.log.push({ t: 'exec-review', status: ex.review.status, agent, verdict: ex.review.verdict, at: this.now() })
+    this.save(run)
+  }
+
+  async execPreview(runId: string, o: { mode: CoworkExecMode; linkDeps: boolean; bypass: boolean; worktreeRoot?: string }): Promise<ExecPreview> {
+    if (o.mode !== 'sequential' && o.mode !== 'parallel') throw new CoworkError('not-allowed')
+    let out: ExecPreview | undefined
+    await this.exec(async () => {
+      out = await this.executor.preview(this.mustGet(runId), o)
+    })
+    return out!
+  }
+
+  async execDiff(runId: string): Promise<{ text: string; truncated: boolean; commit: string; targetHead: string } | null> {
+    let out: Awaited<ReturnType<CoworkExecutor['diff']>> = null
+    await this.exec(async () => {
+      out = await this.executor.diff(this.mustGet(runId))
+    })
+    return out
+  }
+
+  async execWaive(runId: string, taskId: string, reason: string, allowGitConfig = false): Promise<void> {
+    await this.exec(() => this.executor.waive(this.mustGet(runId), taskId, reason, allowGitConfig))
+  }
+
+  async execStart(runId: string, o: ExecStartOptions): Promise<void> {
     if (o.mode !== 'sequential' && o.mode !== 'parallel') throw new CoworkError('not-allowed')
     const run = this.mustGet(runId)
     const repoId = repoIdOf(run.repo.commonDir)
@@ -1100,8 +1198,8 @@ export class CoworkService {
     await this.exec(() => this.executor.retry(this.mustGet(runId), taskId))
   }
 
-  async execAcceptScope(runId: string, taskId: string): Promise<void> {
-    await this.exec(() => this.executor.acceptScope(this.mustGet(runId), taskId))
+  async execAcceptScope(runId: string, taskId: string, hash?: string): Promise<void> {
+    await this.exec(() => this.executor.acceptScope(this.mustGet(runId), taskId, hash))
   }
 
   async execRevertScope(runId: string, taskId: string): Promise<void> {
@@ -1116,8 +1214,8 @@ export class CoworkService {
     await this.exec(() => this.executor.resume(this.mustGet(runId)))
   }
 
-  async execMerge(runId: string): Promise<void> {
-    await this.exec(() => this.executor.merge(this.mustGet(runId)))
+  async execMerge(runId: string, approval?: MergeApproval): Promise<void> {
+    await this.exec(() => this.executor.merge(this.mustGet(runId), approval))
   }
 
   async execCleanup(runId: string): Promise<void> {
