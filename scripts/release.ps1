@@ -23,6 +23,9 @@
 .PARAMETER Draft
     Publish as a GitHub draft release rather than immediately public.
 
+.PARAMETER NoPublish
+    Prepare the assets in release\ and stop before anything is uploaded.
+
 .PARAMETER GoogleDrivePath
     Optional local directory path (e.g. "G:\My Drive\AgentWorkbench") to copy backups.
 
@@ -39,6 +42,7 @@ param(
     [string]$Notes = "",
     [switch]$SkipBuild,
     [switch]$Draft,
+    [switch]$NoPublish,
     [string]$GoogleDrivePath = ""
 )
 
@@ -97,10 +101,21 @@ Write-Host "$tagName" -ForegroundColor Cyan
 Write-Host "Repository: zkylek1212-k/Multi-Harness-ADE" -ForegroundColor Gray
 Write-Host ""
 
+# A version already published from the Electron app must never be overwritten, in release\ or on GitHub
+$published = gh release view $tagName --json assets --jq '.assets[].name' 2>$null
+if ($published -contains "latest.yml") {
+    Write-Host "[ERROR] $tagName is a published Electron release. Raise the version in package.json first." -ForegroundColor Red
+    exit 1
+}
+
 # 2. Typecheck & Build
+# The signing key lives outside the repo. These two can also come from the environment.
+$defaultKey = Join-Path $env:USERPROFILE ".tauri\agent-workbench-updater.key"
+if (-not $env:TAURI_SIGNING_PRIVATE_KEY -and (Test-Path $defaultKey)) { $env:TAURI_SIGNING_PRIVATE_KEY = $defaultKey }
+if (-not $env:WB_UPDATER_PUBKEY -and (Test-Path "$defaultKey.pub")) { $env:WB_UPDATER_PUBKEY = (Get-Content -Raw "$defaultKey.pub").Trim() }
 if (-not $env:TAURI_SIGNING_PRIVATE_KEY -or -not $env:WB_UPDATER_PUBKEY) {
-    Write-Host "[ERROR] Set TAURI_SIGNING_PRIVATE_KEY and WB_UPDATER_PUBKEY first. Without a signature, installed apps cannot update." -ForegroundColor Red
-    Write-Host "Create a key once with: npx tauri signer generate. Back up the private key outside the repo." -ForegroundColor Yellow
+    Write-Host "[ERROR] No updater signing key. Without a signature, installed apps cannot update." -ForegroundColor Red
+    Write-Host "Create one with: npx tauri signer generate -w $defaultKey. Back up the private key outside the repo." -ForegroundColor Yellow
     exit 1
 }
 
@@ -118,7 +133,14 @@ if (-not $SkipBuild) {
     Write-Host "[Step 2/4] Building the installer..." -ForegroundColor Cyan
     npm run build:ui
     if ($LASTEXITCODE -ne 0) { exit 1 }
-    npx tauri build --config '{\"bundle\":{\"createUpdaterArtifacts\":true}}'
+    # Signing while bundling needs the public key in the config too
+    $updaterConfig = Join-Path $env:TEMP "agent-workbench-updater-config.json"
+    $configJson = @{
+        bundle = @{ createUpdaterArtifacts = $true }
+        plugins = @{ updater = @{ pubkey = $env:WB_UPDATER_PUBKEY; endpoints = @("https://github.com/zkylek1212-k/Multi-Harness-ADE/releases/latest/download/latest.json") } }
+    } | ConvertTo-Json -Depth 5
+    [System.IO.File]::WriteAllText($updaterConfig, $configJson, (New-Object System.Text.UTF8Encoding $false))
+    npx tauri build --ci --config $updaterConfig
     if ($LASTEXITCODE -ne 0) {
         Write-Host "[ERROR] Build failed! Aborting release." -ForegroundColor Red
         exit 1
@@ -165,6 +187,11 @@ foreach ($f in $uploadFiles) {
     $item = Get-Item $f
     $mb = [math]::Round($item.Length / 1MB, 2)
     Write-Host "  * $($item.Name) ($mb MB)" -ForegroundColor Cyan
+}
+
+if ($NoPublish) {
+    Write-Host "[Notice] -NoPublish specified: assets are in release\, nothing was uploaded." -ForegroundColor Yellow
+    exit 0
 }
 
 # Determine release notes
