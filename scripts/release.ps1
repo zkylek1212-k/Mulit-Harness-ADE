@@ -102,7 +102,10 @@ Write-Host "Repository: zkylek1212-k/Multi-Harness-ADE" -ForegroundColor Gray
 Write-Host ""
 
 # A version already published from the Electron app must never be overwritten, in release\ or on GitHub
+# No such release is the normal case here, and under Stop, Windows PowerShell treats gh's stderr as a fatal error
+$ErrorActionPreference = "Continue"
 $published = gh release view $tagName --json assets --jq '.assets[].name' 2>$null
+$ErrorActionPreference = "Stop"
 if ($published -contains "latest.yml") {
     Write-Host "[ERROR] $tagName is a published Electron release. Raise the version in package.json first." -ForegroundColor Red
     exit 1

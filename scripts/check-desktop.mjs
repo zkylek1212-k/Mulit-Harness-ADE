@@ -59,8 +59,13 @@ try {
       window.api.pty.onData(${JSON.stringify(id)}, (s) => window.__t.out += s),
       window.api.pty.onExit(${JSON.stringify(id)}, (c) => window.__t.exit = c),
       window.api.pty.onResized(${JSON.stringify(id)}, (c, r) => window.__t.size = [c, r]), true)`)
-    await p.eval(`window.api.pty.attach(${JSON.stringify(id)})`)
-    await p.waitFor(`window.__t.out.length > 0`)
+    // What was printed before attaching comes back in the snapshot, the way the terminal panel gets it
+    await p.eval(`window.api.pty.attach(${JSON.stringify(id)}).then((a) => { window.__t.out = a.snapshot + window.__t.out; return true })`)
+    try {
+      await p.waitFor(`window.__t.out.length > 0`, 30000)
+    } catch (e) {
+      throw new Error(`${e.message}\nno output and an empty snapshot: the terminal itself did not come up`)
+    }
     // Every keystroke its own message: order must hold
     await p.eval(`(() => { for (const c of 'echo 0123456789abcdefghijklmnop\\r') window.api.pty.write(${JSON.stringify(id)}, c); return true })()`)
     // On the screen, not in the raw stream: ConPTY repaints differently depending on timing, and may split a line with cursor moves.
