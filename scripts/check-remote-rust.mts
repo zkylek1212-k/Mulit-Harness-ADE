@@ -149,21 +149,12 @@ const ipc = (channel: string, ...args: unknown[]): Promise<any> => new Promise((
   replies.set(id, (m) => (m.error !== undefined ? reject(new Error(m.error)) : resolve(m.result)))
   child.stdin!.write(JSON.stringify({ id, window: 2, channel, args }) + '\n')
 })
-const freePort = (): Promise<number> => new Promise((resolve) => {
-  const s = net.createServer()
-  s.listen(0, () => {
-    const p = (s.address() as net.AddressInfo).port
-    s.close(() => resolve(p))
-  })
-})
-// Three ports in a row are needed
+// Below the range outgoing connections use (49152 and up), or one of them can take a port between choosing it and binding it
 let port = 0
-for (;;) {
-  port = await freePort()
-  if (port < 65000 && (await Promise.all([1, 2].map((d) => new Promise<boolean>((res) => {
-    const s = net.createServer().once('error', () => res(false)).listen(port + d, () => s.close(() => res(true)))
-  })))).every(Boolean)) break
+const pickPort = (): void => {
+  port = 30000 + Math.floor(Math.random() * 15000)
 }
+pickPort()
 const req = (scheme: 'http' | 'https', p: number, urlPath: string, o: { method?: string; headers?: Record<string, string>; body?: string | Buffer } = {}): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: Buffer }> => new Promise((resolve, reject) => {
   const r = (scheme === 'https' ? https : http).request({ host: '127.0.0.1', port: p, path: urlPath, method: o.method || 'GET', headers: o.headers, rejectUnauthorized: false, agent: false } as any, (res) => {
     const chunks: Buffer[] = []
@@ -244,8 +235,14 @@ try {
   await ipc('test:openWindow', ws)
   assert.equal((await ipc('remote:status')).running, false)
   assert.equal(await ipc('remote:createPairing'), null, 'no pairing while off')
+  // Some other program may hold these three ports. That is not what this checks, so try others.
   await ipc('remote:setPort', port)
-  const st = await ipc('remote:setEnabled', true)
+  let st = await ipc('remote:setEnabled', true)
+  for (let i = 0; i < 5 && !st.running && /socket address/.test(st.error || ''); i++) {
+    pickPort()
+    await ipc('remote:setPort', port)
+    st = await ipc('remote:setEnabled', true)
+  }
   assert.equal(st.running, true, JSON.stringify(st))
   assert.equal(st.port, port)
   assert.match(st.caFingerprint, /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/)
