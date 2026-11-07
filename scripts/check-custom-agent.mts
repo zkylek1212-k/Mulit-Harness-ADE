@@ -22,7 +22,12 @@ const readSettings = (): any => b.ipc('settings:get')
 const started = async (o: unknown): Promise<string[]> => {
   fs.rmSync(argsLog, { force: true })
   const id = await b.ipc('pty:spawn', o)
-  await until(() => fs.existsSync(argsLog), 'the program started')
+  // The first PowerShell on a cold machine can take a while. On failure, show what the terminal says.
+  try {
+    await until(() => fs.existsSync(argsLog), 'the program started', 60000)
+  } catch (e) {
+    throw new Error(`${(e as Error).message}: ${JSON.stringify(o)}, screen: ${await b.ipc('test:ptyScreen', id)}`)
+  }
   await b.ipc('pty:kill', id)
   return JSON.parse(fs.readFileSync(argsLog, 'utf8').trim())
 }
