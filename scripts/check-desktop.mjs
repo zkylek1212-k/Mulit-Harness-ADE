@@ -63,7 +63,14 @@ try {
     await p.waitFor(`window.__t.out.length > 0`)
     // Every keystroke its own message: order must hold
     await p.eval(`(() => { for (const c of 'echo 0123456789abcdefghijklmnop\\r') window.api.pty.write(${JSON.stringify(id)}, c); return true })()`)
-    await p.waitFor(`window.__t.out.includes('0123456789abcdefghijklmnop\\r\\n') || /0123456789abcdefghijklmnop\\s+\\S*/.test(window.__t.out.split('echo')[1] || '')`)
+    // On the screen, not in the raw stream: ConPTY repaints differently depending on timing, and may split a line with cursor moves.
+    // The typed line and the command's output must both show the whole marker, in order.
+    const markerSeen = `(window.__t.out.replace(/\\x1b\\[[0-9;?]*[A-Za-z]/g, '').split('0123456789abcdefghijklmnop').length - 1) >= 2`
+    try {
+      await p.waitFor(markerSeen, 30000)
+    } catch (e) {
+      throw new Error(`${e.message}\nterminal output: ${JSON.stringify(await p.eval('window.__t.out'))}`)
+    }
     await p.eval(`(window.api.pty.resize(${JSON.stringify(id)}, 90, 20), true)`)
     await p.waitFor(`JSON.stringify(window.__t.size) === '[90,20]'`)
     await p.eval(`(window.api.pty.write(${JSON.stringify(id)}, 'exit\\r'), true)`)
