@@ -61,7 +61,7 @@ app.whenReady().then(async () => {
     try { return await win.webContents.executeJavaScript(code) }
     catch (e) { console.error('UI action failed:', code, errors); throw e }
   }
-  const pause = () => new Promise(r => setTimeout(r, 250))
+  const pause = () => win.webContents.settled(250)
   const errors = []
   win.webContents.on('console-message', (_e, level, message) => { if (level >= 3) errors.push(message) })
   try {

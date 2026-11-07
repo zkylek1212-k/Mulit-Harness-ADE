@@ -144,6 +144,21 @@ class WebContents {
     const v = await cdp.send('Runtime.callFunctionOn', { objectId: r.result.objectId, functionDeclaration: 'function () { try { return JSON.parse(JSON.stringify(this)) } catch { return {} } }', returnByValue: true })
     return v.result.value
   }
+  /**
+   * Waits for the page to stop changing, at least `min` ms. A fixed sleep is a guess about how fast the machine is:
+   * on a slow one the test reads a screen that has not rendered yet.
+   */
+  async settled(min = 100) {
+    await new Promise((r) => setTimeout(r, min))
+    await this.executeJavaScript(`new Promise((done) => {
+      let quiet
+      const finish = () => { clearTimeout(quiet); clearTimeout(cap); observer.disconnect(); done(true) }
+      const observer = new MutationObserver(() => { clearTimeout(quiet); quiet = setTimeout(finish, 150) })
+      const cap = setTimeout(finish, 5000)
+      observer.observe(document, { subtree: true, childList: true, characterData: true, attributes: true })
+      quiet = setTimeout(finish, 150)
+    })`)
+  }
   async capturePage() {
     const cdp = await this.ready
     const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' })

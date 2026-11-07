@@ -96,7 +96,7 @@ app.whenReady().then(async () => {
     const errors = []
     win.webContents.on('console-message', (_event, level, message) => { if (level >= 3) errors.push(message) })
     const run = code => win.webContents.executeJavaScript(code).catch(error => { throw new Error(`${code}\n${error.message}`) })
-    const pause = () => new Promise(resolve => setTimeout(resolve, 250))
+    const pause = () => win.webContents.settled(250)
     const add = async name => {
       await run('document.querySelector(".term-add-dropdown-btn").click()')
       await pause()

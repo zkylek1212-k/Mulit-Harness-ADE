@@ -84,7 +84,7 @@ app.whenReady().then(async () => {
   const errors = []
   win.webContents.on('console-message', (_e, level, message) => { if (level >= 3) errors.push(message) })
   const run = (code) => win.webContents.executeJavaScript(code)
-  const pause = () => new Promise((r) => setTimeout(r, 120))
+  const pause = () => win.webContents.settled(120)
   const text = () => run('document.body.innerText')
   const calls = async (name) => run(`window.calls.filter(c => c.name === ${JSON.stringify(name)})`)
   try {
